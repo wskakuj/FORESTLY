@@ -216,3 +216,30 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+# ================== Forestly ==================
+# Dane obrębów i pliki osobiste — NIE wrzucać do repo
+*.DBF
+*.dbf
+*.NTX
+*.xls
+*.xlsx
+*.mdb
+*.TXT
+*.doc
+*.docx
+*.pdf
+*.zip
+*.png
+
+# wyjątki: pliki wymagane do budowy EXE
+!STR_TYT.docx
+!STR_TYT_TYLKO-ISL-2.docx
+!Skroty.docx
+!BIAŁYNIN KRASÓWKA.xlsx
+
+# pliki generowane przez program (zapamiętane ścieżki itp.)
+settings.json
+margins_config.json
+folder_history.json
+
+
