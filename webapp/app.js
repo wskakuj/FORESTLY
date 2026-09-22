@@ -242,14 +242,16 @@ function renderControls(view, tab) {
       case "fonts": view.appendChild(renderFonts(c)); break;
       case "dashboard": view.appendChild(renderDashboard(c)); break;
       case "info": view.appendChild(renderInfo(c)); break;
+      case "gdos_table": view.appendChild(renderGdos(c)); break;
     }
   }
   const actions = document.createElement("div");
   actions.className = "actions";
   for (const b of tab.buttons) {
     const btn = document.createElement("button");
-    btn.className = "btn " + (b.style === "secondary" ? "secondary" : "primary run-btn");
-    btn.textContent = b.label;
+    const isRun = b.style !== "secondary";
+    btn.className = "btn " + (isRun ? "primary run-btn" : "secondary");
+    btn.innerHTML = (isRun ? ICON("play") : "") + "<span>" + escapeHtml(b.label) + "</span>";
     btn.title = b.tooltip || "";
     if (b.style !== "secondary") btn.classList.add("run-big");
     btn.onclick = () => { LAST_TASK_LABEL = b.label; runTask(b.task); };
@@ -269,6 +271,26 @@ function escapeHtml(s) {
 }
 function cssEscape(s) { return s.replace(/"/g, '\\"'); }
 
+/* ------------------------------------------------------------- ikony SVG */
+const ICONS = {
+  play:    '<polygon points="7 4 21 12 7 20"/>',
+  folder:  '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
+  clock:   '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/>',
+  stop:    '<rect x="5" y="5" width="14" height="14" rx="2"/>',
+  sun:     '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  refresh: '<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>',
+  trash:   '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  plus:    '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  save:    '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>',
+  chevron: '<polyline points="6 9 12 15 18 9"/>'
+};
+function ICON(name) {
+  const path = ICONS[name];
+  if (!path) return "";
+  return '<svg class="bi" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + path + "</svg>";
+}
+
 /* kontrolka: ścieżka */
 function renderPath(c) {
   const row = el("div", "field");
@@ -281,14 +303,16 @@ function renderPath(c) {
   input.oninput = scheduleSetValues;
   group.appendChild(input);
 
-  const browse = el("button", "btn secondary", "Przeglądaj");
+  const browse = el("button", "btn secondary");
+  browse.innerHTML = ICON("folder") + "<span>Przeglądaj</span>";
   browse.onclick = async () => {
     const r = await api().browse(c.id, c.browse || "folder");
     if (r.path) { input.value = r.path; scheduleSetValues(); }
   };
   group.appendChild(browse);
 
-  const hist = el("button", "btn secondary", "🕒");
+  const hist = el("button", "btn secondary");
+  hist.innerHTML = ICON("clock");
   hist.title = "Pokaż historię ostatnio używanych folderów";
   hist.onclick = async () => {
     const r = await api().get_history();
@@ -478,6 +502,122 @@ function renderFonts(c) {
 }
 
 /* dashboard */
+/* ------------------------------------- kontrolka: edytor bazy obszarów GDOŚ */
+function renderGdos(c) {
+  const box = el("div", "field gdos-field");
+  box.innerHTML = `<label>${escapeHtml(c.label || "Obszary ochrony przyrody")}</label>` +
+    `<div class="gdos-hint">Nazwa musi być taka sama jak w pliku wynikowym GDOŚ (np. „Ostoja Międzychodzko-Sierakowska”). Publikacja PZO, powiązanie i opis trafiają do opisu ogólnego. W pustych polach pokazuję przykłady.</div>`;
+  const wrap = el("div", "gdos-wrap");
+  box.appendChild(wrap);
+  api().gdos_list().then(r => {
+    renderGdosTable(wrap, (r && r.ok) ? r.rows : []);
+    if (r && !r.ok) toast(r.error || "Nie udało się wczytać bazy obszarów.", "error");
+  }).catch(() => { /* pywebview jeszcze niegotowy */ });
+  return box;
+}
+
+function renderGdosTable(wrap, rows) {
+  wrap.innerHTML = "";
+  const PH = {
+    nazwa: "np. Ostoja Międzychodzko-Sierakowska",
+    typ: "OSO lub SOO — puste dla parku krajobrazowego",
+    kod: "np. PLH300036",
+    pzo: "np. Dz. Urz. Woj. Wielkopolskiego z 2014 r. poz. 1793",
+    powiazanie: "np. PZO wskazuje zagrożenia związane m.in. z cięciami starodrzewów, pracami w okresach wrażliwych oraz usuwaniem drzew dziuplastych i martwego drewna...",
+    opis: "np. Sierakowski Park Krajobrazowy: według stanu na 21 września 2026 r. nie zgłoszono sprzeciwu do zadań gospodarki leśnej na gruntach prywatnych."
+  };
+
+  rows.forEach((row, i) => {
+    const item = el("div", "gdos-item");
+
+    /* --- nagłówek karty: zwijanie, nazwa, typ, kod, usuń --- */
+    const head = el("div", "gdos-item-head");
+    const tog = el("button", "gdos-tog");
+    tog.type = "button";
+    tog.title = "Rozwiń / zwiń szczegóły obszaru";
+    tog.innerHTML = ICON("chevron");
+
+    const nazwa = el("input", "gdos-nazwa");
+    nazwa.type = "text";
+    nazwa.placeholder = PH.nazwa;
+    nazwa.value = row.nazwa != null ? String(row.nazwa) : "";
+    nazwa.dataset.g = i + ":nazwa";
+    nazwa.title = "Nazwa obszaru — dokładnie taka jak w pliku GDOŚ";
+
+    const typ = el("input", "gdos-typ");
+    typ.type = "text";
+    typ.placeholder = PH.typ;
+    typ.value = row.typ != null ? String(row.typ) : "";
+    typ.dataset.g = i + ":typ";
+    typ.title = "Typ obszaru";
+
+    const kod = el("input", "gdos-kod");
+    kod.type = "text";
+    kod.placeholder = PH.kod;
+    kod.value = row.kod != null ? String(row.kod) : "";
+    kod.dataset.g = i + ":kod";
+    kod.title = "Kod obszaru Natura 2000";
+
+    const del = el("button", "btn secondary gdos-del");
+    del.innerHTML = ICON("trash");
+    del.title = "Usuń ten obszar";
+    del.onclick = () => { rows.splice(i, 1); renderGdosTable(wrap, rows); };
+
+    head.appendChild(tog);
+    head.appendChild(nazwa);
+    head.appendChild(typ);
+    head.appendChild(kod);
+    head.appendChild(del);
+    item.appendChild(head);
+
+    /* --- rozwijana treść: publikacja, powiązanie, opis --- */
+    const body = el("div", "gdos-item-body");
+    [["pzo", "Publikacja PZO"], ["powiazanie", "Powiązanie z gospodarką leśną"],
+     ["opis", "Opis (pozostałe formy)"]].forEach(f => {
+      const fld = el("div", "gdos-fld");
+      fld.appendChild(el("label", null, escapeHtml(f[1])));
+      const ta = el("textarea");
+      ta.rows = 3;
+      ta.placeholder = PH[f[0]];
+      ta.value = row[f[0]] != null ? String(row[f[0]]) : "";
+      ta.dataset.g = i + ":" + f[0];
+      fld.appendChild(ta);
+      body.appendChild(fld);
+    });
+    item.appendChild(body);
+    tog.onclick = () => item.classList.toggle("collapsed");
+    wrap.appendChild(item);
+  });
+
+  const acts = el("div", "actions");
+  const add = el("button", "btn secondary");
+  add.innerHTML = ICON("plus") + "<span>Dodaj obszar</span>";
+  add.onclick = () => {
+    rows.push({ nazwa: "", typ: "", kod: "", pzo: "", powiazanie: "", opis: "" });
+    renderGdosTable(wrap, rows);
+  };
+  const save = el("button", "btn primary");
+  save.innerHTML = ICON("save") + "<span>Zapisz bazę</span>";
+  save.onclick = async () => {
+    const out = [];
+    wrap.querySelectorAll(".gdos-item").forEach(it => {
+      const o = {};
+      it.querySelectorAll("[data-g]").forEach(inp => { o[inp.dataset.g.split(":")[1]] = inp.value; });
+      out.push(o);
+    });
+    const czyste = out.filter(o => String(o.nazwa || "").trim());
+    if (out.length !== czyste.length) toast("Pominięto obszary bez nazwy.", "warn");
+    try {
+      const r = await api().gdos_save(JSON.stringify(czyste));
+      if (r.ok) toast("✓ Zapisano bazę obszarów (" + r.count + ")", "done");
+      else toast(r.error || "Nie udało się zapisać bazy.", "error");
+    } catch (e) { toast("Nie udało się zapisać bazy.", "error"); }
+  };
+  acts.appendChild(add);
+  acts.appendChild(save);
+  wrap.appendChild(acts);
+}
+
 function renderDashboard(c) {
   const wrap = el("div", "card");
   wrap.dataset.cid = c.id;
@@ -630,7 +770,7 @@ function appendLog(text) {
   const log = $("#log");
   const div = el("div", null, escapeHtml(text));
   if (/BŁĄD|Error|Traceback/i.test(text)) div.className = "err";
-  else if (/\[UWAGA\]|warn/i.test(text)) div.className = "warn";
+  else if (/\[UWAGA\]|UWAGA:|ostrzeżenie|warn/i.test(text)) div.className = "warn";
   else if (/ZAKOŃCZONO|pomyślnie|\[OK\]/i.test(text)) div.className = "ok";
   log.appendChild(div);
   while (log.children.length > 3000) log.removeChild(log.firstChild);
@@ -641,14 +781,38 @@ let LAST_TASK_LABEL = null;    /* nazwa ostatnio uruchomionego zadania */
 let LAST_STATUS_ERR = false;   /* czy ostatni status był błędem (czerwony) */
 let STOP_REQUESTED = false;   /* czy użytkownik kliknął „Zatrzymaj" */
 
+/* ------------------------------------------------- licznik czasu zadania */
+let TIMER_T0 = null, TIMER_IV = null;
+function fmtDur(ms) {
+  const total = Math.floor(ms / 1000);
+  const h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), ss = total % 60;
+  const p = n => String(n).padStart(2, "0");
+  return (h ? h + ":" + p(m) : p(m)) + ":" + p(ss);
+}
+function startTimer() {
+  if (TIMER_IV) { clearInterval(TIMER_IV); TIMER_IV = null; }
+  TIMER_T0 = Date.now();
+  const t = $("#task-timer");
+  t.classList.remove("hidden");
+  t.textContent = "⏱ 0:00";
+  TIMER_IV = setInterval(() => {
+    t.textContent = "⏱ " + fmtDur(Date.now() - TIMER_T0);
+  }, 1000);
+}
+function stopTimerKeep() {
+  if (TIMER_IV) { clearInterval(TIMER_IV); TIMER_IV = null; }
+  if (TIMER_T0 != null) $("#task-timer").textContent = "⏱ " + fmtDur(Date.now() - TIMER_T0);
+  TIMER_T0 = null;
+}
+
 function setRunning(running) {
   const was = RUNNING;
   RUNNING = running;
   $$(".run-btn").forEach(b => b.disabled = running);
   $("#btn-stop").classList.toggle("hidden", !running);
   const dot = $("#status-dot");
-  if (running) { dot.className = "busy"; }
-  else { dot.className = ""; }
+  if (running) { dot.className = "busy"; startTimer(); }
+  else { dot.className = ""; if (was) stopTimerKeep(); }
   /* koniec zadania → powiadomienie + dźwięk */
   if (was && !running) notifyTaskEnd();
 }
@@ -663,7 +827,8 @@ function notifyTaskEnd() {
     toast("✗ Zadanie zakończone błędem: " + label + " — szczegóły w logu", "error");
     return;
   }
-  toast("✓ Zakończono: " + label, "done");
+  const dur = ($("#task-timer") || {}).textContent || "";
+  toast("✓ Zakończono: " + label + (dur ? " — czas: " + dur.replace("⏱ ", "") : ""), "done");
   playChime();
   /* gdy okno jest schowane — spróbuj systemowego powiadomienia (jeśli zgoda) */
   if (document.hidden && typeof Notification !== "undefined" &&

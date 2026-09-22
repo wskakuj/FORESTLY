@@ -652,3 +652,89 @@ button.order-toggle.off:hover {
 .cl-item { display: flex; gap: 10px; padding: 3px 0; align-items: flex-start; }
 .cl-bullet { color: var(--green); font-weight: 700; flex: none; }
 .cl-line { padding: 3px 0; }
+
+
+/* ============================ v2.0.17: ikony, pasek, licznik, edytor GDOŚ */
+
+/* ikony w przyciskach */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.btn .bi { width: 15px; height: 15px; flex: 0 0 auto; }
+.btn.ghost .bi { width: 14px; height: 14px; }
+#btn-stop .bi { stroke: var(--red); }
+
+/* licznik czasu zadania */
+#task-timer {
+  margin-left: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  white-space: nowrap;
+}
+#task-timer.hidden { display: none; }
+
+/* edytor bazy obszarów GDOŚ — karty zamiast tabeli */
+.gdos-field { width: 100%; }
+.gdos-hint { font-size: 12px; color: var(--text-dim); margin: -4px 0 10px 0; line-height: 1.5; }
+.gdos-wrap { width: 100%; display: flex; flex-direction: column; gap: 12px; }
+
+.gdos-item {
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--card);
+  overflow: hidden;
+}
+.gdos-item-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px;
+  background: rgba(127, 140, 160, 0.05);
+  border-bottom: 1px solid var(--border);
+}
+.gdos-item.collapsed .gdos-item-head { border-bottom: none; }
+.gdos-item.collapsed .gdos-item-body { display: none; }
+.gdos-item.collapsed .gdos-tog .bi { transform: rotate(-90deg); }
+
+.gdos-tog {
+  flex: 0 0 auto;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px;
+  border-radius: 8px; border: 1px solid var(--border-strong);
+  background: transparent; color: var(--text-dim);
+  cursor: pointer; padding: 0;
+}
+.gdos-tog:hover { color: var(--text); border-color: var(--accent); }
+.gdos-tog .bi { width: 15px; height: 15px; transition: transform .18s ease; }
+
+.gdos-item-head input {
+  font: inherit; color: var(--text);
+  background: rgba(127, 140, 160, 0.07);
+  border: 1px solid var(--border-strong); border-radius: 8px;
+  padding: 7px 10px;
+}
+.gdos-item-head input::placeholder { color: var(--text-dim); opacity: .75; font-size: 11.5px; }
+.gdos-item-head input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(45, 212, 167, 0.14); outline: none; }
+.gdos-nazwa { flex: 1 1 auto; min-width: 180px; font-weight: 600; }
+.gdos-typ   { flex: 0 1 100px; min-width: 76px; }
+.gdos-kod   { flex: 0 1 140px; min-width: 104px; }
+
+.gdos-item-head .gdos-del { padding: 7px 9px; }
+.gdos-item-head .gdos-del .bi { stroke: var(--red); }
+.gdos-item-head .gdos-del:hover { border-color: var(--red); }
+
+.gdos-item-body { padding: 10px 12px 12px 12px; display: flex; flex-direction: column; gap: 10px; }
+.gdos-fld { display: flex; flex-direction: column; gap: 4px; }
+.gdos-fld > label { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--text-dim); }
+.gdos-fld textarea {
+  width: 100%; box-sizing: border-box; font: inherit; color: var(--text);
+  background: rgba(127, 140, 160, 0.07);
+  border: 1px solid var(--border-strong); border-radius: 8px;
+  padding: 8px 10px; resize: vertical; min-height: 64px; line-height: 1.5;
+}
+.gdos-fld textarea::placeholder { color: var(--text-dim); opacity: .75; font-size: 11.5px; }
+.gdos-fld textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(45, 212, 167, 0.14);
+  background: rgba(127, 140, 160, 0.04);
+  outline: none;
+}
+.gdos-wrap .actions { margin-top: 2px; gap: 10px; }

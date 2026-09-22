@@ -636,6 +636,61 @@ class WebBackend(
         self._emit({"type": "state", "running": False})
         return {"ok": True}
 
+    # --------------------------------------- baza obszarów GDOŚ (edytor web)
+    def _gdos_plik_zapisu(self):
+        """Plik zapisu bazy: obok EXE (wersja przenośna) albo repo root (dev)."""
+        if getattr(sys, "frozen", False):
+            return Path(sys.executable).resolve().parent / "gdos_obszary.json"
+        return Path(__file__).resolve().parent.parent.parent / "gdos_obszary.json"
+
+    def gdos_list(self):
+        """Lista obszarów ochrony przyrody z gdos_obszary.json (dla edytora)."""
+        try:
+            from app.core.word_worker import get_resource_path
+            with open(get_resource_path("gdos_obszary.json"), encoding="utf-8") as f:
+                rows = json.load(f).get("obszary", [])
+            return {"ok": True, "rows": rows}
+        except Exception:
+            return {"ok": False, "error": "Nie można wczytać pliku gdos_obszary.json"}
+
+    def gdos_save(self, rows_json):
+        """Zapis edytowanej bazy obszarów + odświeżenie cache generatora."""
+        try:
+            rows = json.loads(rows_json) if isinstance(rows_json, str) else rows_json
+            if not isinstance(rows, list):
+                raise ValueError("nieprawidłowy format danych")
+            czyste = []
+            for r in rows:
+                nazwa = str(r.get("nazwa", "")).strip()
+                if not nazwa:
+                    continue
+                czyste.append({k: str(r.get(k, "") or "").strip()
+                               for k in ("nazwa", "typ", "kod", "pzo",
+                                         "powiazanie", "opis")})
+            # zachowaj opis pliku z oryginału
+            opis = ("Baza obszarów ochrony przyrody dla generatora opisów "
+                    "ogólnych (folder z wynikami GDOŚ).")
+            try:
+                from app.core.word_worker import get_resource_path
+                with open(get_resource_path("gdos_obszary.json"), encoding="utf-8") as f:
+                    opis = json.load(f).get("_opis", opis)
+            except Exception:
+                pass
+            sciezka = self._gdos_plik_zapisu()
+            with open(sciezka, "w", encoding="utf-8") as f:
+                json.dump({"_opis": opis, "obszary": czyste},
+                          f, ensure_ascii=False, indent=1)
+            # cache bazy w generatorze opisów musi się odświeżyć
+            from app.gui.tabs.tab_opis_og import TabOpisOgMixin
+            TabOpisOgMixin._gdos_kb_cache = None
+            self.log("[OK] Baza obszarów GDOŚ zapisana: "
+                     + str(len(czyste)) + " obszarów → " + str(sciezka))
+            return {"ok": True, "count": len(czyste)}
+        except Exception:
+            self.log("[BŁĄD] Zapis bazy obszarów GDOŚ:\n"
+                     + traceback.format_exc())
+            return {"ok": False, "error": "Nie udało się zapisać bazy (szczegóły w logu)"}
+
     def notify_update_check(self, is_latest, manual=False):
         """Wynik AUTOMATYCZNEGO sprawdzenia wersji przy starcie —
         dyskretne potwierdzenie, żeby nie wyglądało jakby program nie sprawdzał."""

@@ -270,6 +270,24 @@ def build_schema():
             "buttons": [_button("run", "Generuj opisy ogólne", "start_opis_og")],
         },
 
+        {
+            "key": "MIETEK|Baza obszarów GDOŚ",
+            "tooltip": "Edytor bazy obszarów ochrony przyrody używanej "
+                       "przy generowaniu opisów ogólnych (z wyników GDOŚ).",
+            "controls": [
+                _info("Baza obszarów ochrony przyrody dla zakładki „Opisy "
+                      "ogólne” — uzupełnia kody obszarów, publikacje PZO "
+                      "i teksty powiązań, których nie ma w plikach wynikowych "
+                      "GDOŚ. Dopisz tu kolejne obszary: nazwa musi być taka sama jak "
+                      "w pliku GDOŚ (np. „Ostoja Międzychodzko-Sierakowska”). "
+                      "Zmiany obowiązują od następnego generowania opisów. "
+                      "W pustych polach edytora pokazują się przykłady."),
+                {"id": "gdos_table", "kind": "gdos_table",
+                 "label": "Obszary ochrony przyrody:"},
+            ],
+            "buttons": [],
+        },
+
         # ============================================================== TAKSATOR
         {
             "key": "TAKSATOR|Kreator Szablonu STR_TYT",

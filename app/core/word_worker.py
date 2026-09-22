@@ -333,6 +333,10 @@ def run_word_worker(in_dir_str, out_dir_str, remove_names, file_filter=None, mar
 
 def get_resource_path(filename):
     candidates = []
+    # plik obok EXE ma pierwszeństwo — pozwala nadpisywać zasoby bez
+    # przebudowy (np. edytowaną przez użytkownika bazę gdos_obszary.json)
+    if getattr(sys, "frozen", False):
+        candidates.append(Path(sys.executable).resolve().parent / filename)
     meipass = getattr(sys, "_MEIPASS", None)
     if meipass:
         candidates.append(Path(meipass) / filename)
