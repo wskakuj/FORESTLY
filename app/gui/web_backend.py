@@ -37,6 +37,7 @@ from app.gui.web_schema import build_schema
 
 # Mixiny — identyczny skład jak ModernApp (bez ctk.CTk)
 from app.gui.tabs.tab_all import TabAllMixin
+from app.gui.tabs.tab_opis_og import TabOpisOgMixin
 from app.gui.tabs.tab_word import TabWordMixin
 from app.gui.tabs.tab_pdf import TabPdfMixin
 from app.gui.tabs.tab_manual_merge import TabManualMergeMixin
@@ -115,6 +116,7 @@ class FakeButton:
 # --------------------------------------------------------------------- backend
 
 class WebBackend(
+    TabOpisOgMixin,
     TabAllMixin, TabWordMixin, TabPdfMixin, TabManualMergeMixin,
     TabTemplateGeneratorMixin, TabTitlePagesMixin, TabExcelMixin,
     TabLayoutExcelMixin, TabSplitPdfMixin, TabMdbUpdateMixin,
@@ -173,7 +175,8 @@ class WebBackend(
                      "mietek_rozb_excel_entry", "mietek_rozb_out_entry",
                      "mietek_rozb_start_btn", "mietek_rozb_bez_nazwisk_btn",
                      "wydruki_mietki_entry", "wydruki_all_btn",
-                     "manual_pdf_src", "manual_pdf_dst"):
+                     "manual_pdf_src", "manual_pdf_dst",
+                     "opis_og_root_entry"):
             setattr(self, attr, None)
 
         self._install_messagebox_shim()
@@ -592,6 +595,7 @@ class WebBackend(
             "start_excel": self.start_excel_pipeline,
             "start_layout_excel": self.start_layout_excel_pipeline,
             "start_split_pdf": self.start_split_pdf_pipeline,
+            "start_opis_og": self.start_opis_og_pipeline,
             "start_mdb_update": self.start_mdb_update_pipeline,
             "start_excel_z_mdb": self.start_excel_z_mdb_pipeline,
             "start_pdf_converter": self.start_pdf_converter_pipeline,

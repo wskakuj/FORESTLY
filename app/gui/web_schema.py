@@ -241,6 +241,22 @@ def build_schema():
             ],
             "buttons": [_button("run", "Generuj struktury (tylko Ewidencja)", "start_nazwiska_mietek")],
         },
+        {
+            "key": "MIETEK|Opis ogólny (opis og)",
+            "tooltip": "Tworzy \u201eopis og_<wie\u015b>.docx\u201d w folderach wsi \u2014 liczby czyta z WSK_ZB.doc.",
+            "controls": [
+                _info("Generator tworzy plik \u201eopis og_<nazwa wsi>.docx\u201d w każdym folderze wsi. "
+                      "Etaty i użytkowanie przedrębne czyta automatycznie z pliku WSK_ZB.doc "
+                      "znajdującego się w folderze wsi. Formy ochrony przyrody (Natura 2000, "
+                      "parki krajobrazowe) wpisujesz ręcznie \u2014 w pliku zostanie wyraźnie "
+                      "oznaczone miejsce."),
+                _path("opis_og_root", "opis_og_root_entry",
+                      "Folder główny (z folderami wsi) albo folder pojedynczej wsi:",
+                      "np. folder \u201eu\u0142o\u017cone\u201d albo folder jednej wsi"),
+            ],
+            "buttons": [_button("run", "Generuj opisy ogólne", "start_opis_og")],
+        },
+
         # ============================================================== TAKSATOR
         {
             "key": "TAKSATOR|Kreator Szablonu STR_TYT",

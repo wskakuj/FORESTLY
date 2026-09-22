@@ -1,5 +1,3 @@
-# Co nowego w v2.0.7
-
- nowa ikona programu (Forestly) w obu EXE
- widoczne potwierdzenie sprawdzenia wersji przy starcie
+# Co nowego w v2.0.8
+- \- dodano generator opisów ogólnych dla mietka
 
