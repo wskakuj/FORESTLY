@@ -224,6 +224,7 @@ class TabOpisOgMixin:
             self.update_status("Brak folderu", "#D83B01", animate=False)
             return
         root = Path(raw)
+        self.last_output_dir = root
         if not root.exists():
             self.log(f"[OPIS OG] Folder nie istnieje: {root}")
             self.update_status("Brak folderu", "#D83B01", animate=False)

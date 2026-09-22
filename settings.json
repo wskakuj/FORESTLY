@@ -39,8 +39,8 @@
   "web.mt_out": "D:\\download\\gówno\\Nowy folder (16)\\Nowy folder (3)\\Nowy folder\\bez nazwisk\\Word",
   "web.mt_village_ph": "NAZWA WSI",
   "web.mt_area_ph": "wielkość",
-  "web.pdf_src": "D:\\download\\gówno\\Nowy folder (16)\\Nowy folder (3)\\Nowy folder\\bez nazwisk\\Word",
-  "web.pdf_dst": "D:\\download\\gówno\\Nowy folder (16)\\Nowy folder (3)\\Nowy folder\\bez nazwisk\\Word",
+  "web.pdf_src": "D:\\download\\gówno\\Nowy folder (18)\\OPISY_OGOLNE_POPRAWIONE_2026\\Nowy folder\\bez nazwisk",
+  "web.pdf_dst": "D:\\download\\gówno\\Nowy folder (18)\\OPISY_OGOLNE_POPRAWIONE_2026\\Nowy folder\\bez nazwisk",
   "web.pdf_merge": true,
   "web.mm_src": "",
   "web.mm_dst": "",
@@ -108,5 +108,6 @@
   "web.pc_src": "",
   "web.pc_dst": "",
   "web.pdf_skroty": true,
-  "web.opis_og_gdos": "\\\\NASA\\wd-wcc3f2596652\\URZ2026\\MIĘDZYCHÓD_KWILCZ\\wyniki gdoś"
+  "web.opis_og_gdos": "\\\\NASA\\wd-wcc3f2596652\\URZ2026\\MIĘDZYCHÓD_KWILCZ\\wyniki gdoś",
+  "web.pdf_spis": true
 }

@@ -828,7 +828,16 @@ function notifyTaskEnd() {
     return;
   }
   const dur = ($("#task-timer") || {}).textContent || "";
-  toast("✓ Zakończono: " + label + (dur ? " — czas: " + dur.replace("⏱ ", "") : ""), "done");
+  toast("✓ Zakończono: " + label + (dur ? " — czas: " + dur.replace("⏱ ", "") : ""), "done", {
+    label: "Otwórz folder wyników",
+    ms: 12000,
+    run: async () => {
+      try {
+        const r = await api().open_last_output();
+        if (!r.ok) toast(r.error || "Nie udało się otworzyć folderu.", "warn");
+      } catch (e) { toast("Nie udało się otworzyć folderu.", "warn"); }
+    }
+  });
   playChime();
   /* gdy okno jest schowane — spróbuj systemowego powiadomienia (jeśli zgoda) */
   if (document.hidden && typeof Notification !== "undefined" &&
@@ -939,10 +948,21 @@ function showDialog(ev) {
   }
 }
 
-function toast(msg, kind) {
+function toast(msg, kind, action) {
   const t = el("div", "toast " + (kind || ""), escapeHtml(msg));
+  if (action && action.label) {
+    const b = el("button", "toast-btn");
+    b.type = "button";
+    b.textContent = action.label;
+    b.onclick = async () => {
+      const r = action.run ? await action.run() : null;
+      t.remove();
+      return r;
+    };
+    t.appendChild(b);
+  }
   $("#toast-root").appendChild(t);
-  setTimeout(() => t.remove(), 6000);
+  setTimeout(() => t.remove(), (action && action.ms) || 6000);
   return t;
 }
 

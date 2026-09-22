@@ -4,9 +4,10 @@ Forestly — Mixin: TabPdfMixin
 
 import customtkinter as ctk
 import time
+from pathlib import Path
+
 import pymupdf as fitz
-from pypdf import PdfWriter
-from pypdf import PdfReader
+from pypdf import PdfWriter, PdfReader
 import win32com.client
 
 from app.config import (
@@ -47,6 +48,7 @@ class TabPdfMixin:
             return 0
 
         total_docs = len(docs)
+        self.last_output_dir = Path(out_dir)
         self.start_progress_tracking(total_docs, "Konwersja Word -> PDF")
 
         # Inicjalizacja strumienia
@@ -178,6 +180,7 @@ class TabPdfMixin:
 
         count = 0
         total_dirs = len(pdf_dirs)
+        self.last_output_dir = Path(out_dir)
         self.start_progress_tracking(total_dirs, "Scalanie PDF")
         template_keys = get_saved_template_order(in_dir, mode_key)
         excluded_keys = get_saved_excluded_templates(in_dir, mode_key)
@@ -254,6 +257,7 @@ class TabPdfMixin:
 
         count = 0
         total_pdfs = len(pdfs)
+        self.last_output_dir = Path(out_dir)
         self.start_progress_tracking(total_pdfs, "Usuwanie pustych stron")
 
         for idx_pdf, pdf_path in enumerate(pdfs, start=1):
@@ -266,6 +270,8 @@ class TabPdfMixin:
 
             doc = fitz.open(str(pdf_path))
             out = fitz.open()
+            # mapa: stary indeks strony -> nowy indeks (żeby przenieść spis treści)
+            mapa_stron = {}
             for i in range(doc.page_count):
                 page = doc.load_page(i)
                 pix = page.get_pixmap(
@@ -276,7 +282,29 @@ class TabPdfMixin:
                 data = pix.samples
                 white = sum(1 for v in data if v >= 250)
                 if (white / len(data)) < 0.995:
+                    mapa_stron[i] = out.page_count
                     out.insert_pdf(doc, from_page=i, to_page=i)
+
+            # spis treści (zakładki) — przeniesiony z pominięciem usuniętych stron
+            try:
+                stary_toc = doc.get_toc(simple=True)
+                if stary_toc:
+                    nowy_toc = []
+                    zachowane = sorted(mapa_stron)
+                    for lvl, tytul, strona in stary_toc:
+                        idx = strona - 1
+                        if idx in mapa_stron:
+                            nowy_toc.append([lvl, tytul, mapa_stron[idx] + 1])
+                        else:
+                            # strona docelowa usunięta jako pusta -> najbliższa zachowana
+                            nastepna = next(
+                                (mapa_stron[j] for j in zachowane if j > idx), None)
+                            if nastepna is not None:
+                                nowy_toc.append([lvl, tytul, nastepna + 1])
+                    if nowy_toc:
+                        out.set_toc(nowy_toc)
+            except Exception:
+                pass
 
             # Inteligentne wyciąganie nazwy wsi do metadanych
             if pdf_path.parent == in_dir:

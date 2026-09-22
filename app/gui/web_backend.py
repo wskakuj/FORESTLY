@@ -630,6 +630,21 @@ class WebBackend(
         self.log("[STOP] Zatrzymywanie po bieżącym kroku...")
         return {"ok": True}
 
+    def open_last_output(self):
+        """Otwiera Eksplorator w folderze wyników ostatniego zadania."""
+        try:
+            d = getattr(self, "last_output_dir", None)
+            if not (d and Path(d).exists()):
+                return {"ok": False,
+                        "error": "Folder wyników nieznany \u2014 uruchom najpierw zadanie."}
+            if os.name == "nt":
+                os.startfile(str(d))  # tylko Windows
+            else:
+                self.log("[UWAGA] Otwieranie folderu jest dostępne na Windows.")
+            return {"ok": True, "path": str(d)}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
     def force_reset(self):
         self.running = False
         self.stop_event.clear()
@@ -802,9 +817,25 @@ class WebBackend(
         try:
             from pypdf import PdfWriter
             writer = PdfWriter()
+            self.last_output_dir = out
+            # spis treści = zakładki (outline) PDF z pełnymi tytułami dokumentów
+            from app.config import PDF_ORDER_TEMPLATES, template_matches
+            from pypdf import PdfReader
+            current_page = 0
             for name in order:
                 p = Path(src) / name
                 if p.exists():
+                    friendly_name = p.stem
+                    for tpl in PDF_ORDER_TEMPLATES:
+                        if template_matches(tpl, p.name):
+                            friendly_name = tpl["label"]
+                            break
+                    try:
+                        n_stron = len(PdfReader(str(p)).pages)
+                    except Exception:
+                        n_stron = 0
+                    writer.add_outline_item(friendly_name, current_page)
+                    current_page += n_stron
                     writer.append(str(p))
                 else:
                     self.log(f"[SCAL] Pomijam (brak): {name}")

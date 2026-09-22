@@ -18,7 +18,7 @@ from pathlib import Path
 import customtkinter as ctk
 
 # --- WERSJA I AKTUALIZACJA ---
-CURRENT_VERSION = "v2.0.19"
+CURRENT_VERSION = "v2.0.18"
 GITHUB_USER = "wskakuj"
 GITHUB_REPO = "FORESTLY"
 
@@ -103,18 +103,18 @@ FILTER_ALIASES = {
 }
 
 PDF_ORDER_TEMPLATES = [
-    {"key": "TITLE", "label": "Strona Tytułowa", "aliases": ["upul", "str_tyt", "strtyt"]},
+    {"key": "TITLE", "label": "Strona tytułowa", "aliases": ["upul", "str_tyt", "strtyt"]},
     {"key": "OPIS", "label": "Opis ogólny", "aliases": ["opis", "op_ogplan"]},
-    {"key": "TAB_KLW3", "label": "Zestawienie powierzchni gruntów i miąższości drzewostanu wg gatunków panujących (głównych) wg klas i podklas wieku", "aliases": ["tab_klw3.pdf"]},
-    {"key": "OPTAX", "label": "Opisy taksacyjne lasu i gruntów przeznaczonych do zalesienia", "aliases": ["optax.pdf"]},
-    {"key": "WSK_ZB", "label": "Zestawienie czynności gospodarczych projektowanych na 10 lat", "aliases": ["wsk_zb.pdf", "wsk_zb"]},
-    {"key": "WYK_NEG", "label": "Wykaz d-stanów do przebudowy (negatywnych i źle produkujących)", "aliases": ["wyk_neg.pdf"]},
-    {"key": "HALIZNY", "label": "Zestawienie pow. leśnych nie zalesionych", "aliases": ["halizny.pdf"]},
-    {"key": "REJESTR1", "label": "Rejestr działek leśnych i wskazania gospodarcze w zakresie gospodarki leśnej", "aliases": ["rejestr1.pdf"]},
-    {"key": "ZEST1", "label": "Skorowidz działek leśnych", "aliases": ["zest1.pdf", "skorowidz dz"]},
-    {"key": "WK_ZM1", "label": "Wykaz rozbieżności między ewidencją gruntów a stanem faktycznym", "aliases": ["wk_zm1.pdf"]},
+    {"key": "TAB_KLW3", "label": "Tabela klas wieku", "aliases": ["tab_klw3.pdf"]},
+    {"key": "OPTAX", "label": "Opis taksacyjny", "aliases": ["optax.pdf"]},
+    {"key": "WSK_ZB", "label": "Wskazówki zbiorcze", "aliases": ["wsk_zb.pdf", "wsk_zb"]},
+    {"key": "WYK_NEG", "label": "Wykaz negatywny", "aliases": ["wyk_neg.pdf"]},
+    {"key": "HALIZNY", "label": "Halizny", "aliases": ["halizny.pdf"]},
     {"key": "WSKAZ1", "label": "Wskazówki gospodarki leśnej", "aliases": ["wskaz1.pdf", "wskaz1"]},
-    {"key": "SKROTY", "label": "Wykaz skrótów i symboli", "aliases": ["skroty"]},
+    {"key": "REJESTR1", "label": "Rejestr", "aliases": ["rejestr1.pdf"]},
+    {"key": "ZEST1", "label": "Skorowidz działek", "aliases": ["zest1.pdf", "skorowidz dz"]},
+    {"key": "WK_ZM1", "label": "Wykaz zmian", "aliases": ["wk_zm1.pdf"]},
+    {"key": "SKROTY", "label": "Skróty i symbole", "aliases": ["skroty"]},
 ]
 
 EXCEL_SHEET_DEFAULTS = [

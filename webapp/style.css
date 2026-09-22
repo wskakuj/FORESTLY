@@ -738,3 +738,15 @@ button.order-toggle.off:hover {
   outline: none;
 }
 .gdos-wrap .actions { margin-top: 2px; gap: 10px; }
+
+/* przycisk akcji w powiadomieniu („Otwórz folder wyników") */
+.toast { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.toast-btn {
+  border: 1px solid var(--border-strong);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  border-radius: 8px; padding: 5px 11px;
+  font: inherit; font-size: 12px; cursor: pointer;
+  white-space: nowrap;
+}
+.toast-btn:hover { border-color: var(--accent); color: var(--accent); }
