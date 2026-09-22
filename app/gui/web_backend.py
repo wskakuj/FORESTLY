@@ -179,6 +179,9 @@ class WebBackend(
         self._install_messagebox_shim()
         self._build_fakes_from_schema()
         self._check_pending_changelog()
+        # v2.0.6: automatyczne sprawdzenie nowej wersji po starcie
+        # (odpowiednik self.after(2000, ...) z klasycznego GUI)
+        self.after(2000, lambda: self.check_github_update(manual=False))
 
     def _check_pending_changelog(self):
         """Po aktualizacji: pokazuje changelog zapisany przez aktualizator
