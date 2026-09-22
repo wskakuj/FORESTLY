@@ -124,8 +124,8 @@ class TabOpisOgMixin:
 
     # ------------------------------------------------ Właściwy przebieg zadania
     def start_opis_og_pipeline(self):
-        """Zadanie z mapy zadań: start_opis_og."""
-        self.disable_all_buttons()
+        """Zadanie z mapy zadań (web) / przycisk (stare GUI)."""
+        self._disable_ui_for_process()
 
         def _run():
             try:
@@ -206,3 +206,51 @@ class TabOpisOgMixin:
                  "Pamiętaj o ręcznym wpisaniu form ochrony przyrody "
                  "(Natura 2000 itp.) w wygenerowanych plikach.")
         self.update_status("Opis ogólny gotowy", "#107C10", animate=False)
+
+    # ------------------------------------------------ Zakładka w klasycznym GUI
+    def setup_opis_og_tab(self, parent):
+        """Zakładka „Opis ogólny" w starym GUI (Forestly_OLD)."""
+        import customtkinter as ctk
+
+        parent.grid_columnconfigure(0, weight=1)
+        parent.grid_rowconfigure(0, weight=1)
+        scroll_frame = ctk.CTkScrollableFrame(parent, fg_color="transparent")
+        scroll_frame.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
+        scroll_frame.grid_columnconfigure(0, weight=1)
+        font_label = ctk.CTkFont(family="Segoe UI", size=13, weight="bold")
+        font_btn = ctk.CTkFont(family="Segoe UI", size=13)
+        card = ctk.CTkFrame(
+            scroll_frame, fg_color="#252526", corner_radius=8,
+            border_width=1, border_color="#333333",
+        )
+        card.grid(row=0, column=0, padx=20, pady=(15, 15), sticky="new")
+        card.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(
+            card, text="Folder główny (z folderami wsi) albo folder pojedynczej wsi:",
+            font=font_label, text_color="#E0E0E0",
+        ).grid(row=0, column=0, padx=15, pady=(15, 8), sticky="w")
+        self.opis_og_root_entry = ctk.CTkEntry(
+            card, placeholder_text="np. folder \u201eu\u0142o\u017cone\u201d albo folder jednej wsi",
+            height=36,
+        )
+        self.opis_og_root_entry.grid(row=0, column=1, padx=5, pady=(15, 8), sticky="ew")
+        ctk.CTkButton(
+            card, text="Przeglądaj", image=self.icon_folder,
+            command=lambda: self.select_dir(self.opis_og_root_entry),
+            width=110, height=36, font=font_btn, fg_color="#333333", hover_color="#444444",
+        ).grid(row=0, column=2, padx=15, pady=(15, 8))
+        ctk.CTkLabel(
+            card,
+            text="Liczby (etaty, użytkowanie przedrębne) czytane są automatycznie z pliku "
+                 "WSK_ZB.doc znajdującego się w folderze wsi. Formy ochrony przyrody "
+                 "(Natura 2000 itp.) wpisujesz ręcznie — w pliku zostanie wyraźnie "
+                 "oznaczone miejsce.",
+            font=ctk.CTkFont(family="Segoe UI", size=12), text_color="#888888",
+            wraplength=700, justify="left",
+        ).grid(row=1, column=0, columnspan=3, padx=15, pady=(0, 15), sticky="w")
+        ctk.CTkButton(
+            scroll_frame, text="Generuj opisy ogólne", image=self.icon_start,
+            font=ctk.CTkFont(family="Segoe UI", size=15, weight="bold"),
+            fg_color="#0067C0", hover_color="#005A9E", height=44, corner_radius=6,
+            command=self.start_opis_og_pipeline,
+        ).grid(row=1, column=0, padx=20, pady=(5, 20), sticky="ew")

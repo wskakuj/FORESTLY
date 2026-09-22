@@ -58,6 +58,7 @@ from app.gui.tabs.tab_excel_z_mdb import TabExcelZMdbMixin
 from app.gui.tabs.tab_tworzenie_mietkow import TabTworzenieMietkowMixin
 from app.gui.tabs.tab_nazwiska_mietek import TabNazwiskaMietekMixin
 from app.gui.tabs.tab_mietek_rozbieznosci import TabMietekRozbieznosciMixin
+from app.gui.tabs.tab_opis_og import TabOpisOgMixin
 
 
 class ModernApp(
@@ -79,6 +80,7 @@ class ModernApp(
     TabTworzenieMietkowMixin,
     TabNazwiskaMietekMixin,
     TabMietekRozbieznosciMixin,
+    TabOpisOgMixin,
     UpdaterMixin,
     ctk.CTk,
 ):
@@ -171,6 +173,7 @@ class ModernApp(
         self.krzyz_mietki_entry = None
         self.krzyz_start_btn = None
         self.halizny_mietki_entry = None
+        self.opis_og_root_entry = None
         self.halizny_start_btn = None
         self.excel_z_mdb_src_entry = None
         self.excel_z_mdb_out_entry = None
@@ -589,6 +592,10 @@ class ModernApp(
             "MIETEK", "NAZWISKA -> MIETEK",
             "Klonuje strukturę MS-DOS i generuje W*.DBF pobierając nazwiska "
             "wyłącznie na podstawie pliku Ewidencji XLS.")
+        tab_opis_og = _nowa_zakladka(
+            "MIETEK", "Opis og\u00f3lny (opis og)",
+            "Tworzy \u201eopis og_<wie\u015b>.docx\u201d w folderach wsi \u2014 liczby czyta z WSK_ZB.doc.")
+
 
         # ---- TAKSATOR ----
         _naglowek("TAKSATOR")
@@ -659,6 +666,7 @@ class ModernApp(
         self.setup_manual_merge_tab(tab_manual)
         self.setup_mietek_rozbieznosci_tab(tab_mietek_rozb)
         self.setup_nazwiska_mietek_tab(tab_nazwiska_mietek)
+        self.setup_opis_og_tab(tab_opis_og)
 
         self.setup_template_generator_tab(tab_template_gen, "TAKSATOR")
         self.setup_title_pages_tab(tab_title)
