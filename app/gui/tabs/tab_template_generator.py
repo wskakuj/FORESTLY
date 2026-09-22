@@ -315,7 +315,9 @@ class TabTemplateGeneratorMixin:
                 )
             doc.save(out_path)
             self.last_output_dir = Path(out_path).parent
-            self.open_dir_btn.configure(state="normal")
+            # przycisk istnieje tylko w GUI CustomTkinter (web: brak widgetu)
+            if getattr(self, "open_dir_btn", None) is not None:
+                self.open_dir_btn.configure(state="normal")
             self.log(
                 f"[KREATOR SZABLONU] Zapisano nowy szablon bazowy na podstawie wzorca: {out_path}"
             )
