@@ -27,6 +27,10 @@ from app.config import CURRENT_VERSION, GITHUB_USER, GITHUB_REPO
 class UpdaterMixin:
     """Mixin dla ModernApp — metody aktualizacji z GitHub."""
 
+    def notify_update_check(self, is_latest, manual=False):
+        """Wynik sprawdzenia wersji — do nadpisania w GUI (web pokazuje toast)."""
+        pass
+
     def check_github_update(self, manual=False):
         api_url = (
             f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/releases/latest"
@@ -79,7 +83,10 @@ class UpdaterMixin:
                                 "Aktualizacja",
                                 f"Posiadasz najnowszą wersję programu ({CURRENT_VERSION}).",
                             )
-                        self.update_status("Gotowy", "#0078D7", animate=False)
+                        # widoczne potwierdzenie, że sprawdzenie odbyło się
+                        self.log(f"[UPDATE] Sprawdzono wersję — program jest aktualny ({CURRENT_VERSION}).")
+                        self.update_status("Wersja aktualna", "#0078D7", animate=False)
+                        self.notify_update_check(is_latest=True, manual=manual)
             except Exception as e:
                 if manual:
                     # Pokazujemy błąd TYLKO wtedy, gdy użytkownik sam kliknął "Sprawdź update"

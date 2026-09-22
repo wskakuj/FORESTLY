@@ -631,6 +631,13 @@ class WebBackend(
         self._emit({"type": "state", "running": False})
         return {"ok": True}
 
+    def notify_update_check(self, is_latest, manual=False):
+        """Wynik AUTOMATYCZNEGO sprawdzenia wersji przy starcie —
+        dyskretne potwierdzenie, żeby nie wyglądało jakby program nie sprawdzał."""
+        if is_latest and not manual:
+            self._emit({"type": "toast", "kind": "ok",
+                        "text": "Program jest w najnowszej wersji (" + CURRENT_VERSION + ")"})
+
     def check_update(self):
         threading.Thread(target=self.check_github_update, kwargs={"manual": True},
                          daemon=True).start()

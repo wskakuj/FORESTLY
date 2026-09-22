@@ -622,6 +622,7 @@ function handleEvent(ev) {
     case "dialog": showDialog(ev); break;
     case "changelog": showChangelog(ev); break;
     case "state": setRunning(!!ev.running); break;
+    case "toast": toast(ev.text, ev.kind); break;
   }
 }
 
