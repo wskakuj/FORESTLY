@@ -437,7 +437,8 @@ select option {
   border-top: 1px solid var(--border);
   transition: height .25s ease;
 }
-[data-theme="light"] #log-panel { background: #141a22; }
+[data-theme="light"] #log-panel { background: #f4f6f9; }
+[data-theme="light"] #log { color: #2c3640; }
 #log-panel.collapsed { height: 38px; }
 #log-head {
   display: flex; align-items: center; justify-content: space-between;
