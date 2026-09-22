@@ -90,6 +90,8 @@ def sanitize_notes(text):
     text = re.sub(r"\*([^*]+)\*", r"\1", text)
     # wypunktowanie gwiazdką → myślnik (poprawne kropki na GitHubie)
     text = re.sub(r"(?m)^\s*\*\s+", "- ", text)
+    # ukośniki ucieczki markdown (\-, \[OK\]) — zostaje sam znak
+    text = re.sub(r"\\([-*_\[\]()#<>~|`])", r"\1", text)
     return text
 
 def edit_changelog(ver):

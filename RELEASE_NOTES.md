@@ -1,11 +1,16 @@
-# Co nowego w v2.0.14
+# Co nowego w v2.0.15
 
- \- opis og z danych MIETEKA zapisywany w folderze z plikami DBF (np. WOL.001), z nazwą wsi
- \- zakładka przemianowana na "Opisy ogólne"
- \- opisy ogólne także z danych MIETEKA: tymczasowo MIETEK -> TXT -> Word, źródło nietknięte, pliki tymczasowe usuwane
- \- log marginesów: jedno podsumowanie na wieś (z nazwą wsi) zamiast powtarzających się linii; \[OK] na zielono
- \- przełącznik "Dołącz Skróty i symbole" w zakładce Konwersja: Word -> PDF (web i stare GUI)
- \- "Konwersja: Word -> PDF" dołącza Skróty i symbole na końcu każdego scalonego PDF (jak w poprzedniej wersji)
- \- skróty zawsze ostatnie w scalonym PDF, także przy plikach spoza szablonów
- 
+- Opisy ogólne: formy ochrony przestają przenosić się na nową stronę - treść od razu pod nagłówkiem "OCHRONA LASU, OCHRONA PRZYRODY"
+
+- Opisy ogólne: usunięte zbędne puste linie między formami ochrony a "Lasy ochronne" (jak w opisach wzorcowych)
+
+- Rozliczanie: powierzchnie z powrotem w hektarach (XLS z MIETEKA przeliczane z m², z autodetekcją starych plików w ha)
+
+- Opisy ogólne: formatowanie form ochrony jak we wzorcach — nagłówek pogrubiony, formy zwykłą czcionką, "Powiązanie z gospodarką leśną" podkreślone
+
+- "Co nowego": czyszczenie ukośników ucieczki (\-, \\[OK\]) przy wyświetlaniu i przy publikacji release'a
+
+- Opisy ogólne: automatyczne wypełnianie form ochrony przyrody z wyników GDOŚ (pole opcjonalne + baza obszarów gdos_obszary.json)
+
+
 

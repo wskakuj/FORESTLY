@@ -97,8 +97,16 @@ def wczytaj_i_przetworz_wlascicieli(sciezka_do_pliku):
         ['nr_dz', 'J. rej.']).copy() if 'nr_dz' in df.columns and 'Pow. działki' in df.columns else pd.DataFrame()
     # ---------------------------------------------------------------
 
+    # --- jednostki: MIETEKA zapisuje powierzchnie w m² — przeliczamy na ha.
+    # Autodetekcja: jeśli w pliku są już wartości w ha (stare XLS-y), nie dzielimy.
+    def _czy_m2(col):
+        if col not in df.columns:
+            return False
+        return bool(df[col].apply(bezpieczna_liczba).dropna().gt(50).any())
+    dzielnik = 10000.0 if (_czy_m2('Pow. działki') or _czy_m2('Pow. klasouż.')) else 1.0
+
     if not df_full.empty:
-        df_full['pow dz'] = df_full['Pow. działki'].apply(bezpieczna_liczba)
+        df_full['pow dz'] = df_full['Pow. działki'].apply(bezpieczna_liczba) / dzielnik
 
     wiersze_po_rozbiciu = []
     for _, row in df.iterrows():
@@ -117,7 +125,7 @@ def wczytaj_i_przetworz_wlascicieli(sciezka_do_pliku):
 
     for col in ['Pow. działki', 'Pow. klasouż.']:
         if col in df_exploded.columns:
-            df_exploded[col] = df_exploded[col].apply(bezpieczna_liczba)
+            df_exploded[col] = df_exploded[col].apply(bezpieczna_liczba) / dzielnik
 
     if 'Klasoużytek' in df_exploded.columns:
         df_ls = df_exploded[df_exploded['Klasoużytek'].astype(str).str.contains('Ls', case=False, na=False)].copy()
@@ -165,14 +173,14 @@ def wczytaj_i_przetworz_val(sciezka_do_pliku_val):
                     if aktualny_nr_dz:
                         pow_sqm_str = elementy[2]
                         try:
-                            pow_geo = float(pow_sqm_str.replace(',', '.'))  # m² — bez dzielenia przez 10000
+                            pow_geo = float(pow_sqm_str.replace(',', '.')) / 10000.0  # m² -> ha
                         except ValueError:
                             continue
-                        if pow_geo >= 10:  # >= 10 m² (zamiast 0.001 ha)
+                        if pow_geo >= 0.001:
                             dane_wyjsciowe.append({
                                 'nr_dz': aktualny_nr_dz,
                                 'litera': litera,
-                                'pow geo': round(pow_geo, 2)  # m², 2 miejsca po przecinku
+                                'pow geo': round(pow_geo, 4)
                             })
 
     dane_wyjsciowe.reverse()
@@ -227,7 +235,7 @@ def wykonaj_makro_vba(df_out, df_braki, tylko_wyrownywanie=False):
     df = df_out.copy()
     df['bg_color'] = ""
     df['font_color'] = ""
-    TOLERANCJA = 10  # 10 m² (było 0.0010 ha)
+    TOLERANCJA = 0.0010
 
     # 1. WARTOŚCI (bez żadnych kolorów tła)
     # Zmieniamy grupowanie z samego 'nr_dz' na ['nr_dz', 'J. rej.'] aby współwłaściciele nie wpływali na siebie
@@ -245,7 +253,7 @@ def wykonaj_makro_vba(df_out, df_braki, tylko_wyrownywanie=False):
         if tylko_wyrownywanie:
             nadmiar_sciezka = False
         else:
-            nadmiar_sciezka = pd.notna(pow_ewid) and suma_geo > (float(pow_ewid) + 1000)  # 1000 m² = 0.1 ha
+            nadmiar_sciezka = pd.notna(pow_ewid) and suma_geo > (float(pow_ewid) + 0.1)
 
         suma_przepisanych = 0.0
 
@@ -262,7 +270,7 @@ def wykonaj_makro_vba(df_out, df_braki, tylko_wyrownywanie=False):
                     reszta = float(pow_docelowa) - suma_przepisanych
                     if reszta > 0:
                         wartosc = min(reszta, aktualna_pow)
-                        df.at[idx, 'ROZLICZONE'] = round(wartosc, 2)
+                        df.at[idx, 'ROZLICZONE'] = round(wartosc, 4)
                         suma_przepisanych += wartosc
                     else:
                         df.at[idx, 'ROZLICZONE'] = 0.0000
@@ -272,7 +280,7 @@ def wykonaj_makro_vba(df_out, df_braki, tylko_wyrownywanie=False):
                 if pd.notna(pow_ewid) and suma_geo != 0:
                     nowa = (aktualna_pow / suma_geo) * float(pow_ewid)
                     zaokr = round(nowa, 4)
-                    df.at[idx, 'ROZLICZONE'] = round(zaokr, 2) if zaokr != 0 else aktualna_pow
+                    df.at[idx, 'ROZLICZONE'] = zaokr if zaokr != 0 else aktualna_pow
                 else:
                     df.at[idx, 'ROZLICZONE'] = aktualna_pow
 
@@ -299,14 +307,14 @@ def wykonaj_makro_vba(df_out, df_braki, tylko_wyrownywanie=False):
         if roznica != 0:
             ostatni_wiersz = valid_indices[-1]
             df.at[ostatni_wiersz, 'ROZLICZONE'] = round(
-                df.at[ostatni_wiersz, 'ROZLICZONE'] + roznica, 2)
+                df.at[ostatni_wiersz, 'ROZLICZONE'] + roznica, 4)
 
     # 3. SZUM -> RÓŻOWY
     rows_to_drop = []
     for idx in df.index:
         val = df.at[idx, 'ROZLICZONE']
         pow_ewid = df.at[idx, 'pow ls']
-        if pd.notna(val) and val <= 40:  # 40 m² = 0.004 ha
+        if pd.notna(val) and val <= 0.004:
             if pd.isna(pow_ewid) or str(pow_ewid).strip() == "":
                 rows_to_drop.append(idx)
             else:
@@ -329,7 +337,7 @@ def wykonaj_makro_vba(df_out, df_braki, tylko_wyrownywanie=False):
             pow_docelowa = group['pow dz'].iloc[0]
             j_rej = group['J. rej.'].iloc[0] if 'J. rej.' in group.columns else ""
             startowy_las = float(pow_ewid) if (pd.notna(pow_ewid) and str(pow_ewid).strip() != "") else 0.0
-            roznica = round(suma_f - startowy_las, 2)
+            roznica = round(suma_f - startowy_las, 4)
 
             if roznica > 0:
                 for idx in group.index:
@@ -337,14 +345,14 @@ def wykonaj_makro_vba(df_out, df_braki, tylko_wyrownywanie=False):
                         df.at[idx, 'bg_color'] = '00FF00'
                 przybylo_data.append({
                     'J. rej.': j_rej, 'nr działki': dz,
-                    'aktualna pow ls': round(suma_f, 2), 'ls ewidenca': startowy_las,
+                    'aktualna pow ls': round(suma_f, 4), 'ls ewidenca': startowy_las,
                     'ile przybyło': roznica,
                     'pow dz': pow_docelowa if pd.notna(pow_docelowa) else ""
                 })
             elif roznica < 0:
                 ubylo_data.append({
                     'J. rej.': j_rej, 'nr działki': dz,
-                    'aktualna pow ls': round(suma_f, 2), 'ls ewidenca': startowy_las,
+                    'aktualna pow ls': round(suma_f, 4), 'ls ewidenca': startowy_las,
                     'ile ubyło': roznica,
                     'pow dz': pow_docelowa if pd.notna(pow_docelowa) else ""
                 })

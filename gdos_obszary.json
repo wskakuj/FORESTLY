@@ -1,0 +1,31 @@
+{
+  "_opis": "Baza obszarów ochrony przyrody dla generatora opisów ogólnych (folder z wynikami GDOŚ). Pola: nazwa (jak w pliku GDOŚ, po naprawie krzaków), typ (OSO/SOO lub puste dla parków), kod (np. PLB300015), pzo (publikacja planu zadań ochronnych), powiazanie (tekst 'Powiązanie z gospodarką leśną' dla Natura 2000), opis (tekst dodatkowy dla pozostałych form). Możesz dopisywać własne obszary.",
+  "obszary": [
+    {
+      "nazwa": "Puszcza Notecka",
+      "typ": "OSO",
+      "kod": "PLB300015",
+      "pzo": "Dz. Urz. Woj. Wielkopolskiego z 2014 r. poz. 1793",
+      "powiazanie": "PZO wskazuje zagrożenia związane m.in. z cięciami starodrzewów, pracami w okresach wrażliwych oraz usuwaniem drzew dziuplastych i martwego drewna. Zadania leśne PZO są zasadniczo przypisane gruntom PGL Lasy Państwowe; na gruntach prywatnych należy stosować art. 33 ustawy o ochronie przyrody, ochronę gatunkową i wymagania dobrej praktyki leśnej."
+    },
+    {
+      "nazwa": "Ostoja Międzychodzko-Sierakowska",
+      "typ": "SOO",
+      "kod": "PLH300032",
+      "pzo": "Dz. Urz. Woj. Wielkopolskiego z 2026 r. poz. 2759",
+      "powiazanie": "jest wysokie w płatach objętych działaniami PZO. W pododdziałach położonych w granicach obszaru Natura 2000 Ostoja Międzychodzko-Sierakowska PLH300032 zaprojektowano wyłącznie cięcia sanitarne, z uwzględnieniem zapisów PZO."
+    },
+    {
+      "nazwa": "Zamorze Pniewskie",
+      "typ": "SOO",
+      "kod": "PLH300036",
+      "pzo": "Dz. Urz. Woj. Wielkopolskiego z 2022 r. poz. 1099",
+      "powiazanie": "ma głównie charakter pośredni, ponieważ PZO koncentruje się na ochronie jeziora Dobrzyczno. Należy chronić strefy przywodne, glebę i stosunki wodne oraz ograniczać spływ biogenów i zawiesin; PZO nie określa odrębnych zabiegów hodowlanych dla lasów w części objętej tym planem."
+    },
+    {
+      "nazwa": "Sierakowski Park Krajobrazowy",
+      "typ": "PARK KRAJOBRAZOWY",
+      "opis": "według stanu na 21 września 2026 r. nie ustanowiono planu ochrony parku. Obowiązują cele i zakazy uchwały nr XIII/258/19 Sejmiku Województwa Wielkopolskiego z dnia 25 listopada 2019 r. (Dz. Urz. Woj. Wielkopolskiego z 2019 r. poz. 10166), zmienionej uchwałą nr XXXII/582/21 z dnia 21 czerwca 2021 r. (Dz. Urz. Woj. Wielkopolskiego z 2021 r. poz. 5098), w tym ochrona trwałości i różnorodności ekosystemów leśnych, zadrzewień nadwodnych i stosunków wodnych."
+    }
+  ]
+}

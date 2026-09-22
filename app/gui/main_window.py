@@ -174,6 +174,7 @@ class ModernApp(
         self.krzyz_start_btn = None
         self.halizny_mietki_entry = None
         self.opis_og_root_entry = None
+        self.opis_og_gdos_entry = None
         self.halizny_start_btn = None
         self.excel_z_mdb_src_entry = None
         self.excel_z_mdb_out_entry = None

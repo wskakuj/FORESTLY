@@ -716,6 +716,8 @@ function cleanChangelogText(s) {
   for (const [from, to] of pairs) s = s.split(from).join(to);
   /* znaczniki markdown (pogrubienie/kursywa) — tekst zostaje, gwiazdki znikają */
   s = s.replace(/\*\*([^*]+)\*\*/g, "$1").replace(/\*([^*]+)\*/g, "$1");
+  /* ukośniki ucieczki markdown (\-, \[OK\], \> itp.) — zostaje sam znak */
+  s = s.replace(/\\([-*_\\[\]()#<>~|`])/g, "$1");
   return s;
 }
 

@@ -254,11 +254,18 @@ def build_schema():
                       "Jeśli są tam dane MIETEKA (O*.DBF) \u2014 program robi w folderze "
                       "tymczasowym MIETEK -> TXT -> Word, tworzy opis ogólny i usuwa pliki "
                       "tymczasowe (oryginalne dane zostają nietknięte). Formy ochrony "
-                      "przyrody (Natura 2000, parki krajobrazowe) wpisujesz ręcznie \u2014 "
-                      "w pliku zostanie wyraźnie oznaczone miejsce."),
+                      "przyrody (Natura 2000, parki krajobrazowe) wpisujesz ręcznie "
+                      "\u2014 chyba że wskażesz folder z wynikami GDOŚ: wtedy zostaną "
+                      "wstawione automatycznie (kody obszarów i publikacje PZO "
+                      "z pliku gdos_obszary.json; nieznane obszary będą oznaczone "
+                      "do uzupełnienia)."),
                 _path("opis_og_root", "opis_og_root_entry",
                       "Folder główny (z folderami wsi) albo folder pojedynczej wsi:",
                       "np. folder \u201eu\u0142o\u017cone\u201d albo folder jednej wsi"),
+                _path("opis_og_gdos", "opis_og_gdos_entry",
+                      "Folder z wynikami GDOŚ (opcjonalnie):",
+                      "np. folder z plikami *_wynik.xlsx — formy ochrony przyrody "
+                      "zostaną wstawione automatycznie"),
             ],
             "buttons": [_button("run", "Generuj opisy ogólne", "start_opis_og")],
         },
