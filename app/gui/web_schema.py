@@ -394,6 +394,22 @@ def build_schema():
             "buttons": [_button("run", "Uruchom rozliczanie obrębów", "start_rozliczanie")],
         },
         {
+            "key": "ROZLICZANIE|Zestawienie zbiorcze",
+            "tooltip": "Składa wszystkie pliki <WIEŚ>_Rozliczone.xlsx w jeden arkusz: "
+                       "sumy per wieś + wiersz RAZEM + rozpiska działek przybyło/ubyło.",
+            "controls": [
+                _path("zestaw", "zestaw_entry", "Folder z plikami rozliczeń (krzyżówki):",
+                      "Folder docelowy rozliczeń (pliki <WIEŚ>_Rozliczone.xlsx)"),
+                _path("zestaw_mietki", "zestaw_mietki_entry", "Folder z mietkami:",
+                      "Foldery obrębów z wpisanymi krzyżówkami (D*.DBF), np. BIAŁCZ\\WOL.001"),
+            ],
+            "buttons": [
+                _button("run", "Zestawienie z rozliczonych Exceli", "start_zestawienie"),
+                _button("mietki", "Zestawienie z mietków (sumy z DBF)",
+                        "start_zestawienie_mietki", "secondary"),
+            ],
+        },
+        {
             "key": "ROZLICZANIE|Tworzenie i wpisywanie mietków",
             "tooltip": "Generuje struktury MS-DOS (mietki) z bazą DBF z ewidencji.",
             "controls": [

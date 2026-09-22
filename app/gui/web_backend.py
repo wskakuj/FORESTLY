@@ -601,6 +601,8 @@ class WebBackend(
             "start_excel_z_mdb": self.start_excel_z_mdb_pipeline,
             "start_pdf_converter": self.start_pdf_converter_pipeline,
             "start_rozliczanie": self.start_rozliczanie_pipeline,
+            "start_zestawienie": self.start_zestawienie_zbiorcze,
+            "start_zestawienie_mietki": self.start_zestawienie_mietki,
             "start_tworzenie_mietkow": self.start_tworzenie_mietkow_pipeline,
             "start_mietki_krzyzowki": self.start_mietki_i_krzyzowki_pipeline,
         }

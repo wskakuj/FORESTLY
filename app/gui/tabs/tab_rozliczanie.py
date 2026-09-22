@@ -309,6 +309,209 @@ class TabRozliczanieMixin:
 
         return problems
 
+    def setup_zestawienie_tab(self, parent):
+        """Zakładka 'Zestawienie zbiorcze' (osobna, poza rozliczaniem powierzchni)."""
+        parent.grid_columnconfigure(0, weight=1)
+        parent.grid_rowconfigure(0, weight=1)
+        scroll_frame = ctk.CTkScrollableFrame(parent, fg_color="transparent")
+        scroll_frame.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
+        scroll_frame.grid_columnconfigure(0, weight=1)
+        font_label = ctk.CTkFont(family="Segoe UI", size=13, weight="bold")
+        font_btn = ctk.CTkFont(family="Segoe UI", size=13)
+
+        card = ctk.CTkFrame(
+            scroll_frame, fg_color="#252526", corner_radius=8,
+            border_width=1, border_color="#333333",
+        )
+        card.grid(row=0, column=0, padx=20, pady=(15, 15), sticky="new")
+        card.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(
+            card, text="Folder z plikami rozliczeń (krzyżówki):", font=font_label, text_color="#E0E0E0",
+        ).grid(row=0, column=0, padx=15, pady=(15, 8), sticky="w")
+        self.zestaw_entry = ctk.CTkEntry(
+            card,
+            placeholder_text="Folder docelowy rozliczeń (pliki <WIEŚ>_Rozliczone.xlsx)",
+            height=36,
+        )
+        self.zestaw_entry.grid(row=0, column=1, padx=5, pady=(15, 8), sticky="ew")
+        ctk.CTkButton(
+            card, text="Przeglądaj", image=self.icon_folder,
+            command=lambda: self.select_dir(self.zestaw_entry),
+            width=110, height=36, font=font_btn, fg_color="#333333", hover_color="#444444",
+        ).grid(row=0, column=2, padx=15, pady=(15, 8))
+        _saved = self.get_setting("folder_zestaw_entry")
+        if _saved:
+            self.zestaw_entry.insert(0, _saved)
+
+        self.zestaw_start_btn = ctk.CTkButton(
+            scroll_frame, text="Zestawienie z rozliczonych Exceli", image=self.icon_start,
+            font=ctk.CTkFont(family="Segoe UI", size=15, weight="bold"),
+            fg_color="#0067C0", hover_color="#005A9E", height=44, corner_radius=6,
+            command=self.start_zestawienie_zbiorcze,
+        )
+        self.zestaw_start_btn.grid(row=1, column=0, padx=20, pady=(5, 15), sticky="ew")
+        add_tooltip(
+            self.zestaw_start_btn,
+            "Składa wszystkie pliki <WIEŚ>_Rozliczone.xlsx z wybranego folderu "
+            "w jeden arkusz: powierzchnia rozliczona, przybyło, ubyło "
+            "— per wieś + wiersz RAZEM z sumą wszystkich wsi.")
+
+        # ---------- źródło 2: mietki (krzyżówki w DBF) ----------
+        card2 = ctk.CTkFrame(
+            scroll_frame, fg_color="#252526", corner_radius=8,
+            border_width=1, border_color="#333333",
+        )
+        card2.grid(row=2, column=0, padx=20, pady=(0, 15), sticky="new")
+        card2.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(
+            card2, text="Folder z mietkami:", font=font_label, text_color="#E0E0E0",
+        ).grid(row=0, column=0, padx=15, pady=(15, 8), sticky="w")
+        self.zestaw_mietki_entry = ctk.CTkEntry(
+            card2,
+            placeholder_text="Foldery obrębów z wpisanymi krzyżówkami (D*.DBF), np. BIAŁCZ\\WOL.001",
+            height=36,
+        )
+        self.zestaw_mietki_entry.grid(row=0, column=1, padx=5, pady=(15, 8), sticky="ew")
+        ctk.CTkButton(
+            card2, text="Przeglądaj", image=self.icon_folder,
+            command=lambda: self.select_dir(self.zestaw_mietki_entry),
+            width=110, height=36, font=font_btn, fg_color="#333333", hover_color="#444444",
+        ).grid(row=0, column=2, padx=15, pady=(15, 8))
+        _saved_m = self.get_setting("folder_zestaw_mietki_entry")
+        if _saved_m:
+            self.zestaw_mietki_entry.insert(0, _saved_m)
+
+        self.zestaw_mietki_btn = ctk.CTkButton(
+            scroll_frame, text="Zestawienie z mietków (sumy z DBF)", image=self.icon_start,
+            font=ctk.CTkFont(family="Segoe UI", size=15, weight="bold"),
+            fg_color="#0067C0", hover_color="#005A9E", height=44, corner_radius=6,
+            command=self.start_zestawienie_mietki,
+        )
+        self.zestaw_mietki_btn.grid(row=3, column=0, padx=20, pady=(5, 15), sticky="ew")
+        add_tooltip(
+            self.zestaw_mietki_btn,
+            "Sumuje powierzchnie rozliczone z krzyżówek (D*.DBF) każdego obrębu "
+            "do ZESTAWIENIE_Z_MIETKOW.xlsx: wiersz na wieś + wiersz RAZEM.")
+
+        ctk.CTkLabel(
+            scroll_frame,
+            text=("Z rozliczonych Exceli: pełne zestawienie — przybyło, ubyło, rozpiska działek "
+                  "z właścicielami.\n"
+                  "Z mietków: szybkie sumy powierzchni rozliczonych z wpisanych krzyżówek (DBF) "
+                  "— każda wieś + RAZEM."),
+            font=ctk.CTkFont(family="Segoe UI", size=12), text_color="#9A9A9A",
+            justify="left",
+        ).grid(row=4, column=0, padx=20, pady=(0, 20), sticky="w")
+
+    def start_zestawienie_mietki(self):
+        entry = getattr(self, "zestaw_mietki_entry", None)
+        raw = entry.get().strip() if entry else ""
+        if not raw or not Path(raw).exists():
+            messagebox.showwarning(
+                "Błąd",
+                "Wskaż folder z mietkami — folder, w którym leżą foldery obrębów "
+                "z wpisanymi krzyżówkami (pliki D*.DBF).")
+            return
+        if self.running:
+            return
+        self.set_setting("folder_zestaw_mietki_entry", raw)
+        self.last_output_dir = Path(raw)
+        self._disable_ui_for_process()
+        self.log(f"[ZESTAWIENIE] Zestawienie z mietków (krzyżówki DBF): {raw}")
+        self.set_progress(0)
+        threading.Thread(
+            target=self.run_zestawienie_mietki_thread, args=(raw,), daemon=True).start()
+
+    def run_zestawienie_mietki_thread(self, folder_str):
+        try:
+            from app.core.excel_tasks import zrob_zestawienie_z_mietkow
+            self.update_status("Zestawienie z mietków...", "#0078D7")
+            wynik = zrob_zestawienie_z_mietkow(Path(folder_str))
+            if wynik is None:
+                self.log("[ZESTAWIENIE] Wskazany folder nie zawiera obrębów z krzyżówkami "
+                         "(pliki D*.DBF).")
+                self.update_status("Brak krzyżówek", "#D83B01", animate=False)
+                self.after(0, lambda: messagebox.showwarning(
+                    "Zestawienie z mietków",
+                    "Wskazany folder nie zawiera obrębów z krzyżówkami "
+                    "(pliki D*.DBF).\n\nUpewnij się, że wskazujesz folder, w którym "
+                    "leżą foldery obrębów (np. BIAŁCZ, JAŹWIE...)."))
+                return
+            self.log("=" * 55)
+            self.log(f"[OK] Zestawienie z mietków ({wynik['wsie']} wsi): {wynik['plik']}")
+            self.log(f"     RAZEM powierzchnia rozliczona: {wynik['razem']:.4f} ha")
+            self.log("=" * 55)
+            self.set_progress(1.0)
+            self.update_status("Zestawienie z mietków gotowe", "#27ae60", animate=False)
+            self.after(0, lambda: messagebox.showinfo(
+                "Zestawienie z mietków",
+                f"Złożono {wynik['wsie']} wsi.\n\n"
+                f"RAZEM powierzchnia rozliczona: {wynik['razem']:.4f} ha"))
+        except Exception:
+            self.log(traceback.format_exc())
+            self.update_status("Błąd zestawienia", "#D83B01", animate=False)
+        finally:
+            self.running = False
+            self.after(0, self.restore_all_buttons)
+
+    def start_zestawienie_zbiorcze(self):
+        entry = getattr(self, "zestaw_entry", None)
+        if entry is None:
+            entry = getattr(self, "rozl_out_entry", None)
+        raw = entry.get().strip() if entry else ""
+        if not raw or not Path(raw).exists():
+            messagebox.showwarning(
+                "Błąd",
+                "Wskaż folder z plikami rozliczeń — tam, gdzie zapisane "
+                "są pliki <WIEŚ>_Rozliczone.xlsx.")
+            return
+        if self.running:
+            return
+        self.set_setting("folder_zestaw_entry", raw)
+        self.set_setting("folder_rozl_out_entry", raw)
+        self.last_output_dir = Path(raw)
+        self._disable_ui_for_process()
+        self.log(f"[ZESTAWIENIE] Tworzę zestawienie zbiorcze z folderu: {raw}")
+        self.set_progress(0)
+        threading.Thread(
+            target=self.run_zestawienie_thread, args=(raw,), daemon=True).start()
+
+    def run_zestawienie_thread(self, folder_str):
+        try:
+            from app.core.excel_tasks import zrob_zestawienie_zbiorcze
+            self.update_status("Zestawienie zbiorcze rozliczeń...", "#0078D7")
+            wynik = zrob_zestawienie_zbiorcze(Path(folder_str))
+            if wynik is None:
+                self.log("[ZESTAWIENIE] Brak plików *_Rozliczone.xlsx w folderze docelowym "
+                         "— uruchom najpierw rozliczanie.")
+                self.update_status("Brak plików rozliczeń", "#D83B01", animate=False)
+                self.after(0, lambda: messagebox.showwarning(
+                    "Zestawienie zbiorcze",
+                    "Brak plików *_Rozliczone.xlsx w folderze docelowym.\n\n"
+                    "Uruchom najpierw rozliczanie obrębów."))
+                return
+            r = wynik["razem"]
+            self.log("=" * 55)
+            self.log(f"[OK] Zestawienie zbiorcze ({wynik['wsie']} wsi): {wynik['plik']}")
+            self.log(f"     RAZEM rozliczone: {r['Pow. rozliczona [ha]']:.4f} ha")
+            self.log(f"     PRZYBYŁO: {r['Przybyło [ha]']:.4f} ha ({r['Przybyło działek']} działek)")
+            self.log(f"     UBYŁO: {r['Ubyło [ha]']:.4f} ha ({r['Ubyło działek']} działek)")
+            self.log("=" * 55)
+            self.set_progress(1.0)
+            self.update_status("Zestawienie zbiorcze gotowe", "#27ae60", animate=False)
+            self.after(0, lambda: messagebox.showinfo(
+                "Zestawienie zbiorcze",
+                f"Złożono {wynik['wsie']} wsi.\n\n"
+                f"RAZEM rozliczone: {r['Pow. rozliczona [ha]']:.4f} ha\n"
+                f"PRZYBYŁO: {r['Przybyło [ha]']:.4f} ha ({r['Przybyło działek']} działek)\n"
+                f"UBYŁO: {r['Ubyło [ha]']:.4f} ha ({r['Ubyło działek']} działek)"))
+        except Exception:
+            self.log(traceback.format_exc())
+            self.update_status("Błąd zestawienia", "#D83B01", animate=False)
+        finally:
+            self.running = False
+            self.after(0, self.restore_all_buttons)
+
     def start_rozliczanie_pipeline(self):
         folder_xls = self.rozl_xls_entry.get().strip() if self.rozl_xls_entry else ""
         folder_val = self.rozl_val_entry.get().strip() if self.rozl_val_entry else ""

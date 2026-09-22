@@ -3,7 +3,7 @@
   "folder_excel_output_entry": "//NASA/wd-wcc3f2596652/URZ2026/NML/RAPORTY DO DRUKU/Nowy folder",
   "folder_rozl_xls_entry": "D:\\download\\gówno\\Nowy folder (17)\\xls",
   "folder_rozl_val_entry": "D:\\download\\gówno\\Nowy folder (17)\\val",
-  "folder_rozl_out_entry": "D:\\download\\gówno\\Nowy folder (17)\\rozliczone",
+  "folder_rozl_out_entry": "\\\\NASA\\wd-wcc3f2596652\\URZ2026\\WOŁOMIN_2026\\rozliczanie\\rozliczone",
   "wsie_wsie_wojew": "10",
   "wsie_wsie_powiat": "",
   "wsie_wsie_stan": "01.01.2023",
@@ -109,5 +109,9 @@
   "web.pc_dst": "",
   "web.pdf_skroty": true,
   "web.opis_og_gdos": "\\\\NASA\\wd-wcc3f2596652\\URZ2026\\MIĘDZYCHÓD_KWILCZ\\wyniki gdoś",
-  "web.pdf_spis": true
+  "web.pdf_spis": true,
+  "web.zestaw": "",
+  "folder_zestaw_entry": "\\\\NASA\\wd-wcc3f2596652\\URZ2026\\WOŁOMIN_2026\\rozliczanie\\rozliczone",
+  "web.zestaw_mietki": "",
+  "folder_zestaw_mietki_entry": "\\\\NASA\\wd-wcc3f2596652\\URZ2026\\WOŁOMIN_2026\\rozliczanie\\MIETKI"
 }

@@ -435,4 +435,315 @@ WSIE_FIELDS = [
     ('POWIAT', 'C', 30, 0),
 ]
 
+def zrob_zestawienie_zbiorcze(folder):
+    """Zestawienie zbiorcze rozliczeń całego obrębu.
 
+    Skanuje folder z plikami <WIEŚ>_Rozliczone.xlsx i tworzy jeden plik
+    ZESTAWIENIE_ZBIORCZE.xlsx z trzema typami arkuszy:
+    - 'Zestawienie'  — wiersz na wieś (pow. rozliczona, przybyło, ubyło, saldo)
+                      + wiersz RAZEM z sumami wszystkich wsi,
+    - 'Przybyło'     — rozpiska WSZYSTKICH działek z przybyłem, per wieś
+                      (J. rej., nr działki, właściciel, powierzchnie),
+    - 'Ubyło'        — analogiczna rozpiska działek z ubyłem.
+    Właściciel jest dobierany z arkusza Tabela_Glowna po J. rej. + nr działki.
+    Zwraca słownik z podsumowaniem albo None (brak plików rozliczeń).
+    """
+    from openpyxl.styles import Font as _Font, Alignment as _Alignment, PatternFill as _Fill
+    from openpyxl.utils import get_column_letter as _gcl
+
+    folder = Path(folder)
+    pliki = sorted(folder.glob("*_Rozliczone.xlsx"))
+    if not pliki:
+        return None
+
+    def _norm(v):
+        """Ujednolica wartość (liczba/tekst) do klucza porównawczego."""
+        try:
+            if v is not None and pd.notna(v) and str(v).strip() != "":
+                return ("n", round(float(str(v).replace(",", ".")), 4))
+        except (ValueError, TypeError):
+            pass
+        return ("s", str(v).strip() if v is not None else "")
+
+    wiersze = []
+    szczegoly = {"PRZYBYLO": [], "UBYLO": []}   # lista (wieś, DataFrame z właścicielem)
+
+    for sciezka in pliki:
+        wies = sciezka.stem
+        if wies.lower().endswith("_rozliczone"):
+            wies = wies[: -len("_rozliczone")] if wies.endswith("_rozliczone") else wies[:-len("_Rozliczone")]
+
+        # Tabela_Glowna -> suma ROZLICZONE + mapa właścicieli
+        tg = None
+        wlasciciele = {}
+        try:
+            tg = pd.read_excel(sciezka, sheet_name="Tabela_Glowna")
+        except Exception:
+            tg = None
+        if tg is not None and "właściciel" in getattr(tg, "columns", []):
+            for _, row in tg.iterrows():
+                klucz = (_norm(row.get("J. rej.")), _norm(row.get("nr_dz")))
+                wl = str(row.get("właściciel") or "").strip()
+                if wl and klucz not in wlasciciele:
+                    wlasciciele[klucz] = wl
+        rozliczona = 0.0
+        if tg is not None and "ROZLICZONE" in getattr(tg, "columns", []):
+            rozliczona = float(pd.to_numeric(tg["ROZLICZONE"], errors="coerce").fillna(0).sum())
+
+        # PRZYBYLO / UBYLO — pełna treść (nagłówki w wierszu 2, startrow=1)
+        for nazwa, kolumna_ile in (("PRZYBYLO", "ile przybyło"), ("UBYLO", "ile ubyło")):
+            try:
+                df = pd.read_excel(sciezka, sheet_name=nazwa, header=1)
+            except Exception:
+                df = None
+            if df is None or df.empty or kolumna_ile not in getattr(df, "columns", []):
+                continue
+            ma_wlasciciela = "właściciel" in getattr(df, "columns", [])
+            wl = []
+            for _, row in df.iterrows():
+                klucz = (_norm(row.get("J. rej.")), _norm(row.get("nr działki")))
+                z_tg = wlasciciele.get(klucz, "")
+                if ma_wlasciciela:
+                    # kolumna już istnieje (plik zredagowany ręcznie):
+                    # wartość z pliku ma pierwszeństwo, braki uzupełniamy z Tabela_Glowna
+                    z_pliku = row.get("właściciel")
+                    z_pliku = "" if pd.isna(z_pliku) else str(z_pliku).strip()
+                    wl.append(z_pliku if z_pliku else z_tg)
+                else:
+                    wl.append(z_tg)
+            df = df.copy()
+            df["właściciel"] = wl
+            # właściciel ZAWSZE jako ostatnia kolumna — wąska, tekst w jednej linii
+            # wychodzi poza jej krawędź (nic go nie zasłania), jak po wyłączeniu
+            # zawijania w Excelu
+            kolej = [c for c in df.columns if c != "właściciel"] + ["właściciel"]
+            df = df[kolej]
+            szczegoly[nazwa].append((wies, df, kolumna_ile))
+
+        # sumy do arkusza 'Zestawienie'
+        def _sumuj(nazwa, kolumna):
+            for w, df, kol in szczegoly[nazwa]:
+                if w == wies and kol == kolumna:
+                    return (float(pd.to_numeric(df[kolumna], errors="coerce").fillna(0).sum()),
+                            int(df[kolumna].notna().sum()))
+            return 0.0, 0
+
+        p_ha, p_n = _sumuj("PRZYBYLO", "ile przybyło")
+        u_ha, u_n = _sumuj("UBYLO", "ile ubyło")
+        wiersze.append({
+            "Wieś": wies,
+            "Pow. rozliczona [ha]": round(rozliczona, 4),
+            "Przybyło [ha]": round(p_ha, 4),
+            "Przybyło działek": p_n,
+            "Ubyło [ha]": round(u_ha, 4),
+            "Ubyło działek": u_n,
+        })
+
+    if not wiersze:
+        return None
+
+    df = pd.DataFrame(wiersze)
+    razem = {"Wieś": "RAZEM (wszystkie wsie)"}
+    razem["Pow. rozliczona [ha]"] = round(df["Pow. rozliczona [ha]"].sum(), 4)
+    razem["Przybyło [ha]"] = round(df["Przybyło [ha]"].sum(), 4)
+    razem["Przybyło działek"] = int(df["Przybyło działek"].sum())
+    razem["Ubyło [ha]"] = round(df["Ubyło [ha]"].sum(), 4)
+    razem["Ubyło działek"] = int(df["Ubyło działek"].sum())
+    df = pd.concat([df, pd.DataFrame([razem])], ignore_index=True)
+
+    sciezka_out = folder / "ZESTAWIENIE_ZBIORCZE.xlsx"
+    with pd.ExcelWriter(str(sciezka_out), engine="openpyxl") as writer:
+        # ---------- arkusz zbiorczy ----------
+        df.to_excel(writer, sheet_name="Zestawienie", index=False)
+        ws = writer.sheets["Zestawienie"]
+        for i, c in enumerate(df.columns, start=1):
+            ws.column_dimensions[_gcl(i)].width = max(14, min(28, len(c) + 3))
+            kom = ws.cell(row=1, column=i)
+            kom.font = _Font(bold=True)
+            kom.alignment = _Alignment(horizontal="center")
+        for i in range(1, len(df.columns) + 1):
+            ws.cell(row=len(df), column=i).font = _Font(bold=True)
+        for r in range(2, len(df) + 1):
+            for i, c in enumerate(df.columns, start=1):
+                if "[ha]" in str(c):
+                    ws.cell(row=r, column=i).number_format = "0.0000"
+
+        # ---------- arkusze 'Przybyło' / 'Ubyło' (rozpiska działek) ----------
+        for nazwa, nazwa_ark in (("PRZYBYLO", "Przybyło"), ("UBYLO", "Ubyło")):
+            sekcje = szczegoly[nazwa]
+            if not sekcje:
+                continue
+            kolumna_ile = "ile przybyło" if nazwa == "PRZYBYLO" else "ile ubyło"
+            szer = [10, 13, 40, 15, 15, 13, 12]
+            wypel = _Fill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid") \
+                if nazwa == "PRZYBYLO" else _Fill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+
+            ws = writer.book.create_sheet(nazwa_ark)
+            wiersz = 1
+            for wies, df_w, _ in sekcje:
+                suma = float(pd.to_numeric(df_w[kolumna_ile], errors="coerce").fillna(0).sum())
+                nagl = f"{wies} — {kolumna_ile}: {suma:.4f} ha, działek: {len(df_w)}"
+                ws.merge_cells(start_row=wiersz, start_column=1, end_row=wiersz, end_column=7)
+                kom = ws.cell(row=wiersz, column=1, value=nagl)
+                kom.font = _Font(bold=True, size=12)
+                kom.fill = wypel
+                kom.alignment = _Alignment(horizontal="left", vertical="center")
+                wiersz += 1
+                for i, c in enumerate(df_w.columns, start=1):
+                    kom = ws.cell(row=wiersz, column=i, value=str(c))
+                    kom.font = _Font(bold=True)
+                    kom.alignment = _Alignment(horizontal="center")
+                wiersz += 1
+                for _, row in df_w.iterrows():
+                    for i, c in enumerate(df_w.columns, start=1):
+                        v = row[c]
+                        if pd.isna(v):
+                            v = ""
+                        kom = ws.cell(row=wiersz, column=i, value=v)
+                        if c == "właściciel":
+                            # bez zawijania: wąska kolumna na końcu, tekst w jednej linii
+                            # swobodnie wychodzi poza jej prawą krawędź
+                            kom.alignment = _Alignment(horizontal="left", vertical="top")
+                        else:
+                            kom.alignment = _Alignment(vertical="top")
+                            if ("pow" in str(c)) or ("ls" in str(c)) or (c == kolumna_ile):
+                                kom.number_format = "0.0000"
+                    wiersz += 1
+                wiersz += 1  # pusty wiersz między wsiami
+
+            # wiersz RAZEM na końcu rozpiski
+            suma_cala = sum(
+                float(pd.to_numeric(df_w[kolumna_ile], errors="coerce").fillna(0).sum())
+                for _, df_w, _ in sekcje)
+            n_dz = sum(len(df_w) for _, df_w, _ in sekcje)
+            ws.merge_cells(start_row=wiersz, start_column=1, end_row=wiersz, end_column=7)
+            kom = ws.cell(row=wiersz, column=1,
+                          value=f"RAZEM — {kolumna_ile}: {suma_cala:.4f} ha, działek: {n_dz}")
+            kom.font = _Font(bold=True, size=12)
+            for i, wdt in enumerate(szer, start=1):
+                ws.column_dimensions[_gcl(i)].width = wdt
+            ws.freeze_panes = "A2"
+
+    return {"plik": str(sciezka_out), "wsie": len(wiersze), "razem": razem}
+
+def _read_dbf_records(sciezka):
+    """Odczyt DBF (dBase III) jak MIETEK — odporny na 'śmieci' w polach liczbowych.
+
+    Zwraca listę słowników {nazwa_pola: wartość_tekstowa}; pól N nie konwertujemy
+    od razu na liczby (bywają uszkodzone) — parsowanie odbywa się przy użyciu.
+    """
+    import struct
+    with open(sciezka, "rb") as f:
+        header = f.read(32)
+        if len(header) < 32:
+            raise Exception(f"Za krótki nagłówek DBF: {sciezka}")
+        num_records = struct.unpack("<I", header[4:8])[0]
+        header_length = struct.unpack("<H", header[8:10])[0]
+        record_length = struct.unpack("<H", header[10:12])[0]
+        pola = []
+        while True:
+            fld = f.read(32)
+            if len(fld) < 32 or fld[0] == 0x0D:
+                break
+            pola.append((fld[0:11].split(b"\x00", 1)[0].decode("ascii", "replace"),
+                         chr(fld[11]), fld[16]))
+        f.seek(header_length)
+        rekordy = []
+        for _ in range(num_records):
+            rec_raw = f.read(record_length)
+            if len(rec_raw) < record_length:
+                break
+            rec = {}
+            off = 1  # bajt flagi usunięcia
+            for (nazwa, typ, dl) in pola:
+                raw = rec_raw[off:off + dl]
+                off += dl
+                if typ in ("C", "M", "G"):
+                    rec[nazwa] = raw.decode("cp852", "replace").strip()
+                elif typ in ("N", "F"):
+                    rec[nazwa] = raw.decode("ascii", "replace").replace("\x00", "").strip()
+                else:
+                    rec[nazwa] = raw.decode("ascii", "replace").strip()
+            rekordy.append(rec)
+    return rekordy
+
+
+def _znajdz_dbf(folder_obrebu, litera):
+    """Pierwszy <litera>*.DBF w obrębie (bez wielkości liter, pomijając WSIE.DBF)."""
+    wyniki, widziane = [], set()
+    for wzor in (f"{litera}*.DBF", f"{litera}*.dbf",
+                 f"{litera.lower()}*.DBF", f"{litera.lower()}*.dbf"):
+        for p in folder_obrebu.rglob(wzor):
+            if p.stem.upper() == "WSIE":
+                continue
+            klucz = str(p).upper()
+            if klucz not in widziane:
+                widziane.add(klucz)
+                wyniki.append(p)
+    return wyniki[0] if wyniki else None
+
+
+def _liczba_dbf(v, domyslna=0.0):
+    """Bezpieczne parsowanie liczby z DBF/Excel — śmieci dają wartość domyślną."""
+    try:
+        if v is None or str(v).strip() == "":
+            return domyslna
+        return float(str(v).replace(",", "."))
+    except (ValueError, TypeError):
+        return domyslna
+
+
+def zrob_zestawienie_z_mietkow(mietki_dir):
+    """Zestawienie zbiorcze z mietków z wpisanymi krzyżówkami (D*.DBF).
+
+    Dla każdego folderu-obrębu w folderze mietków sumuje powierzchnie rozliczone
+    z krzyżówek i zapisuje ZESTAWIENIE_Z_MIETKOW.xlsx: wiersz na każdą wieś
+    + wiersz RAZEM (suma wszystkich wsi).
+    Zwraca słownik {plik, wsie, razem} albo None (brak krzyżówek w folderze).
+    """
+    from openpyxl.styles import Font as _Font, Alignment as _Alignment
+    from openpyxl.utils import get_column_letter as _gcl
+
+    mietki_dir = Path(mietki_dir)
+    if not mietki_dir.is_dir():
+        return None
+
+    wiersze = []
+    for obreb in sorted(f for f in mietki_dir.iterdir() if f.is_dir()):
+        d_path = _znajdz_dbf(obreb, "D")
+        if d_path is None:
+            continue
+        try:
+            rekordy = _read_dbf_records(d_path)
+        except Exception:
+            continue
+        if not rekordy:
+            continue
+        suma = round(sum(_liczba_dbf(r.get("POW")) for r in rekordy), 4)
+        wiersze.append({"Wieś": obreb.name, "Pow. rozliczona [ha]": suma})
+
+    if not wiersze:
+        return None
+
+    df = pd.DataFrame(wiersze)
+    razem_suma = round(df["Pow. rozliczona [ha]"].sum(), 4)
+    df = pd.concat(
+        [df, pd.DataFrame([{"Wieś": "RAZEM (wszystkie wsie)",
+                            "Pow. rozliczona [ha]": razem_suma}])],
+        ignore_index=True)
+
+    sciezka_out = mietki_dir / "ZESTAWIENIE_Z_MIETKOW.xlsx"
+    with pd.ExcelWriter(str(sciezka_out), engine="openpyxl") as writer:
+        df.to_excel(writer, sheet_name="Zestawienie", index=False)
+        ws = writer.sheets["Zestawienie"]
+        for i, c in enumerate(df.columns, start=1):
+            ws.column_dimensions[_gcl(i)].width = max(14, min(28, len(str(c)) + 3))
+            kom = ws.cell(row=1, column=i)
+            kom.font = _Font(bold=True)
+            kom.alignment = _Alignment(horizontal="center")
+        for i in range(1, len(df.columns) + 1):
+            ws.cell(row=len(df), column=i).font = _Font(bold=True)
+        for r in range(2, len(df) + 1):
+            ws.cell(row=r, column=2).number_format = "0.0000"
+
+    return {"plik": str(sciezka_out), "wsie": len(wiersze), "razem": razem_suma}

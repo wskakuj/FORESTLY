@@ -627,6 +627,11 @@ class ModernApp(
         # ---- ROZLICZANIE ----
         _naglowek("ROZLICZANIE")
         tab_rozl_main = _nowa_zakladka("ROZLICZANIE", "Rozliczanie powierzchni")
+        tab_zestawienie = _nowa_zakladka(
+            "ROZLICZANIE", "Zestawienie zbiorcze",
+            "Składa wszystkie pliki <WIEŚ>_Rozliczone.xlsx w jeden plik: "
+            "sumy per wieś + rozpiska działek przybyło/ubyło z właścicielami."
+        )
         tab_tworzenie_mietkow = _nowa_zakladka("ROZLICZANIE", "Tworzenie i wpisywanie mietków")
         tab_halizny = _nowa_zakladka("ROZLICZANIE", "Halizny")
         tab_excel_z_mdb = _nowa_zakladka("ROZLICZANIE", "Excel z MDB")
@@ -677,6 +682,7 @@ class ModernApp(
         self.setup_mdb_update_tab(tab_mdb_update)
 
         self.setup_rozliczanie_tab(tab_rozl_main)
+        self.setup_zestawienie_tab(tab_zestawienie)
         self.setup_tworzenie_mietkow_tab(tab_tworzenie_mietkow)
         self.setup_halizny_tab(tab_halizny)
         self.setup_excel_z_mdb_tab(tab_excel_z_mdb)
