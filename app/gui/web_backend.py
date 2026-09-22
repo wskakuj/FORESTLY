@@ -178,6 +178,32 @@ class WebBackend(
 
         self._install_messagebox_shim()
         self._build_fakes_from_schema()
+        self._check_pending_changelog()
+
+    def _check_pending_changelog(self):
+        """Po aktualizacji: pokazuje changelog zapisany przez aktualizator
+        (pending_changelog.json obok EXE) — odpowiednik check_pending_changelog
+        z klasycznego GUI."""
+        try:
+            if getattr(sys, "frozen", False):
+                app_dir = Path(sys.executable).resolve().parent
+            else:
+                app_dir = Path(__file__).resolve().parent
+            changelog_file = app_dir / "pending_changelog.json"
+            if not changelog_file.exists():
+                return
+            data = json.loads(changelog_file.read_text(encoding="utf-8"))
+            version = data.get("version", CURRENT_VERSION)
+            body = data.get("changelog", "")
+            try:
+                changelog_file.unlink()
+            except Exception:
+                pass
+            if body.strip():
+                self._emit({"type": "changelog", "version": version, "body": body})
+                self.log(f"Zainstalowano aktualizację {version} — zobacz, co nowego.")
+        except Exception as e:
+            print(f"[INFO] Błąd odczytu changelogu: {e}")
 
     # -------------------------------------------------- zdarzenia i dialogi
 
@@ -350,11 +376,26 @@ class WebBackend(
                         f.set(bool(val.get(choice, choice == "Wszystkie" and not any(
                             v and k != "Wszystkie" for k, v in val.items()))))
             elif kind == "margins":
+                mode_cfg = {}
+                all_valid = True
                 for ftype, sides in (val or {}).items():
+                    mode_cfg[ftype] = {}
                     for side, v in (sides or {}).items():
                         f = self._get_fake(f"margin_vars.{c['mode']}.{ftype}.{side}")
                         if f is not None:
                             f.set(str(v))
+                        try:
+                            mode_cfg[ftype][side] = float(str(v).replace(",", "."))
+                        except (TypeError, ValueError):
+                            all_valid = False
+                # trwałe zapamiętanie marginesów — jak w GUI CustomTkinter
+                # (tam save_margins leci przy starcie zadania; w web zapisujemy
+                # od razu, żeby przetrwały restart programu). Niepoprawne
+                # wartości (w trakcie wpisywania) nie trafiają na dysk.
+                if mode_cfg and all_valid:
+                    saved_config = load_margins()
+                    saved_config[c["mode"]] = mode_cfg
+                    save_margins(saved_config)
             elif kind == "fonts":
                 for sheet, v in (val or {}).items():
                     ent = self.excel_font_entries.get(sheet)

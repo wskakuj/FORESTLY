@@ -617,6 +617,7 @@ function handleEvent(ev) {
       });
       break;
     case "dialog": showDialog(ev); break;
+    case "changelog": showChangelog(ev); break;
     case "state": setRunning(!!ev.running); break;
   }
 }
@@ -642,6 +643,25 @@ function setRunning(running) {
 }
 
 /* -------------------------------------------------------------------- dialogi */
+function showChangelog(ev) {
+  const wrap = el("div", "modal-backdrop");
+  const modal = el("div", "modal");
+  modal.style.width = "620px";
+  modal.appendChild(el("h3", null, "Co nowego w " + (ev.version || "")));
+  const body = el("div", "changelog-body");
+  body.innerHTML = escapeHtml(ev.body || "").replace(/\n/g, "<br>");
+  modal.appendChild(body);
+  const row = el("div", "modal-row");
+  const close = el("button", "btn primary");
+  close.textContent = "Zamknij";
+  close.onclick = () => wrap.remove();
+  row.appendChild(close);
+  modal.appendChild(row);
+  wrap.appendChild(modal);
+  wrap.onclick = e => { if (e.target === wrap) wrap.remove(); };
+  $("#modal-root").appendChild(wrap);
+}
+
 function showDialog(ev) {
   if (ev.kind === "confirm") {
     if (window.confirm(ev.title + "\n\n" + ev.message)) {
