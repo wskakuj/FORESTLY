@@ -66,6 +66,32 @@ def next_patch(v):
     return f"v{a}.{b}.{c + 1}"
 
 
+def sanitize_notes(text):
+    """Usuwa z changelogu encje HTML i gwiazdki markdownu, które w oknie
+    „Co nowego" w programie wyglądałyby jak krzaczki."""
+    A = "&"
+    pairs = (
+        (A + "amp;#x20;", " "),
+        (A + "amp;nbsp;", " "),
+        (A + "#x20;", " "),
+        (A + "nbsp;", " "),
+        (A + "#160;", " "),
+        (A + "#xa0;", " "),
+        (A + "quot;", '"'),
+        (A + "#39;", "'"),
+        (A + "lt;", "<"),
+        (A + "gt;", ">"),
+        (A + "amp;", A),
+    )
+    for _pass in range(2):   # dwa przebiegi — na wypadek podwójnych encji
+        for old, new in pairs:
+            text = text.replace(old, new)
+    text = re.sub(r"\*\*([^*]+)\*\*", r"\1", text)
+    text = re.sub(r"\*([^*]+)\*", r"\1", text)
+    # wypunktowanie gwiazdką → myślnik (poprawne kropki na GitHubie)
+    text = re.sub(r"(?m)^\s*\*\s+", "- ", text)
+    return text
+
 def edit_changelog(ver):
     """Changelog: notepad na Windows, wpisywanie w konsoli gdzie indziej."""
     header = f"# Co nowego w {ver}\n\n"
@@ -76,7 +102,12 @@ def edit_changelog(ver):
             subprocess.run(["notepad.exe", str(NOTES)], check=False)
         except FileNotFoundError:
             pass
-        body = NOTES.read_text(encoding="utf-8").strip()
+        raw = NOTES.read_text(encoding="utf-8")
+        clean = sanitize_notes(raw)
+        if clean != raw:
+            NOTES.write_text(clean, encoding="utf-8")
+            print("   (wyczyściłem znaki specjalne, które psułyby okno Co nowego)")
+        body = clean.strip()
         if body in (header.strip(), header.strip() + "-"):
             print("   (changelog pusty — użyję tylko listy commitów z GitHuba)")
             return
@@ -92,7 +123,8 @@ def edit_changelog(ver):
         if not line.strip():
             break
         lines.append(line)
-    NOTES.write_text(header + "\n".join(lines) + "\n", encoding="utf-8")
+    NOTES.write_text(sanitize_notes(header + "\n".join(lines)) + "\n",
+                     encoding="utf-8")
 
 
 def main():

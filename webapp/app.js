@@ -252,7 +252,7 @@ function renderControls(view, tab) {
     btn.textContent = b.label;
     btn.title = b.tooltip || "";
     if (b.style !== "secondary") btn.classList.add("run-big");
-    btn.onclick = () => runTask(b.task);
+    btn.onclick = () => { LAST_TASK_LABEL = b.label; runTask(b.task); };
     actions.appendChild(btn);
   }
   view.appendChild(actions);
@@ -561,6 +561,8 @@ function scheduleSetValues() {
 /* ------------------------------------------------------------------ uruchomienie */
 async function runTask(task) {
   if (RUNNING) { toast("Zadanie już trwa — najpierw zatrzymaj bieżące.", "warn"); return; }
+  LAST_STATUS_ERR = false;
+  STOP_REQUESTED = false;
   try { await api().set_values(collectValues()); } catch (e) { /* noop */ }
   /* zadania czysto dialogowe — nie idą do backendu jako procesy */
   if (task === "web_manual_merge") { openManualMerge(); return; }
@@ -587,7 +589,8 @@ function handleEvent(ev) {
     case "clear_log": $("#log").innerHTML = ""; break;
     case "status":
       $("#status-text").textContent = ev.text;
-      $("#status-dot").className = ev.color === "#D83B01" ? "err" : "";
+      LAST_STATUS_ERR = (ev.color === "#D83B01");
+      $("#status-dot").className = LAST_STATUS_ERR ? "err" : "";
       break;
     case "progress": {
       const fill = $("#progress-fill");
@@ -633,13 +636,105 @@ function appendLog(text) {
   log.scrollTop = log.scrollHeight;
 }
 
+let LAST_TASK_LABEL = null;    /* nazwa ostatnio uruchomionego zadania */
+let LAST_STATUS_ERR = false;   /* czy ostatni status był błędem (czerwony) */
+let STOP_REQUESTED = false;   /* czy użytkownik kliknął „Zatrzymaj" */
+
 function setRunning(running) {
+  const was = RUNNING;
   RUNNING = running;
   $$(".run-btn").forEach(b => b.disabled = running);
   $("#btn-stop").classList.toggle("hidden", !running);
   const dot = $("#status-dot");
   if (running) { dot.className = "busy"; }
   else { dot.className = ""; }
+  /* koniec zadania → powiadomienie + dźwięk */
+  if (was && !running) notifyTaskEnd();
+}
+
+/* ------------------------------------------------ powiadomienie o zakończeniu */
+function notifyTaskEnd() {
+  const label = LAST_TASK_LABEL;
+  LAST_TASK_LABEL = null;
+  if (!label) return;
+  if (STOP_REQUESTED) { STOP_REQUESTED = false; return; }
+  if (LAST_STATUS_ERR) {
+    toast("✗ Zadanie zakończone błędem: " + label + " — szczegóły w logu", "error");
+    return;
+  }
+  toast("✓ Zakończono: " + label, "done");
+  playChime();
+  /* gdy okno jest schowane — spróbuj systemowego powiadomienia (jeśli zgoda) */
+  if (document.hidden && typeof Notification !== "undefined" &&
+      Notification.permission === "granted") {
+    try { new Notification("Forestly — zakończono", { body: label }); } catch (e) {}
+  }
+}
+
+let _chimeCtx = null;
+function playChime() {
+  try {
+    if (!_chimeCtx) _chimeCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (_chimeCtx.state === "suspended") _chimeCtx.resume();
+    const notes = [[880, 0], [1174.66, 0.18]];   /* A5 → D6 */
+    for (const [freq, delay] of notes) {
+      const o = _chimeCtx.createOscillator();
+      const g = _chimeCtx.createGain();
+      o.type = "sine";
+      o.frequency.value = freq;
+      o.connect(g); g.connect(_chimeCtx.destination);
+      const t0 = _chimeCtx.currentTime + delay;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.22, t0 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.55);
+      o.start(t0); o.stop(t0 + 0.6);
+    }
+  } catch (e) { /* dźwięk niedostępny — powiadomienie i tak się pokaże */ }
+}
+
+/* ------------------------------------------- „Co nowego": czyszczenie treści */
+function cleanChangelogText(s) {
+  s = String(s || "");
+  /* encje HTML wkradające się do changelogu (m.in. przy kopiowaniu z podglądu) */
+  const A = "&";
+  const pairs = [
+    [A + "amp;#x20;", " "],
+    [A + "amp;nbsp;", " "],
+    [A + "#x20;", " "],
+    [A + "nbsp;", " "],
+    [A + "#160;", " "],
+    [A + "#xa0;", " "],
+    [A + "quot;", '"'],
+    [A + "#39;", "'"],
+    [A + "lt;", "<"],
+    [A + "gt;", ">"],
+    [A + "amp;", A]
+  ];
+  for (const [from, to] of pairs) s = s.split(from).join(to);
+  /* drugi przebieg — na wypadek podwójnie zaszyfrowanych encji */
+  for (const [from, to] of pairs) s = s.split(from).join(to);
+  /* znaczniki markdown (pogrubienie/kursywa) — tekst zostaje, gwiazdki znikają */
+  s = s.replace(/\*\*([^*]+)\*\*/g, "$1").replace(/\*([^*]+)\*/g, "$1");
+  return s;
+}
+
+function renderChangelogBody(box, text) {
+  const lines = cleanChangelogText(text).split(/\r?\n/);
+  for (const raw of lines) {
+    const line = raw.replace(/\s+$/, "");
+    if (!line.trim()) { box.appendChild(el("div", "cl-gap", "")); continue; }
+    let m;
+    if ((m = line.match(/^#{1,6}\s+(.*)$/))) {
+      box.appendChild(el("div", "cl-head", escapeHtml(m[1])));
+    } else if ((m = line.match(/^[-*•·]\s*(.*)$/))) {
+      const row = el("div", "cl-item");
+      row.appendChild(el("span", "cl-bullet", "•"));
+      row.appendChild(el("span", null, escapeHtml(m[1])));
+      box.appendChild(row);
+    } else {
+      box.appendChild(el("div", "cl-line", escapeHtml(line)));
+    }
+  }
 }
 
 /* -------------------------------------------------------------------- dialogi */
@@ -649,7 +744,7 @@ function showChangelog(ev) {
   modal.style.width = "620px";
   modal.appendChild(el("h3", null, "Co nowego w " + (ev.version || "")));
   const body = el("div", "changelog-body");
-  body.innerHTML = escapeHtml(ev.body || "").replace(/\n/g, "<br>");
+  renderChangelogBody(body, ev.body || "");
   modal.appendChild(body);
   const row = el("div", "modal-row");
   const close = el("button", "btn primary");
@@ -815,6 +910,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   };
   $("#btn-stop").onclick = async () => {
     await api().stop();
+    STOP_REQUESTED = true;
     toast("Zatrzymywanie — program zakończy po bieżącym kroku…", "warn");
   };
   $("#btn-check-update").onclick = async () => {

@@ -51,20 +51,23 @@ class UpdaterMixin:
                     if latest_version and parse_version(latest_version) > parse_version(
                             CURRENT_VERSION
                     ):
-                        download_url = None
-                        # W Release jest kilka wariantow EXE (Forestly.exe,
-                        # Forestly_OLD.exe) — wybieramy wlasciwy.
+                        # W Release są dwa EXE (Forestly.exe, Forestly_OLD.exe) —
+                        # aktualizujemy OBA naraz (leżą w tym samym folderze).
                         exe_assets = [a for a in data.get("assets", []) if a["name"].endswith(".exe")]
-                        chosen = next((a for a in exe_assets if a["name"] == "Forestly.exe"), None)
-                        if chosen is None and exe_assets:
-                            chosen = exe_assets[0]
-                        if chosen:
-                            download_url = chosen["browser_download_url"]
+                        by_name = {a["name"]: a for a in exe_assets}
+                        downloads = [
+                            (n, by_name[n]["browser_download_url"])
+                            for n in ("Forestly.exe", "Forestly_OLD.exe")
+                            if n in by_name
+                        ]
+                        if not downloads and exe_assets:
+                            a0 = exe_assets[0]
+                            downloads = [(a0["name"], a0["browser_download_url"])]
                         msg = f"Dostępna jest nowa wersja programu: {latest_version}\n(Obecnie używasz: {CURRENT_VERSION})\nCzy chcesz automatycznie pobrać i zainstalować aktualizację?"
                         changelog_body = data.get("body", "")
                         if messagebox.askyesno("Dostępna aktualizacja!", msg):
-                            if download_url:
-                                self.download_and_update(download_url, latest_version, changelog_body)
+                            if downloads:
+                                self.download_and_update(downloads, latest_version, changelog_body)
                             else:
                                 self.log(
                                     "[UPDATE] Znaleziono wydanie, ale brak pliku .exe w załącznikach. Otwieram stronę..."
@@ -92,7 +95,8 @@ class UpdaterMixin:
         # WAŻNE: Ta linijka musi być na tym samym poziomie wcięcia co 'def _check():'
         threading.Thread(target=_check, daemon=True).start()
 
-    def download_and_update(self, url, new_version, changelog_text=""):
+    def download_and_update(self, downloads, new_version, changelog_text=""):
+            """downloads: [(nazwa, url), ...] — wszystkie pliki do podmiany."""
             if not getattr(sys, "frozen", False):
                 messagebox.showwarning(
                     "Wersja deweloperska",
@@ -113,7 +117,10 @@ class UpdaterMixin:
 
                 exe_path_ps = ps_literal(current_exe_path)
                 target_dir_ps = ps_literal(target_dir_path)
-                url_ps = ps_literal(url)
+                ps_downloads = ",\n                ".join(
+                    "@{{ Name = {}; Url = {} }}".format(ps_literal(n), ps_literal(u))
+                    for n, u in downloads
+                )
 
                 changelog_data = json.dumps(
                     {
@@ -203,8 +210,9 @@ class UpdaterMixin:
         $pidToWait = {pid}
         $exePath = {exe_path_ps}
         $targetDir = {target_dir_ps}
-        $url = {url_ps}
-        $tempExe = Join-Path $env:TEMP "Forestly_Najnowszy.exe"
+        $downloads = @(
+            {ps_downloads}
+        )
 
         $waitStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
@@ -225,47 +233,58 @@ class UpdaterMixin:
         try {{
             [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
             $webClient = New-Object System.Net.WebClient
-            $webClient.DownloadFileAsync([uri]$url, $tempExe)
 
-            while ($webClient.IsBusy) {{
-                [System.Windows.Forms.Application]::DoEvents()
-                Start-Sleep -Milliseconds 50
-            }}
-
-            $file = Get-Item $tempExe -ErrorAction SilentlyContinue
-            if ($null -eq $file -or ($file.Length / 1MB) -lt 10) {{
-                $label.Text = "BŁĄD: Pobrany plik jest uszkodzony."
-                $label.ForeColor = [System.Drawing.Color]::Red
-                $progressBar.Style = "Blocks"
+            foreach ($d in $downloads) {{
+                $tempPath = Join-Path $env:TEMP ("Forestly_Update_" + $d.Name)
+                $label.Text = "Pobieranie: " + $d.Name + "..."
                 $form.Refresh()
-                Start-Sleep -Seconds 5
-                $form.Close()
-                exit 1
+                $webClient.DownloadFileAsync([uri]$d.Url, $tempPath)
+
+                while ($webClient.IsBusy) {{
+                    [System.Windows.Forms.Application]::DoEvents()
+                    Start-Sleep -Milliseconds 50
+                }}
+
+                $file = Get-Item $tempPath -ErrorAction SilentlyContinue
+                if ($null -eq $file -or ($file.Length / 1MB) -lt 10) {{
+                    $label.Text = "BŁĄD: Pobrany plik " + $d.Name + " jest uszkodzony."
+                    $label.ForeColor = [System.Drawing.Color]::Red
+                    $progressBar.Style = "Blocks"
+                    $form.Refresh()
+                    Start-Sleep -Seconds 5
+                    $form.Close()
+                    exit 1
+                }}
             }}
 
             $label.Text = "Pobrano poprawnie. Podmiana plików..."
             $form.Refresh()
             Start-Sleep -Milliseconds 500
 
-            if (Test-FileLocked $exePath) {{
-                Start-Sleep -Seconds 2
-            }}
+            foreach ($d in $downloads) {{
+                $dest = Join-Path $targetDir $d.Name
+                $tempPath = Join-Path $env:TEMP ("Forestly_Update_" + $d.Name)
 
-            $backupName = [System.IO.Path]::GetFileName($exePath) + ".old_" + (Get-Date -Format yyyyMMddHHmmss)
-            $backupPath = Join-Path $targetDir $backupName
-
-            Remove-Item -Path $backupPath -Force -ErrorAction SilentlyContinue
-
-            if (Test-Path -Path $exePath) {{
-                try {{
-                    Rename-Item -Path $exePath -NewName $backupName -Force -ErrorAction Stop
-                }} catch {{
-                    Remove-Item -Path $exePath -Force -ErrorAction SilentlyContinue
+                if (Test-FileLocked $dest) {{
+                    Start-Sleep -Seconds 2
                 }}
-            }}
 
-            Move-Item -Path $tempExe -Destination $exePath -Force
-            Remove-Item -Path $backupPath -Force -ErrorAction SilentlyContinue
+                $backupName = $d.Name + ".old_" + (Get-Date -Format yyyyMMddHHmmss)
+                $backupPath = Join-Path $targetDir $backupName
+
+                Remove-Item -Path $backupPath -Force -ErrorAction SilentlyContinue
+
+                if (Test-Path -Path $dest) {{
+                    try {{
+                        Rename-Item -Path $dest -NewName $backupName -Force -ErrorAction Stop
+                    }} catch {{
+                        Remove-Item -Path $dest -Force -ErrorAction SilentlyContinue
+                    }}
+                }}
+
+                Move-Item -Path $tempPath -Destination $dest -Force
+                Remove-Item -Path $backupPath -Force -ErrorAction SilentlyContinue
+            }}
 
             $changelogFile = Join-Path $targetDir "pending_changelog.json"
             $b64Data = "{b64_changelog}"

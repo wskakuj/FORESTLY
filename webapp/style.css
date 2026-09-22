@@ -552,6 +552,7 @@ button.order-toggle.off:hover {
 }
 .toast.error { border-left-color: var(--red); }
 .toast.warn { border-left-color: var(--orange); }
+.toast.done { border-left-color: var(--green); font-weight: 650; }
 .toast.ok { border-left-color: var(--green); }
 @keyframes slidein { from { transform: translateX(36px); opacity: 0; } }
 
@@ -645,3 +646,8 @@ button.order-toggle.off:hover {
   border: 1px solid var(--border); border-radius: 10px;
   font-size: 13.5px; line-height: 1.6; color: var(--text);
 }
+.cl-gap { height: 7px; }
+.cl-head { font-weight: 700; font-size: 15px; margin: 10px 0 6px; }
+.cl-item { display: flex; gap: 10px; padding: 3px 0; align-items: flex-start; }
+.cl-bullet { color: var(--green); font-weight: 700; flex: none; }
+.cl-line { padding: 3px 0; }

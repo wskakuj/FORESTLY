@@ -1,7 +1,10 @@
-# Co nowego w v2.0.3
+ Co nowego w v2.0.4
 
-* &#x20;okno „Co nowego" po aktualizacji (GUI web)
-* &#x20;zapamiętywanie marginesów w GUI web
+  ===
+  powiadomienie z dźwiękiem po zakończeniu zadania
+- czyszczenie krzaczków w oknie Co nowego
+
+
 
 
 
