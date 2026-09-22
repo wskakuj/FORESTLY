@@ -1,0 +1,3168 @@
+{
+  "DOLNOŚLĄSKIE": {
+    "BOLESŁAWIECKI": [
+      "BOLESŁAWIEC",
+      "GROMADKA",
+      "NOWOGRODZIEC",
+      "OSIECZNICA",
+      "WARTA BOLESŁAWIECKA"
+    ],
+    "DZIERŻONIOWSKI": [
+      "BIELAWA",
+      "DZIERŻONIÓW",
+      "PIESZYCE",
+      "PIŁAWA GÓRNA",
+      "ŁAGIEWNIKI",
+      "NIEMCZA"
+    ],
+    "GŁOGOWSKI": [
+      "GŁOGÓW",
+      "JERZMANOWA",
+      "KOTLA",
+      "PĘCŁAW",
+      "ŻUKOWICE"
+    ],
+    "GÓROWSKI": [
+      "GÓRA",
+      "JEMIELNO",
+      "NIECHLÓW",
+      "WĄSOSZ"
+    ],
+    "JAWORSKI": [
+      "JAWOR",
+      "BOLKÓW",
+      "MĘCINKA",
+      "MŚCIWOJÓW",
+      "PASZOWICE",
+      "WĄDROŻE WIELKIE"
+    ],
+    "KARKONOSKI": [
+      "KARPACZ",
+      "KOWARY",
+      "PIECHOWICE",
+      "SZKLARSKA PORĘBA",
+      "JANOWICE WIELKIE",
+      "JEŻÓW SUDECKI",
+      "MYSŁAKOWICE",
+      "PODGÓRZYN",
+      "STARA KAMIENICA"
+    ],
+    "KAMIENNOGÓRSKI": [
+      "KAMIENNA GÓRA",
+      "LUBAWKA",
+      "MARCISZÓW"
+    ],
+    "KŁODZKI": [
+      "DUSZNIKI-ZDRÓJ",
+      "KŁODZKO",
+      "KUDOWA-ZDRÓJ",
+      "NOWA RUDA",
+      "POLANICA-ZDRÓJ",
+      "BYSTRZYCA KŁODZKA",
+      "LĄDEK-ZDRÓJ",
+      "LEWIN KŁODZKI",
+      "MIĘDZYLESIE",
+      "RADKÓW",
+      "STRONIE ŚLĄSKIE",
+      "SZCZYTNA"
+    ],
+    "LEGNICKI": [
+      "CHOJNÓW",
+      "KROTOSZYCE",
+      "KUNICE",
+      "LEGNICKIE POLE",
+      "MIŁKOWICE",
+      "PROCHOWICE",
+      "RUJA"
+    ],
+    "LUBAŃSKI": [
+      "LUBAŃ",
+      "ŚWIERADÓW-ZDRÓJ",
+      "LEŚNA",
+      "OLSZYNA",
+      "PLATERÓWKA",
+      "SIEKIERCZYN"
+    ],
+    "LUBIŃSKI": [
+      "LUBIN",
+      "RUDNA",
+      "ŚCINAWA"
+    ],
+    "LWÓWECKI": [
+      "GRYFÓW ŚLĄSKI",
+      "LUBOMIERZ",
+      "LWÓWEK ŚLĄSKI",
+      "MIRSK",
+      "WLEŃ"
+    ],
+    "MILICKI": [
+      "CIESZKÓW",
+      "KROŚNICE",
+      "MILICZ"
+    ],
+    "OLEŚNICKI": [
+      "OLEŚNICA",
+      "BIERUTÓW",
+      "DOBROSZYCE",
+      "DZIADOWA KŁODA",
+      "MIĘDZYBÓRZ",
+      "SYCÓW",
+      "TWARDOGÓRA"
+    ],
+    "OŁAWSKI": [
+      "OŁAWA",
+      "DOMANIÓW",
+      "JELCZ-LASKOWICE"
+    ],
+    "POLKOWICKI": [
+      "CHOCIANÓW",
+      "GAWORZYCE",
+      "GRĘBOCICE",
+      "POLKOWICE",
+      "PRZEMKÓW",
+      "RADWANICE"
+    ],
+    "STRZELIŃSKI": [
+      "BORÓW",
+      "KONDRATOWICE",
+      "PRZEWORNO",
+      "STRZELIN",
+      "WIĄZÓW"
+    ],
+    "ŚREDZKI": [
+      "KOSTOMŁOTY",
+      "MALCZYCE",
+      "MIĘKINIA",
+      "ŚRODA ŚLĄSKA",
+      "UDANIN"
+    ],
+    "ŚWIDNICKI": [
+      "ŚWIDNICA",
+      "ŚWIEBODZICE",
+      "DOBROMIERZ",
+      "JAWORZYNA ŚLĄSKA",
+      "MARCINOWICE",
+      "STRZEGOM",
+      "ŻARÓW"
+    ],
+    "TRZEBNICKI": [
+      "OBORNIKI ŚLĄSKIE",
+      "PRUSICE",
+      "TRZEBNICA",
+      "WISZNIA MAŁA",
+      "ZAWONIA",
+      "ŻMIGRÓD"
+    ],
+    "WAŁBRZYSKI": [
+      "BOGUSZÓW-GORCE",
+      "JEDLINA-ZDRÓJ",
+      "SZCZAWNO-ZDRÓJ",
+      "CZARNY BÓR",
+      "GŁUSZYCA",
+      "MIEROSZÓW",
+      "STARE BOGACZOWICE",
+      "WALIM"
+    ],
+    "WOŁOWSKI": [
+      "BRZEG DOLNY",
+      "WIŃSKO",
+      "WOŁÓW"
+    ],
+    "WROCŁAWSKI": [
+      "CZERNICA",
+      "DŁUGOŁĘKA",
+      "JORDANÓW ŚLĄSKI",
+      "KĄTY WROCŁAWSKIE",
+      "KOBIERZYCE",
+      "MIETKÓW",
+      "SOBÓTKA",
+      "SIECHNICE",
+      "ŻÓRAWINA"
+    ],
+    "ZĄBKOWICKI": [
+      "BARDO",
+      "CIEPŁOWODY",
+      "KAMIENIEC ZĄBKOWICKI",
+      "STOSZOWICE",
+      "ZĄBKOWICE ŚLĄSKIE",
+      "ZIĘBICE",
+      "ZŁOTY STOK"
+    ],
+    "ZGORZELECKI": [
+      "ZAWIDÓW",
+      "ZGORZELEC",
+      "BOGATYNIA",
+      "PIEŃSK",
+      "SULIKÓW",
+      "WĘGLINIEC"
+    ],
+    "ZŁOTORYJSKI": [
+      "WOJCIESZÓW",
+      "ZŁOTORYJA",
+      "PIELGRZYMKA",
+      "ŚWIERZAWA",
+      "ZAGRODNO"
+    ],
+    "JELENIA GÓRA": [
+      "JELENIA GÓRA"
+    ],
+    "LEGNICA": [
+      "LEGNICA"
+    ],
+    "WROCŁAW": [
+      "WROCŁAW",
+      "WROCŁAW-FABRYCZNA",
+      "WROCŁAW-KRZYKI",
+      "WROCŁAW-PSIE POLE",
+      "WROCŁAW-STARE MIASTO",
+      "WROCŁAW-ŚRÓDMIEŚCIE"
+    ],
+    "WAŁBRZYCH": [
+      "WAŁBRZYCH"
+    ]
+  },
+  "KUJAWSKO-POMORSKIE": {
+    "ALEKSANDROWSKI": [
+      "ALEKSANDRÓW KUJAWSKI",
+      "CIECHOCINEK",
+      "NIESZAWA",
+      "BĄDKOWO",
+      "KONECK",
+      "RACIĄŻEK",
+      "WAGANIEC",
+      "ZAKRZEWO"
+    ],
+    "BRODNICKI": [
+      "BRODNICA",
+      "BOBROWO",
+      "BRZOZIE",
+      "GÓRZNO",
+      "BARTNICZKA",
+      "JABŁONOWO POMORSKIE",
+      "OSIEK",
+      "ŚWIEDZIEBNIA",
+      "ZBICZNO"
+    ],
+    "BYDGOSKI": [
+      "BIAŁE BŁOTA",
+      "DĄBROWA CHEŁMIŃSKA",
+      "DOBRCZ",
+      "KORONOWO",
+      "NOWA WIEŚ WIELKA",
+      "OSIELSKO",
+      "SICIENKO",
+      "SOLEC KUJAWSKI"
+    ],
+    "CHEŁMIŃSKI": [
+      "CHEŁMNO",
+      "KIJEWO KRÓLEWSKIE",
+      "LISEWO",
+      "PAPOWO BISKUPIE",
+      "STOLNO",
+      "UNISŁAW"
+    ],
+    "GOLUBSKO-DOBRZYŃSKI": [
+      "GOLUB-DOBRZYŃ",
+      "CIECHOCIN",
+      "KOWALEWO POMORSKIE",
+      "RADOMIN",
+      "ZBÓJNO"
+    ],
+    "GRUDZIĄDZKI": [
+      "GRUDZIĄDZ",
+      "GRUTA",
+      "ŁASIN",
+      "RADZYŃ CHEŁMIŃSKI",
+      "ROGÓŹNO",
+      "ŚWIECIE NAD OSĄ"
+    ],
+    "INOWROCŁAWSKI": [
+      "INOWROCŁAW",
+      "DĄBROWA BISKUPIA",
+      "GNIEWKOWO",
+      "JANIKOWO",
+      "KRUSZWICA",
+      "PAKOŚĆ",
+      "ROJEWO",
+      "ZŁOTNIKI KUJAWSKIE"
+    ],
+    "LIPNOWSKI": [
+      "LIPNO",
+      "BOBROWNIKI",
+      "CHROSTKOWO",
+      "DOBRZYŃ NAD WISŁĄ",
+      "KIKÓŁ",
+      "SKĘPE",
+      "TŁUCHOWO",
+      "WIELGIE"
+    ],
+    "MOGILEŃSKI": [
+      "DĄBROWA",
+      "JEZIORA WIELKIE",
+      "MOGILNO",
+      "STRZELNO"
+    ],
+    "NAKIELSKI": [
+      "KCYNIA",
+      "MROCZA",
+      "NAKŁO NAD NOTECIĄ",
+      "SADKI",
+      "SZUBIN"
+    ],
+    "RADZIEJOWSKI": [
+      "RADZIEJÓW",
+      "BYTOŃ",
+      "DOBRE",
+      "OSIĘCINY",
+      "PIOTRKÓW KUJAWSKI",
+      "TOPÓLKA"
+    ],
+    "RYPIŃSKI": [
+      "RYPIN",
+      "BRZUZE",
+      "ROGOWO",
+      "SKRWILNO",
+      "WĄPIELSK"
+    ],
+    "SĘPOLEŃSKI": [
+      "KAMIEŃ KRAJEŃSKI",
+      "SĘPÓLNO KRAJEŃSKIE",
+      "SOŚNO",
+      "WIĘCBORK"
+    ],
+    "ŚWIECKI": [
+      "BUKOWIEC",
+      "DRAGACZ",
+      "DRZYCIM",
+      "JEŻEWO",
+      "LNIANO",
+      "NOWE",
+      "OSIE",
+      "PRUSZCZ",
+      "ŚWIECIE",
+      "ŚWIEKATOWO",
+      "WARLUBIE"
+    ],
+    "TORUŃSKI": [
+      "CHEŁMŻA",
+      "CZERNIKOWO",
+      "LUBICZ",
+      "ŁUBIANKA",
+      "ŁYSOMICE",
+      "OBROWO",
+      "WIELKA NIESZAWKA",
+      "ZŁAWIEŚ WIELKA"
+    ],
+    "TUCHOLSKI": [
+      "CEKCYN",
+      "GOSTYCYN",
+      "KĘSOWO",
+      "LUBIEWO",
+      "ŚLIWICE",
+      "TUCHOLA"
+    ],
+    "WĄBRZESKI": [
+      "WĄBRZEŹNO",
+      "DĘBOWA ŁĄKA",
+      "KSIĄŻKI",
+      "PŁUŻNICA",
+      "RYŃSK"
+    ],
+    "WŁOCŁAWSKI": [
+      "KOWAL",
+      "BARUCHOWO",
+      "BONIEWO",
+      "BRZEŚĆ KUJAWSKI",
+      "CHOCEŃ",
+      "CHODECZ",
+      "FABIANKI",
+      "IZBICA KUJAWSKA",
+      "LUBANIE",
+      "LUBIEŃ KUJAWSKI",
+      "LUBRANIEC",
+      "WŁOCŁAWEK"
+    ],
+    "ŻNIŃSKI": [
+      "BARCIN",
+      "GĄSAWA",
+      "JANOWIEC WIELKOPOLSKI",
+      "ŁABISZYN",
+      "ROGOWO",
+      "ŻNIN"
+    ],
+    "BYDGOSZCZ": [
+      "BYDGOSZCZ"
+    ],
+    "GRUDZIĄDZ": [
+      "GRUDZIĄDZ"
+    ],
+    "TORUŃ": [
+      "TORUŃ"
+    ],
+    "WŁOCŁAWEK": [
+      "WŁOCŁAWEK"
+    ]
+  },
+  "LUBELSKIE": {
+    "BIALSKI": [
+      "MIĘDZYRZEC PODLASKI",
+      "TERESPOL",
+      "BIAŁA PODLASKA",
+      "DRELÓW",
+      "JANÓW PODLASKI",
+      "KODEŃ",
+      "KONSTANTYNÓW",
+      "LEŚNA PODLASKA",
+      "ŁOMAZY",
+      "PISZCZAC",
+      "ROKITNO",
+      "ROSSOSZ",
+      "SŁAWATYCZE",
+      "SOSNÓWKA",
+      "TUCZNA",
+      "WISZNICE",
+      "ZALESIE"
+    ],
+    "BIŁGORAJSKI": [
+      "BIŁGORAJ",
+      "ALEKSANDRÓW",
+      "BISZCZA",
+      "FRAMPOL",
+      "GORAJ",
+      "JÓZEFÓW",
+      "KSIĘŻPOL",
+      "ŁUKOWA",
+      "OBSZA",
+      "POTOK GÓRNY",
+      "TARNOGRÓD",
+      "TERESZPOL",
+      "TUROBIN"
+    ],
+    "CHEŁMSKI": [
+      "REJOWIEC FABRYCZNY",
+      "BIAŁOPOLE",
+      "CHEŁM",
+      "DOROHUSK",
+      "DUBIENKA",
+      "KAMIEŃ",
+      "LEŚNIOWICE",
+      "RUDA-HUTA",
+      "SAWIN",
+      "SIEDLISZCZE",
+      "WIERZBICA",
+      "WOJSŁAWICE",
+      "ŻMUDŹ",
+      "REJOWIEC"
+    ],
+    "HRUBIESZOWSKI": [
+      "HRUBIESZÓW",
+      "DOŁHOBYCZÓW",
+      "HORODŁO",
+      "MIRCZE",
+      "TRZESZCZANY",
+      "UCHANIE",
+      "WERBKOWICE"
+    ],
+    "JANOWSKI": [
+      "BATORZ",
+      "CHRZANÓW",
+      "DZWOLA",
+      "GODZISZÓW",
+      "JANÓW LUBELSKI",
+      "MODLIBORZYCE",
+      "POTOK WIELKI"
+    ],
+    "KRASNOSTAWSKI": [
+      "KRASNYSTAW",
+      "FAJSŁAWICE",
+      "GORZKÓW",
+      "IZBICA",
+      "KRAŚNICZYN",
+      "ŁOPIENNIK GÓRNY",
+      "RUDNIK",
+      "SIENNICA RÓŻANA",
+      "ŻÓŁKIEWKA"
+    ],
+    "KRAŚNICKI": [
+      "KRAŚNIK",
+      "ANNOPOL",
+      "DZIERZKOWICE",
+      "GOŚCIERADÓW",
+      "SZASTARKA",
+      "TRZYDNIK DUŻY",
+      "URZĘDÓW",
+      "WILKOŁAZ",
+      "ZAKRZÓWEK"
+    ],
+    "LUBARTOWSKI": [
+      "LUBARTÓW",
+      "ABRAMÓW",
+      "FIRLEJ",
+      "JEZIORZANY",
+      "KAMIONKA",
+      "KOCK",
+      "MICHÓW",
+      "NIEDŹWIADA",
+      "OSTRÓW LUBELSKI",
+      "OSTRÓWEK",
+      "SERNIKI",
+      "UŚCIMÓW"
+    ],
+    "LUBELSKI": [
+      "BEŁŻYCE",
+      "BORZECHÓW",
+      "BYCHAWA",
+      "GARBÓW",
+      "GŁUSK",
+      "JABŁONNA",
+      "JASTKÓW",
+      "KONOPNICA",
+      "KRZCZONÓW",
+      "NIEDRZWICA DUŻA",
+      "NIEMCE",
+      "STRZYŻEWICE",
+      "WOJCIECHÓW",
+      "WÓLKA",
+      "WYSOKIE",
+      "ZAKRZEW"
+    ],
+    "ŁĘCZYŃSKI": [
+      "CYCÓW",
+      "LUDWIN",
+      "ŁĘCZNA",
+      "MILEJÓW",
+      "PUCHACZÓW",
+      "SPICZYN"
+    ],
+    "ŁUKOWSKI": [
+      "ŁUKÓW",
+      "STOCZEK ŁUKOWSKI",
+      "ADAMÓW",
+      "KRZYWDA",
+      "SEROKOMLA",
+      "STANIN",
+      "TRZEBIESZÓW",
+      "WOJCIESZKÓW",
+      "WOLA MYSŁOWSKA"
+    ],
+    "OPOLSKI": [
+      "CHODEL",
+      "JÓZEFÓW NAD WISŁĄ",
+      "KARCZMISKA",
+      "ŁAZISKA",
+      "OPOLE LUBELSKIE",
+      "PONIATOWA",
+      "WILKÓW"
+    ],
+    "PARCZEWSKI": [
+      "DĘBOWA KŁODA",
+      "JABŁOŃ",
+      "MILANÓW",
+      "PARCZEW",
+      "PODEDWÓRZE",
+      "SIEMIEŃ",
+      "SOSNOWICA"
+    ],
+    "PUŁAWSKI": [
+      "PUŁAWY",
+      "BARANÓW",
+      "JANOWIEC",
+      "KAZIMIERZ DOLNY",
+      "KOŃSKOWOLA",
+      "KURÓW",
+      "MARKUSZÓW",
+      "NAŁĘCZÓW",
+      "WĄWOLNICA",
+      "ŻYRZYN"
+    ],
+    "RADZYŃSKI": [
+      "RADZYŃ PODLASKI",
+      "BORKI",
+      "CZEMIERNIKI",
+      "KĄKOLEWNICA",
+      "KOMARÓWKA PODLASKA",
+      "ULAN-MAJORAT",
+      "WOHYŃ"
+    ],
+    "RYCKI": [
+      "DĘBLIN",
+      "KŁOCZEW",
+      "NOWODWÓR",
+      "RYKI",
+      "STĘŻYCA",
+      "UŁĘŻ"
+    ],
+    "ŚWIDNICKI": [
+      "ŚWIDNIK",
+      "MEŁGIEW",
+      "PIASKI",
+      "RYBCZEWICE",
+      "TRAWNIKI"
+    ],
+    "TOMASZOWSKI": [
+      "TOMASZÓW LUBELSKI",
+      "BEŁŻEC",
+      "JARCZÓW",
+      "KRYNICE",
+      "LUBYCZA KRÓLEWSKA",
+      "ŁASZCZÓW",
+      "RACHANIE",
+      "SUSIEC",
+      "TARNAWATKA",
+      "TELATYN",
+      "TYSZOWCE",
+      "ULHÓWEK"
+    ],
+    "WŁODAWSKI": [
+      "WŁODAWA",
+      "HANNA",
+      "HAŃSK",
+      "STARY BRUS",
+      "URSZULIN",
+      "WOLA UHRUSKA",
+      "WYRYKI"
+    ],
+    "ZAMOJSKI": [
+      "ADAMÓW",
+      "GRABOWIEC",
+      "KOMARÓW-OSADA",
+      "KRASNOBRÓD",
+      "ŁABUNIE",
+      "MIĄCZYN",
+      "NIELISZ",
+      "RADECZNICA",
+      "SITNO",
+      "SKIERBIESZÓW",
+      "STARY ZAMOŚĆ",
+      "SUŁÓW",
+      "SZCZEBRZESZYN",
+      "ZAMOŚĆ",
+      "ZWIERZYNIEC"
+    ],
+    "BIAŁA PODLASKA": [
+      "BIAŁA PODLASKA"
+    ],
+    "CHEŁM": [
+      "CHEŁM"
+    ],
+    "LUBLIN": [
+      "LUBLIN"
+    ],
+    "ZAMOŚĆ": [
+      "ZAMOŚĆ"
+    ]
+  },
+  "LUBUSKIE": {
+    "GORZOWSKI": [
+      "KOSTRZYN NAD ODRĄ",
+      "BOGDANIEC",
+      "DESZCZNO",
+      "KŁODAWA",
+      "LUBISZYN",
+      "SANTOK",
+      "WITNICA"
+    ],
+    "KROŚNIEŃSKI": [
+      "GUBIN",
+      "BOBROWICE",
+      "BYTNICA",
+      "DĄBIE",
+      "KROSNO ODRZAŃSKIE",
+      "MASZEWO"
+    ],
+    "MIĘDZYRZECKI": [
+      "BLEDZEW",
+      "MIĘDZYRZECZ",
+      "PRZYTOCZNA",
+      "PSZCZEW",
+      "SKWIERZYNA",
+      "TRZCIEL"
+    ],
+    "NOWOSOLSKI": [
+      "NOWA SÓL",
+      "BYTOM ODRZAŃSKI",
+      "KOLSKO",
+      "KOŻUCHÓW",
+      "NOWE MIASTECZKO",
+      "OTYŃ",
+      "SIEDLISKO"
+    ],
+    "SŁUBICKI": [
+      "CYBINKA",
+      "GÓRZYCA",
+      "OŚNO LUBUSKIE",
+      "RZEPIN",
+      "SŁUBICE"
+    ],
+    "STRZELECKO-DREZDENECKI": [
+      "DOBIEGNIEW",
+      "DREZDENKO",
+      "STARE KUROWO",
+      "STRZELCE KRAJEŃSKIE",
+      "ZWIERZYN"
+    ],
+    "SULĘCIŃSKI": [
+      "KRZESZYCE",
+      "LUBNIEWICE",
+      "SŁOŃSK",
+      "SULĘCIN",
+      "TORZYM"
+    ],
+    "ŚWIEBODZIŃSKI": [
+      "LUBRZA",
+      "ŁAGÓW",
+      "SKĄPE",
+      "SZCZANIEC",
+      "ŚWIEBODZIN",
+      "ZBĄSZYNEK"
+    ],
+    "ZIELONOGÓRSKI": [
+      "BABIMOST",
+      "BOJADŁA",
+      "CZERWIEŃSK",
+      "KARGOWA",
+      "NOWOGRÓD BOBRZAŃSKI",
+      "SULECHÓW",
+      "ŚWIDNICA",
+      "TRZEBIECHÓW",
+      "ZABÓR"
+    ],
+    "ŻAGAŃSKI": [
+      "GOZDNICA",
+      "ŻAGAŃ",
+      "BRZEŹNICA",
+      "IŁOWA",
+      "MAŁOMICE",
+      "NIEGOSŁAWICE",
+      "SZPROTAWA",
+      "WYMIARKI"
+    ],
+    "ŻARSKI": [
+      "ŁĘKNICA",
+      "ŻARY",
+      "BRODY",
+      "JASIEŃ",
+      "LIPINKI ŁUŻYCKIE",
+      "LUBSKO",
+      "PRZEWÓZ",
+      "TRZEBIEL",
+      "TUPLICE"
+    ],
+    "WSCHOWSKI": [
+      "SŁAWA",
+      "SZLICHTYNGOWA",
+      "WSCHOWA"
+    ],
+    "GORZÓW WIELKOPOLSKI": [
+      "GORZÓW WIELKOPOLSKI"
+    ],
+    "ZIELONA GÓRA": [
+      "ZIELONA GÓRA"
+    ]
+  },
+  "ŁÓDZKIE": {
+    "BEŁCHATOWSKI": [
+      "BEŁCHATÓW",
+      "DRUŻBICE",
+      "KLESZCZÓW",
+      "KLUKI",
+      "RUSIEC",
+      "SZCZERCÓW",
+      "ZELÓW"
+    ],
+    "KUTNOWSKI": [
+      "KUTNO",
+      "BEDLNO",
+      "DĄBROWICE",
+      "KROŚNIEWICE",
+      "KRZYŻANÓW",
+      "ŁANIĘTA",
+      "NOWE OSTROWY",
+      "OPORÓW",
+      "STRZELCE",
+      "ŻYCHLIN"
+    ],
+    "ŁASKI": [
+      "BUCZEK",
+      "ŁASK",
+      "SĘDZIEJOWICE",
+      "WIDAWA",
+      "WODZIERADY"
+    ],
+    "ŁĘCZYCKI": [
+      "ŁĘCZYCA",
+      "DASZYNA",
+      "GÓRA ŚWIĘTEJ MAŁGORZATY",
+      "GRABÓW",
+      "PIĄTEK",
+      "ŚWINICE WARCKIE",
+      "WITONIA"
+    ],
+    "ŁOWICKI": [
+      "ŁOWICZ",
+      "BIELAWY",
+      "CHĄŚNO",
+      "DOMANIEWICE",
+      "KIERNOZIA",
+      "KOCIERZEW POŁUDNIOWY",
+      "ŁYSZKOWICE",
+      "NIEBORÓW",
+      "ZDUNY"
+    ],
+    "ŁÓDZKI WSCHODNI": [
+      "ANDRESPOL",
+      "BRÓJCE",
+      "KOLUSZKI",
+      "NOWOSOLNA",
+      "RZGÓW",
+      "TUSZYN"
+    ],
+    "OPOCZYŃSKI": [
+      "BIAŁACZÓW",
+      "DRZEWICA",
+      "MNISZKÓW",
+      "OPOCZNO",
+      "PARADYŻ",
+      "POŚWIĘTNE",
+      "SŁAWNO",
+      "ŻARNÓW"
+    ],
+    "PABIANICKI": [
+      "KONSTANTYNÓW ŁÓDZKI",
+      "PABIANICE",
+      "DŁUTÓW",
+      "DOBROŃ",
+      "KSAWERÓW",
+      "LUTOMIERSK"
+    ],
+    "PAJĘCZAŃSKI": [
+      "DZIAŁOSZYN",
+      "KIEŁCZYGŁÓW",
+      "NOWA BRZEŹNICA",
+      "PAJĘCZNO",
+      "RZĄŚNIA",
+      "SIEMKOWICE",
+      "STRZELCE WIELKIE",
+      "SULMIERZYCE"
+    ],
+    "PIOTRKOWSKI": [
+      "ALEKSANDRÓW",
+      "CZARNOCIN",
+      "GORZKOWICE",
+      "GRABICA",
+      "ŁĘKI SZLACHECKIE",
+      "MOSZCZENICA",
+      "RĘCZNO",
+      "ROZPRZA",
+      "SULEJÓW",
+      "WOLA KRZYSZTOPORSKA",
+      "WOLBÓRZ"
+    ],
+    "PODDĘBICKI": [
+      "DALIKÓW",
+      "PĘCZNIEW",
+      "PODDĘBICE",
+      "UNIEJÓW",
+      "WARTKOWICE",
+      "ZADZIM"
+    ],
+    "RADOMSZCZAŃSKI": [
+      "RADOMSKO",
+      "DOBRYSZYCE",
+      "GIDLE",
+      "GOMUNICE",
+      "KAMIEŃSK",
+      "KOBIELE WIELKIE",
+      "KODRĄB",
+      "LGOTA WIELKA",
+      "ŁADZICE",
+      "MASŁOWICE",
+      "PRZEDBÓRZ",
+      "WIELGOMŁYNY",
+      "ŻYTNO"
+    ],
+    "RAWSKI": [
+      "RAWA MAZOWIECKA",
+      "BIAŁA RAWSKA",
+      "CIELĄDZ",
+      "REGNÓW",
+      "SADKOWICE"
+    ],
+    "SIERADZKI": [
+      "SIERADZ",
+      "BŁASZKI",
+      "BRĄSZEWICE",
+      "BRZEŹNIO",
+      "BURZENIN",
+      "GOSZCZANÓW",
+      "KLONOWA",
+      "WARTA",
+      "WRÓBLEW",
+      "ZŁOCZEW"
+    ],
+    "SKIERNIEWICKI": [
+      "BOLIMÓW",
+      "GŁUCHÓW",
+      "GODZIANÓW",
+      "KOWIESY",
+      "LIPCE REYMONTOWSKIE",
+      "MAKÓW",
+      "NOWY KAWĘCZYN",
+      "SKIERNIEWICE",
+      "SŁUPIA"
+    ],
+    "TOMASZOWSKI": [
+      "TOMASZÓW MAZOWIECKI",
+      "BĘDKÓW",
+      "BUDZISZEWICE",
+      "CZERNIEWICE",
+      "INOWŁÓDZ",
+      "LUBOCHNIA",
+      "ROKICINY",
+      "RZECZYCA",
+      "UJAZD",
+      "ŻELECHLINEK"
+    ],
+    "WIELUŃSKI": [
+      "BIAŁA",
+      "CZARNOŻYŁY",
+      "KONOPNICA",
+      "MOKRSKO",
+      "OSJAKÓW",
+      "OSTRÓWEK",
+      "PĄTNÓW",
+      "SKOMLIN",
+      "WIELUŃ",
+      "WIERZCHLAS"
+    ],
+    "WIERUSZOWSKI": [
+      "BOLESŁAWIEC",
+      "CZASTARY",
+      "GALEWICE",
+      "LUTUTÓW",
+      "ŁUBNICE",
+      "SOKOLNIKI",
+      "WIERUSZÓW"
+    ],
+    "ZDUŃSKOWOLSKI": [
+      "ZDUŃSKA WOLA",
+      "SZADEK",
+      "ZAPOLICE"
+    ],
+    "ZGIERSKI": [
+      "GŁOWNO",
+      "OZORKÓW",
+      "ZGIERZ",
+      "ALEKSANDRÓW ŁÓDZKI",
+      "PARZĘCZEW",
+      "STRYKÓW"
+    ],
+    "BRZEZIŃSKI": [
+      "BRZEZINY",
+      "DMOSIN",
+      "JEŻÓW",
+      "ROGÓW"
+    ],
+    "ŁÓDŹ": [
+      "ŁÓDŹ",
+      "ŁÓDŹ-BAŁUTY",
+      "ŁÓDŹ-GÓRNA",
+      "ŁÓDŹ-POLESIE",
+      "ŁÓDŹ-ŚRÓDMIEŚCIE",
+      "ŁÓDŹ-WIDZEW"
+    ],
+    "PIOTRKÓW TRYBUNALSKI": [
+      "PIOTRKÓW TRYBUNALSKI"
+    ],
+    "SKIERNIEWICE": [
+      "SKIERNIEWICE"
+    ]
+  },
+  "MAŁOPOLSKIE": {
+    "BOCHEŃSKI": [
+      "BOCHNIA",
+      "DRWINIA",
+      "LIPNICA MUROWANA",
+      "ŁAPANÓW",
+      "NOWY WIŚNICZ",
+      "RZEZAWA",
+      "TRZCIANA",
+      "ŻEGOCINA"
+    ],
+    "BRZESKI": [
+      "BORZĘCIN",
+      "BRZESKO",
+      "CZCHÓW",
+      "DĘBNO",
+      "GNOJNIK",
+      "IWKOWA",
+      "SZCZUROWA"
+    ],
+    "CHRZANOWSKI": [
+      "ALWERNIA",
+      "BABICE",
+      "CHRZANÓW",
+      "LIBIĄŻ",
+      "TRZEBINIA"
+    ],
+    "DĄBROWSKI": [
+      "BOLESŁAW",
+      "DĄBROWA TARNOWSKA",
+      "GRĘBOSZÓW",
+      "MĘDRZECHÓW",
+      "OLESNO",
+      "RADGOSZCZ",
+      "SZCZUCIN"
+    ],
+    "GORLICKI": [
+      "GORLICE",
+      "BIECZ",
+      "BOBOWA",
+      "LIPINKI",
+      "ŁUŻNA",
+      "MOSZCZENICA",
+      "ROPA",
+      "SĘKOWA",
+      "UŚCIE GORLICKIE"
+    ],
+    "KRAKOWSKI": [
+      "CZERNICHÓW",
+      "IGOŁOMIA-WAWRZEŃCZYCE",
+      "IWANOWICE",
+      "JERZMANOWICE-PRZEGINIA",
+      "KOCMYRZÓW-LUBORZYCA",
+      "KRZESZOWICE",
+      "LISZKI",
+      "MICHAŁOWICE",
+      "MOGILANY",
+      "SKAŁA",
+      "SKAWINA",
+      "SŁOMNIKI",
+      "SUŁOSZOWA",
+      "ŚWIĄTNIKI GÓRNE",
+      "WIELKA WIEŚ",
+      "ZABIERZÓW",
+      "ZIELONKI"
+    ],
+    "LIMANOWSKI": [
+      "LIMANOWA",
+      "MSZANA DOLNA",
+      "DOBRA",
+      "JODŁOWNIK",
+      "KAMIENICA",
+      "LASKOWA",
+      "ŁUKOWICA",
+      "NIEDŹWIEDŹ",
+      "SŁOPNICE",
+      "TYMBARK",
+      "SZCZAWA"
+    ],
+    "MIECHOWSKI": [
+      "CHARSZNICA",
+      "GOŁCZA",
+      "KOZŁÓW",
+      "KSIĄŻ WIELKI",
+      "MIECHÓW",
+      "RACŁAWICE",
+      "SŁABOSZÓW"
+    ],
+    "MYŚLENICKI": [
+      "DOBCZYCE",
+      "LUBIEŃ",
+      "MYŚLENICE",
+      "PCIM",
+      "RACIECHOWICE",
+      "SIEPRAW",
+      "SUŁKOWICE",
+      "TOKARNIA",
+      "WIŚNIOWA"
+    ],
+    "NOWOSĄDECKI": [
+      "GRYBÓW",
+      "CHEŁMIEC",
+      "GRÓDEK NAD DUNAJCEM",
+      "KAMIONKA WIELKA",
+      "KORZENNA",
+      "KRYNICA-ZDRÓJ",
+      "ŁABOWA",
+      "ŁĄCKO",
+      "ŁOSOSINA DOLNA",
+      "MUSZYNA",
+      "NAWOJOWA",
+      "PIWNICZNA-ZDRÓJ",
+      "PODEGRODZIE",
+      "RYTRO",
+      "STARY SĄCZ"
+    ],
+    "NOWOTARSKI": [
+      "NOWY TARG",
+      "SZCZAWNICA",
+      "CZARNY DUNAJEC",
+      "CZORSZTYN",
+      "JABŁONKA",
+      "KROŚCIENKO NAD DUNAJCEM",
+      "LIPNICA WIELKA",
+      "ŁAPSZE NIŻNE",
+      "OCHOTNICA DOLNA",
+      "RABA WYŻNA",
+      "RABKA-ZDRÓJ",
+      "SPYTKOWICE",
+      "SZAFLARY"
+    ],
+    "OLKUSKI": [
+      "BUKOWNO",
+      "BOLESŁAW",
+      "KLUCZE",
+      "OLKUSZ",
+      "TRZYCIĄŻ",
+      "WOLBROM"
+    ],
+    "OŚWIĘCIMSKI": [
+      "OŚWIĘCIM",
+      "BRZESZCZE",
+      "CHEŁMEK",
+      "KĘTY",
+      "OSIEK",
+      "POLANKA WIELKA",
+      "PRZECISZÓW",
+      "ZATOR"
+    ],
+    "PROSZOWICKI": [
+      "KONIUSZA",
+      "KOSZYCE",
+      "NOWE BRZESKO",
+      "PAŁECZNICA",
+      "PROSZOWICE",
+      "RADZIEMICE"
+    ],
+    "SUSKI": [
+      "JORDANÓW",
+      "SUCHA BESKIDZKA",
+      "BUDZÓW",
+      "BYSTRA-SIDZINA",
+      "MAKÓW PODHALAŃSKI",
+      "STRYSZAWA",
+      "ZAWOJA",
+      "ZEMBRZYCE"
+    ],
+    "TARNOWSKI": [
+      "CIĘŻKOWICE",
+      "GROMNIK",
+      "LISIA GÓRA",
+      "PLEŚNA",
+      "RADŁÓW",
+      "RYGLICE",
+      "RZEPIENNIK STRZYŻEWSKI",
+      "SKRZYSZÓW",
+      "TARNÓW",
+      "TUCHÓW",
+      "WIERZCHOSŁAWICE",
+      "WIETRZYCHOWICE",
+      "WOJNICZ",
+      "ZAKLICZYN",
+      "ŻABNO",
+      "SZERZYNY"
+    ],
+    "TATRZAŃSKI": [
+      "ZAKOPANE",
+      "BIAŁY DUNAJEC",
+      "BUKOWINA TATRZAŃSKA",
+      "KOŚCIELISKO",
+      "PORONIN"
+    ],
+    "WADOWICKI": [
+      "ANDRYCHÓW",
+      "BRZEŹNICA",
+      "KALWARIA ZEBRZYDOWSKA",
+      "LANCKORONA",
+      "MUCHARZ",
+      "SPYTKOWICE",
+      "STRYSZÓW",
+      "TOMICE",
+      "WADOWICE",
+      "WIEPRZ"
+    ],
+    "WIELICKI": [
+      "BISKUPICE",
+      "GDÓW",
+      "KŁAJ",
+      "NIEPOŁOMICE",
+      "WIELICZKA"
+    ],
+    "KRAKÓW": [
+      "KRAKÓW",
+      "KRAKÓW-KROWODRZA",
+      "KRAKÓW-NOWA HUTA",
+      "KRAKÓW-PODGÓRZE",
+      "KRAKÓW-ŚRÓDMIEŚCIE"
+    ],
+    "NOWY SĄCZ": [
+      "NOWY SĄCZ"
+    ],
+    "TARNÓW": [
+      "TARNÓW"
+    ]
+  },
+  "MAZOWIECKIE": {
+    "BIAŁOBRZESKI": [
+      "BIAŁOBRZEGI",
+      "PROMNA",
+      "RADZANÓW",
+      "STARA BŁOTNICA",
+      "STROMIEC",
+      "WYŚMIERZYCE"
+    ],
+    "CIECHANOWSKI": [
+      "CIECHANÓW",
+      "GLINOJECK",
+      "GOŁYMIN-OŚRODEK",
+      "GRUDUSK",
+      "OJRZEŃ",
+      "OPINOGÓRA GÓRNA",
+      "REGIMIN",
+      "SOŃSK"
+    ],
+    "GARWOLIŃSKI": [
+      "GARWOLIN",
+      "ŁASKARZEW",
+      "BOROWIE",
+      "GÓRZNO",
+      "MACIEJOWICE",
+      "MIASTKÓW KOŚCIELNY",
+      "PARYSÓW",
+      "PILAWA",
+      "SOBOLEW",
+      "TROJANÓW",
+      "WILGA",
+      "ŻELECHÓW"
+    ],
+    "GOSTYNIŃSKI": [
+      "GOSTYNIN",
+      "PACYNA",
+      "SANNIKI",
+      "SZCZAWIN KOŚCIELNY"
+    ],
+    "GRODZISKI": [
+      "MILANÓWEK",
+      "PODKOWA LEŚNA",
+      "BARANÓW",
+      "GRODZISK MAZOWIECKI",
+      "JAKTORÓW",
+      "ŻABIA WOLA"
+    ],
+    "GRÓJECKI": [
+      "BELSK DUŻY",
+      "BŁĘDÓW",
+      "CHYNÓW",
+      "GOSZCZYN",
+      "GRÓJEC",
+      "JASIENIEC",
+      "MOGIELNICA",
+      "NOWE MIASTO NAD PILICĄ",
+      "PNIEWY",
+      "WARKA"
+    ],
+    "KOZIENICKI": [
+      "GARBATKA-LETNISKO",
+      "GŁOWACZÓW",
+      "GNIEWOSZÓW",
+      "GRABÓW NAD PILICĄ",
+      "KOZIENICE",
+      "MAGNUSZEW",
+      "SIECIECHÓW"
+    ],
+    "LEGIONOWSKI": [
+      "LEGIONOWO",
+      "JABŁONNA",
+      "NIEPORĘT",
+      "SEROCK",
+      "WIELISZEW"
+    ],
+    "LIPSKI": [
+      "CHOTCZA",
+      "CIEPIELÓW",
+      "LIPSKO",
+      "RZECZNIÓW",
+      "SIENNO",
+      "SOLEC NAD WISŁĄ"
+    ],
+    "ŁOSICKI": [
+      "HUSZLEW",
+      "ŁOSICE",
+      "OLSZANKA",
+      "PLATERÓW",
+      "SARNAKI",
+      "STARA KORNICA"
+    ],
+    "MAKOWSKI": [
+      "MAKÓW MAZOWIECKI",
+      "CZERWONKA",
+      "KARNIEWO",
+      "KRASNOSIELC",
+      "MŁYNARZE",
+      "PŁONIAWY-BRAMURA",
+      "RÓŻAN",
+      "RZEWNIE",
+      "SYPNIEWO",
+      "SZELKÓW"
+    ],
+    "MIŃSKI": [
+      "MIŃSK MAZOWIECKI",
+      "CEGŁÓW",
+      "DĘBE WIELKIE",
+      "DOBRE",
+      "HALINÓW",
+      "JAKUBÓW",
+      "KAŁUSZYN",
+      "LATOWICZ",
+      "MROZY",
+      "SIENNICA",
+      "STANISŁAWÓW",
+      "SULEJÓWEK"
+    ],
+    "MŁAWSKI": [
+      "MŁAWA",
+      "DZIERZGOWO",
+      "LIPOWIEC KOŚCIELNY",
+      "RADZANÓW",
+      "STRZEGOWO",
+      "STUPSK",
+      "SZREŃSK",
+      "SZYDŁOWO",
+      "WIECZFNIA KOŚCIELNA",
+      "WIŚNIEWO"
+    ],
+    "NOWODWORSKI": [
+      "NOWY DWÓR MAZOWIECKI",
+      "CZOSNÓW",
+      "LEONCIN",
+      "NASIELSK",
+      "POMIECHÓWEK",
+      "ZAKROCZYM"
+    ],
+    "OSTROŁĘCKI": [
+      "BARANOWO",
+      "CZARNIA",
+      "CZERWIN",
+      "GOWOROWO",
+      "KADZIDŁO",
+      "LELIS",
+      "ŁYSE",
+      "MYSZYNIEC",
+      "OLSZEWO-BORKI",
+      "RZEKUŃ",
+      "TROSZYN"
+    ],
+    "OSTROWSKI": [
+      "OSTRÓW MAZOWIECKA",
+      "ANDRZEJEWO",
+      "BOGUTY-PIANKI",
+      "BROK",
+      "MAŁKINIA GÓRNA",
+      "NUR",
+      "STARY LUBOTYŃ",
+      "SZULBORZE WIELKIE",
+      "WĄSEWO",
+      "ZARĘBY KOŚCIELNE"
+    ],
+    "OTWOCKI": [
+      "JÓZEFÓW",
+      "OTWOCK",
+      "CELESTYNÓW",
+      "KARCZEW",
+      "KOŁBIEL",
+      "OSIECK",
+      "SOBIENIE-JEZIORY",
+      "WIĄZOWNA"
+    ],
+    "PIASECZYŃSKI": [
+      "GÓRA KALWARIA",
+      "KONSTANCIN-JEZIORNA",
+      "LESZNOWOLA",
+      "PIASECZNO",
+      "PRAŻMÓW",
+      "TARCZYN"
+    ],
+    "PŁOCKI": [
+      "BIELSK",
+      "BODZANÓW",
+      "BRUDZEŃ DUŻY",
+      "BULKOWO",
+      "DROBIN",
+      "GĄBIN",
+      "ŁĄCK",
+      "MAŁA WIEŚ",
+      "NOWY DUNINÓW",
+      "RADZANOWO",
+      "SŁUBICE",
+      "SŁUPNO",
+      "STARA BIAŁA",
+      "STAROŹREBY",
+      "WYSZOGRÓD"
+    ],
+    "PŁOŃSKI": [
+      "PŁOŃSK",
+      "RACIĄŻ",
+      "BABOSZEWO",
+      "CZERWIŃSK NAD WISŁĄ",
+      "DZIERZĄŻNIA",
+      "JONIEC",
+      "NARUSZEWO",
+      "NOWE MIASTO",
+      "SOCHOCIN",
+      "ZAŁUSKI"
+    ],
+    "PRUSZKOWSKI": [
+      "PIASTÓW",
+      "PRUSZKÓW",
+      "BRWINÓW",
+      "MICHAŁOWICE",
+      "NADARZYN",
+      "RASZYN"
+    ],
+    "PRZASNYSKI": [
+      "PRZASNYSZ",
+      "CHORZELE",
+      "CZERNICE BOROWE",
+      "JEDNOROŻEC",
+      "KRASNE",
+      "KRZYNOWŁOGA MAŁA"
+    ],
+    "PRZYSUSKI": [
+      "BORKOWICE",
+      "GIELNIÓW",
+      "KLWÓW",
+      "ODRZYWÓŁ",
+      "POTWORÓW",
+      "PRZYSUCHA",
+      "RUSINÓW",
+      "WIENIAWA"
+    ],
+    "PUŁTUSKI": [
+      "GZY",
+      "OBRYTE",
+      "POKRZYWNICA",
+      "PUŁTUSK",
+      "ŚWIERCZE",
+      "WINNICA",
+      "ZATORY"
+    ],
+    "RADOMSKI": [
+      "PIONKI",
+      "GÓZD",
+      "IŁŻA",
+      "JASTRZĘBIA",
+      "JEDLIŃSK",
+      "JEDLNIA-LETNISKO",
+      "KOWALA",
+      "PRZYTYK",
+      "SKARYSZEW",
+      "WIERZBICA",
+      "WOLANÓW",
+      "ZAKRZEW"
+    ],
+    "SIEDLECKI": [
+      "DOMANICE",
+      "KORCZEW",
+      "KOTUŃ",
+      "MOKOBODY",
+      "MORDY",
+      "PAPROTNIA",
+      "PRZESMYKI",
+      "SIEDLCE",
+      "SKÓRZEC",
+      "SUCHOŻEBRY",
+      "WIŚNIEW",
+      "WODYNIE",
+      "ZBUCZYN"
+    ],
+    "SIERPECKI": [
+      "SIERPC",
+      "GOZDOWO",
+      "MOCHOWO",
+      "ROŚCISZEWO",
+      "SZCZUTOWO",
+      "ZAWIDZ"
+    ],
+    "SOCHACZEWSKI": [
+      "SOCHACZEW",
+      "BROCHÓW",
+      "IŁÓW",
+      "MŁODZIESZYN",
+      "NOWA SUCHA",
+      "RYBNO",
+      "TERESIN"
+    ],
+    "SOKOŁOWSKI": [
+      "SOKOŁÓW PODLASKI",
+      "BIELANY",
+      "CERANÓW",
+      "JABŁONNA LACKA",
+      "KOSÓW LACKI",
+      "REPKI",
+      "SABNIE",
+      "STERDYŃ"
+    ],
+    "SZYDŁOWIECKI": [
+      "CHLEWISKA",
+      "JASTRZĄB",
+      "MIRÓW",
+      "OROŃSKO",
+      "SZYDŁOWIEC"
+    ],
+    "WARSZAWSKI ZACHODNI": [
+      "BŁONIE",
+      "IZABELIN",
+      "KAMPINOS",
+      "LESZNO",
+      "ŁOMIANKI",
+      "OŻARÓW MAZOWIECKI",
+      "STARE BABICE"
+    ],
+    "WĘGROWSKI": [
+      "WĘGRÓW",
+      "GRĘBKÓW",
+      "KORYTNICA",
+      "LIW",
+      "ŁOCHÓW",
+      "MIEDZNA",
+      "SADOWNE",
+      "STOCZEK",
+      "WIERZBNO"
+    ],
+    "WOŁOMIŃSKI": [
+      "KOBYŁKA",
+      "MARKI",
+      "ZĄBKI",
+      "ZIELONKA",
+      "DĄBRÓWKA",
+      "JADÓW",
+      "KLEMBÓW",
+      "POŚWIĘTNE",
+      "RADZYMIN",
+      "STRACHÓWKA",
+      "TŁUSZCZ",
+      "WOŁOMIN"
+    ],
+    "WYSZKOWSKI": [
+      "BRAŃSZCZYK",
+      "DŁUGOSIODŁO",
+      "RZĄŚNIK",
+      "SOMIANKA",
+      "WYSZKÓW",
+      "ZABRODZIE"
+    ],
+    "ZWOLEŃSKI": [
+      "KAZANÓW",
+      "POLICZNA",
+      "PRZYŁĘK",
+      "TCZÓW",
+      "ZWOLEŃ"
+    ],
+    "ŻUROMIŃSKI": [
+      "BIEŻUŃ",
+      "KUCZBORK-OSADA",
+      "LUBOWIDZ",
+      "LUTOCIN",
+      "SIEMIĄTKOWO",
+      "ŻUROMIN"
+    ],
+    "ŻYRARDOWSKI": [
+      "ŻYRARDÓW",
+      "MSZCZONÓW",
+      "PUSZCZA MARIAŃSKA",
+      "RADZIEJOWICE",
+      "WISKITKI"
+    ],
+    "OSTROŁĘKA": [
+      "OSTROŁĘKA"
+    ],
+    "PŁOCK": [
+      "PŁOCK"
+    ],
+    "RADOM": [
+      "RADOM"
+    ],
+    "SIEDLCE": [
+      "SIEDLCE"
+    ],
+    "WARSZAWA": [
+      "WARSZAWA",
+      "BEMOWO",
+      "BIAŁOŁĘKA",
+      "BIELANY",
+      "MOKOTÓW",
+      "OCHOTA",
+      "PRAGA-POŁUDNIE",
+      "PRAGA-PÓŁNOC",
+      "REMBERTÓW",
+      "ŚRÓDMIEŚCIE",
+      "TARGÓWEK",
+      "URSUS",
+      "URSYNÓW",
+      "WAWER",
+      "WESOŁA",
+      "WILANÓW",
+      "WŁOCHY",
+      "WOLA",
+      "ŻOLIBORZ"
+    ]
+  },
+  "OPOLSKIE": {
+    "BRZESKI": [
+      "BRZEG",
+      "SKARBIMIERZ",
+      "GRODKÓW",
+      "LEWIN BRZESKI",
+      "LUBSZA",
+      "OLSZANKA"
+    ],
+    "GŁUBCZYCKI": [
+      "BABORÓW",
+      "BRANICE",
+      "GŁUBCZYCE",
+      "KIETRZ"
+    ],
+    "KĘDZIERZYŃSKO-KOZIELSKI": [
+      "KĘDZIERZYN-KOŹLE",
+      "BIERAWA",
+      "CISEK",
+      "PAWŁOWICZKI",
+      "POLSKA CEREKIEW",
+      "REŃSKA WIEŚ"
+    ],
+    "KLUCZBORSKI": [
+      "BYCZYNA",
+      "KLUCZBORK",
+      "LASOWICE WIELKIE",
+      "WOŁCZYN"
+    ],
+    "KRAPKOWICKI": [
+      "GOGOLIN",
+      "KRAPKOWICE",
+      "STRZELECZKI",
+      "WALCE",
+      "ZDZIESZOWICE"
+    ],
+    "NAMYSŁOWSKI": [
+      "DOMASZOWICE",
+      "NAMYSŁÓW",
+      "POKÓJ",
+      "ŚWIERCZÓW",
+      "WILKÓW"
+    ],
+    "NYSKI": [
+      "GŁUCHOŁAZY",
+      "KAMIENNIK",
+      "KORFANTÓW",
+      "ŁAMBINOWICE",
+      "NYSA",
+      "OTMUCHÓW",
+      "PACZKÓW",
+      "PAKOSŁAWICE",
+      "SKOROSZYCE"
+    ],
+    "OLESKI": [
+      "DOBRODZIEŃ",
+      "GORZÓW ŚLĄSKI",
+      "OLESNO",
+      "PRASZKA",
+      "RADŁÓW",
+      "RUDNIKI",
+      "ZĘBOWICE"
+    ],
+    "OPOLSKI": [
+      "CHRZĄSTOWICE",
+      "DĄBROWA",
+      "DOBRZEŃ WIELKI",
+      "KOMPRACHCICE",
+      "ŁUBNIANY",
+      "MURÓW",
+      "NIEMODLIN",
+      "OZIMEK",
+      "POPIELÓW",
+      "PRÓSZKÓW",
+      "TARNÓW OPOLSKI",
+      "TUŁOWICE",
+      "TURAWA"
+    ],
+    "PRUDNICKI": [
+      "BIAŁA",
+      "GŁOGÓWEK",
+      "LUBRZA",
+      "PRUDNIK"
+    ],
+    "STRZELECKI": [
+      "IZBICKO",
+      "JEMIELNICA",
+      "KOLONOWSKIE",
+      "LEŚNICA",
+      "STRZELCE OPOLSKIE",
+      "UJAZD",
+      "ZAWADZKIE"
+    ],
+    "OPOLE": [
+      "OPOLE"
+    ]
+  },
+  "PODKARPACKIE": {
+    "BIESZCZADZKI": [
+      "CZARNA",
+      "LUTOWISKA",
+      "USTRZYKI DOLNE"
+    ],
+    "BRZOZOWSKI": [
+      "BRZOZÓW",
+      "DOMARADZ",
+      "DYDNIA",
+      "HACZÓW",
+      "JASIENICA ROSIELNA",
+      "NOZDRZEC"
+    ],
+    "DĘBICKI": [
+      "DĘBICA",
+      "BRZOSTEK",
+      "CZARNA",
+      "JODŁOWA",
+      "PILZNO",
+      "ŻYRAKÓW"
+    ],
+    "JAROSŁAWSKI": [
+      "JAROSŁAW",
+      "RADYMNO",
+      "CHŁOPICE",
+      "LASZKI",
+      "PAWŁOSIÓW",
+      "PRUCHNIK",
+      "ROKIETNICA",
+      "ROŹWIENICA",
+      "WIĄZOWNICA"
+    ],
+    "JASIELSKI": [
+      "JASŁO",
+      "BRZYSKA",
+      "DĘBOWIEC",
+      "KOŁACZYCE",
+      "KREMPNA",
+      "NOWY ŻMIGRÓD",
+      "OSIEK JASIELSKI",
+      "SKOŁYSZYN",
+      "TARNOWIEC"
+    ],
+    "KOLBUSZOWSKI": [
+      "CMOLAS",
+      "KOLBUSZOWA",
+      "MAJDAN KRÓLEWSKI",
+      "NIWISKA",
+      "RANIŻÓW",
+      "DZIKOWIEC"
+    ],
+    "KROŚNIEŃSKI": [
+      "CHORKÓWKA",
+      "DUKLA",
+      "IWONICZ-ZDRÓJ",
+      "JEDLICZE",
+      "KORCZYNA",
+      "KROŚCIENKO WYŻNE",
+      "MIEJSCE PIASTOWE",
+      "RYMANÓW",
+      "WOJASZÓWKA",
+      "JAŚLISKA"
+    ],
+    "LEŻAJSKI": [
+      "LEŻAJSK",
+      "GRODZISKO DOLNE",
+      "KURYŁÓWKA",
+      "NOWA SARZYNA"
+    ],
+    "LUBACZOWSKI": [
+      "LUBACZÓW",
+      "CIESZANÓW",
+      "HORYNIEC-ZDRÓJ",
+      "NAROL",
+      "OLESZYCE",
+      "STARY DZIKÓW",
+      "WIELKIE OCZY"
+    ],
+    "ŁAŃCUCKI": [
+      "ŁAŃCUT",
+      "BIAŁOBRZEGI",
+      "CZARNA",
+      "MARKOWA",
+      "RAKSZAWA",
+      "ŻOŁYNIA"
+    ],
+    "MIELECKI": [
+      "MIELEC",
+      "BOROWA",
+      "CZERMIN",
+      "GAWŁUSZOWICE",
+      "PADEW NARODOWA",
+      "PRZECŁAW",
+      "RADOMYŚL WIELKI",
+      "TUSZÓW NARODOWY",
+      "WADOWICE GÓRNE"
+    ],
+    "NIŻAŃSKI": [
+      "HARASIUKI",
+      "JAROCIN",
+      "JEŻOWE",
+      "KRZESZÓW",
+      "NISKO",
+      "RUDNIK NAD SANEM",
+      "ULANÓW"
+    ],
+    "PRZEMYSKI": [
+      "BIRCZA",
+      "DUBIECKO",
+      "FREDROPOL",
+      "KRASICZYN",
+      "KRZYWCZA",
+      "MEDYKA",
+      "ORŁY",
+      "PRZEMYŚL",
+      "STUBNO",
+      "ŻURAWICA"
+    ],
+    "PRZEWORSKI": [
+      "PRZEWORSK",
+      "ADAMÓWKA",
+      "GAĆ",
+      "JAWORNIK POLSKI",
+      "KAŃCZUGA",
+      "SIENIAWA",
+      "TRYŃCZA",
+      "ZARZECZE"
+    ],
+    "ROPCZYCKO-SĘDZISZOWSKI": [
+      "IWIERZYCE",
+      "OSTRÓW",
+      "ROPCZYCE",
+      "SĘDZISZÓW MAŁOPOLSKI",
+      "WIELOPOLE SKRZYŃSKIE"
+    ],
+    "RZESZOWSKI": [
+      "DYNÓW",
+      "BŁAŻOWA",
+      "BOGUCHWAŁA",
+      "CHMIELNIK",
+      "GŁOGÓW MAŁOPOLSKI",
+      "HYŻNE",
+      "KAMIEŃ",
+      "KRASNE",
+      "LUBENIA",
+      "SOKOŁÓW MAŁOPOLSKI",
+      "ŚWILCZA",
+      "TRZEBOWNISKO",
+      "TYCZYN"
+    ],
+    "SANOCKI": [
+      "SANOK",
+      "BESKO",
+      "BUKOWSKO",
+      "KOMAŃCZA",
+      "TYRAWA WOŁOSKA",
+      "ZAGÓRZ",
+      "ZARSZYN"
+    ],
+    "STALOWOWOLSKI": [
+      "STALOWA WOLA",
+      "BOJANÓW",
+      "PYSZNICA",
+      "RADOMYŚL NAD SANEM",
+      "ZAKLIKÓW",
+      "ZALESZANY"
+    ],
+    "STRZYŻOWSKI": [
+      "CZUDEC",
+      "FRYSZTAK",
+      "NIEBYLEC",
+      "STRZYŻÓW",
+      "WIŚNIOWA"
+    ],
+    "TARNOBRZESKI": [
+      "BARANÓW SANDOMIERSKI",
+      "GORZYCE",
+      "GRĘBÓW",
+      "NOWA DĘBA"
+    ],
+    "LESKI": [
+      "BALIGRÓD",
+      "CISNA",
+      "LESKO",
+      "OLSZANICA",
+      "SOLINA"
+    ],
+    "KROSNO": [
+      "KROSNO"
+    ],
+    "PRZEMYŚL": [
+      "PRZEMYŚL"
+    ],
+    "RZESZÓW": [
+      "RZESZÓW"
+    ],
+    "TARNOBRZEG": [
+      "TARNOBRZEG"
+    ]
+  },
+  "PODLASKIE": {
+    "AUGUSTOWSKI": [
+      "AUGUSTÓW",
+      "BARGŁÓW KOŚCIELNY",
+      "LIPSK",
+      "NOWINKA",
+      "PŁASKA",
+      "SZTABIN"
+    ],
+    "BIAŁOSTOCKI": [
+      "CHOROSZCZ",
+      "CZARNA BIAŁOSTOCKA",
+      "DOBRZYNIEWO DUŻE",
+      "GRÓDEK",
+      "JUCHNOWIEC KOŚCIELNY",
+      "ŁAPY",
+      "MICHAŁOWO",
+      "POŚWIĘTNE",
+      "SUPRAŚL",
+      "SURAŻ",
+      "TUROŚŃ KOŚCIELNA",
+      "TYKOCIN",
+      "WASILKÓW",
+      "ZABŁUDÓW",
+      "ZAWADY",
+      "GRABÓWKA"
+    ],
+    "BIELSKI": [
+      "BIELSK PODLASKI",
+      "BRAŃSK",
+      "BOĆKI",
+      "ORLA",
+      "RUDKA",
+      "WYSZKI"
+    ],
+    "GRAJEWSKI": [
+      "GRAJEWO",
+      "RADZIŁÓW",
+      "RAJGRÓD",
+      "SZCZUCZYN",
+      "WĄSOSZ"
+    ],
+    "HAJNOWSKI": [
+      "HAJNÓWKA",
+      "BIAŁOWIEŻA",
+      "CZEREMCHA",
+      "CZYŻE",
+      "DUBICZE CERKIEWNE",
+      "KLESZCZELE",
+      "NAREW",
+      "NAREWKA"
+    ],
+    "KOLNEŃSKI": [
+      "KOLNO",
+      "GRABOWO",
+      "MAŁY PŁOCK",
+      "STAWISKI",
+      "TUROŚL"
+    ],
+    "ŁOMŻYŃSKI": [
+      "JEDWABNE",
+      "ŁOMŻA",
+      "MIASTKOWO",
+      "NOWOGRÓD",
+      "PIĄTNICA",
+      "PRZYTUŁY",
+      "ŚNIADOWO",
+      "WIZNA",
+      "ZBÓJNA"
+    ],
+    "MONIECKI": [
+      "GONIĄDZ",
+      "JASIONÓWKA",
+      "JAŚWIŁY",
+      "KNYSZYN",
+      "KRYPNO",
+      "MOŃKI",
+      "TRZCIANNE"
+    ],
+    "SEJNEŃSKI": [
+      "SEJNY",
+      "GIBY",
+      "KRASNOPOL",
+      "PUŃSK"
+    ],
+    "SIEMIATYCKI": [
+      "SIEMIATYCZE",
+      "DROHICZYN",
+      "DZIADKOWICE",
+      "GRODZISK",
+      "MIELNIK",
+      "MILEJCZYCE",
+      "NURZEC-STACJA",
+      "PERLEJEWO"
+    ],
+    "SOKÓLSKI": [
+      "DĄBROWA BIAŁOSTOCKA",
+      "JANÓW",
+      "KORYCIN",
+      "KRYNKI",
+      "KUŹNICA",
+      "NOWY DWÓR",
+      "SIDRA",
+      "SOKÓŁKA",
+      "SUCHOWOLA",
+      "SZUDZIAŁOWO"
+    ],
+    "SUWALSKI": [
+      "BAKAŁARZEWO",
+      "FILIPÓW",
+      "JELENIEWO",
+      "PRZEROŚL",
+      "RACZKI",
+      "RUTKA-TARTAK",
+      "SUWAŁKI",
+      "SZYPLISZKI",
+      "WIŻAJNY"
+    ],
+    "WYSOKOMAZOWIECKI": [
+      "WYSOKIE MAZOWIECKIE",
+      "CIECHANOWIEC",
+      "CZYŻEW",
+      "KLUKOWO",
+      "KOBYLIN-BORZYMY",
+      "KULESZE KOŚCIELNE",
+      "NOWE PIEKUTY",
+      "SOKOŁY",
+      "SZEPIETOWO"
+    ],
+    "ZAMBROWSKI": [
+      "ZAMBRÓW",
+      "KOŁAKI KOŚCIELNE",
+      "RUTKI",
+      "SZUMOWO"
+    ],
+    "BIAŁYSTOK": [
+      "BIAŁYSTOK"
+    ],
+    "ŁOMŻA": [
+      "ŁOMŻA"
+    ],
+    "SUWAŁKI": [
+      "SUWAŁKI"
+    ]
+  },
+  "POMORSKIE": {
+    "BYTOWSKI": [
+      "BORZYTUCHOM",
+      "BYTÓW",
+      "CZARNA DĄBRÓWKA",
+      "KOŁCZYGŁOWY",
+      "LIPNICA",
+      "MIASTKO",
+      "PARCHOWO",
+      "STUDZIENICE",
+      "TRZEBIELINO",
+      "TUCHOMIE"
+    ],
+    "CHOJNICKI": [
+      "CHOJNICE",
+      "BRUSY",
+      "CZERSK",
+      "KONARZYNY"
+    ],
+    "CZŁUCHOWSKI": [
+      "CZŁUCHÓW",
+      "CZARNE",
+      "DEBRZNO",
+      "KOCZAŁA",
+      "PRZECHLEWO",
+      "RZECZENICA"
+    ],
+    "GDAŃSKI": [
+      "PRUSZCZ GDAŃSKI",
+      "CEDRY WIELKIE",
+      "KOLBUDY",
+      "PRZYWIDZ",
+      "PSZCZÓŁKI",
+      "SUCHY DĄB",
+      "TRĄBKI WIELKIE"
+    ],
+    "KARTUSKI": [
+      "CHMIELNO",
+      "KARTUZY",
+      "PRZODKOWO",
+      "SIERAKOWICE",
+      "SOMONINO",
+      "STĘŻYCA",
+      "SULĘCZYNO",
+      "ŻUKOWO"
+    ],
+    "KOŚCIERSKI": [
+      "KOŚCIERZYNA",
+      "DZIEMIANY",
+      "KARSIN",
+      "LINIEWO",
+      "LIPUSZ",
+      "NOWA KARCZMA",
+      "STARA KISZEWA"
+    ],
+    "KWIDZYŃSKI": [
+      "KWIDZYN",
+      "GARDEJA",
+      "PRABUTY",
+      "RYJEWO",
+      "SADLINKI"
+    ],
+    "LĘBORSKI": [
+      "LĘBORK",
+      "ŁEBA",
+      "CEWICE",
+      "NOWA WIEŚ LĘBORSKA",
+      "WICKO"
+    ],
+    "MALBORSKI": [
+      "MALBORK",
+      "LICHNOWY",
+      "MIŁORADZ",
+      "NOWY STAW",
+      "STARE POLE"
+    ],
+    "NOWODWORSKI": [
+      "KRYNICA MORSKA",
+      "NOWY DWÓR GDAŃSKI",
+      "OSTASZEWO",
+      "STEGNA",
+      "SZTUTOWO"
+    ],
+    "PUCKI": [
+      "HEL",
+      "JASTARNIA",
+      "PUCK",
+      "WŁADYSŁAWOWO",
+      "KOSAKOWO",
+      "KROKOWA"
+    ],
+    "SŁUPSKI": [
+      "USTKA",
+      "DAMNICA",
+      "DĘBNICA KASZUBSKA",
+      "GŁÓWCZYCE",
+      "KĘPICE",
+      "KOBYLNICA",
+      "POTĘGOWO",
+      "REDZIKOWO",
+      "SMOŁDZINO"
+    ],
+    "STAROGARDZKI": [
+      "CZARNA WODA",
+      "SKÓRCZ",
+      "STAROGARD GDAŃSKI",
+      "BOBOWO",
+      "KALISKA",
+      "LUBICHOWO",
+      "OSIECZNA",
+      "OSIEK",
+      "SKARSZEWY",
+      "SMĘTOWO GRANICZNE",
+      "ZBLEWO"
+    ],
+    "TCZEWSKI": [
+      "TCZEW",
+      "GNIEW",
+      "MORZESZCZYN",
+      "PELPLIN",
+      "SUBKOWY"
+    ],
+    "WEJHEROWSKI": [
+      "REDA",
+      "RUMIA",
+      "WEJHEROWO",
+      "CHOCZEWO",
+      "GNIEWINO",
+      "LINIA",
+      "LUZINO",
+      "ŁĘCZYCE",
+      "SZEMUD"
+    ],
+    "SZTUMSKI": [
+      "DZIERZGOŃ",
+      "MIKOŁAJKI POMORSKIE",
+      "STARY DZIERZGOŃ",
+      "STARY TARG",
+      "SZTUM"
+    ],
+    "GDAŃSK": [
+      "GDAŃSK"
+    ],
+    "GDYNIA": [
+      "GDYNIA"
+    ],
+    "SŁUPSK": [
+      "SŁUPSK"
+    ],
+    "SOPOT": [
+      "SOPOT"
+    ]
+  },
+  "ŚLĄSKIE": {
+    "BĘDZIŃSKI": [
+      "BĘDZIN",
+      "CZELADŹ",
+      "WOJKOWICE",
+      "BOBROWNIKI",
+      "MIERZĘCICE",
+      "PSARY",
+      "SIEWIERZ",
+      "SŁAWKÓW"
+    ],
+    "BIELSKI": [
+      "SZCZYRK",
+      "BESTWINA",
+      "BUCZKOWICE",
+      "CZECHOWICE-DZIEDZICE",
+      "JASIENICA",
+      "JAWORZE",
+      "KOZY",
+      "PORĄBKA",
+      "WILAMOWICE",
+      "WILKOWICE"
+    ],
+    "CIESZYŃSKI": [
+      "CIESZYN",
+      "USTROŃ",
+      "WISŁA",
+      "BRENNA",
+      "CHYBIE",
+      "DĘBOWIEC",
+      "GOLESZÓW",
+      "HAŻLACH",
+      "ISTEBNA",
+      "SKOCZÓW",
+      "STRUMIEŃ",
+      "ZEBRZYDOWICE"
+    ],
+    "CZĘSTOCHOWSKI": [
+      "BLACHOWNIA",
+      "DĄBROWA ZIELONA",
+      "JANÓW",
+      "KAMIENICA POLSKA",
+      "KŁOMNICE",
+      "KONIECPOL",
+      "KONOPISKA",
+      "KRUSZYNA",
+      "LELÓW",
+      "MSTÓW",
+      "MYKANÓW",
+      "OLSZTYN",
+      "POCZESNA",
+      "PRZYRÓW",
+      "RĘDZINY",
+      "STARCZA"
+    ],
+    "GLIWICKI": [
+      "KNURÓW",
+      "PYSKOWICE",
+      "GIERAŁTOWICE",
+      "PILCHOWICE",
+      "RUDZINIEC",
+      "SOŚNICOWICE",
+      "TOSZEK",
+      "WIELOWIEŚ"
+    ],
+    "KŁOBUCKI": [
+      "KŁOBUCK",
+      "KRZEPICE",
+      "LIPIE",
+      "MIEDŹNO",
+      "OPATÓW",
+      "PANKI",
+      "POPÓW",
+      "PRZYSTAJŃ",
+      "WRĘCZYCA WIELKA"
+    ],
+    "LUBLINIECKI": [
+      "LUBLINIEC",
+      "BORONÓW",
+      "CIASNA",
+      "HERBY",
+      "KOCHANOWICE",
+      "KOSZĘCIN",
+      "PAWONKÓW",
+      "WOŹNIKI"
+    ],
+    "MIKOŁOWSKI": [
+      "ŁAZISKA GÓRNE",
+      "MIKOŁÓW",
+      "ORZESZE",
+      "ORNONTOWICE",
+      "WYRY"
+    ],
+    "MYSZKOWSKI": [
+      "MYSZKÓW",
+      "KOZIEGŁOWY",
+      "NIEGOWA",
+      "PORAJ",
+      "ŻARKI"
+    ],
+    "PSZCZYŃSKI": [
+      "GOCZAŁKOWICE-ZDRÓJ",
+      "KOBIÓR",
+      "MIEDŹNA",
+      "PAWŁOWICE",
+      "PSZCZYNA",
+      "SUSZEC"
+    ],
+    "RACIBORSKI": [
+      "RACIBÓRZ",
+      "KORNOWAC",
+      "KRZANOWICE",
+      "KRZYŻANOWICE",
+      "KUŹNIA RACIBORSKA",
+      "NĘDZA",
+      "PIETROWICE WIELKIE",
+      "RUDNIK"
+    ],
+    "RYBNICKI": [
+      "CZERWIONKA-LESZCZYNY",
+      "GASZOWICE",
+      "JEJKOWICE",
+      "LYSKI",
+      "ŚWIERKLANY"
+    ],
+    "TARNOGÓRSKI": [
+      "KALETY",
+      "MIASTECZKO ŚLĄSKIE",
+      "RADZIONKÓW",
+      "TARNOWSKIE GÓRY",
+      "KRUPSKI MŁYN",
+      "OŻAROWICE",
+      "ŚWIERKLANIEC",
+      "TWORÓG",
+      "ZBROSŁAWICE"
+    ],
+    "BIERUŃSKO-LĘDZIŃSKI": [
+      "BIERUŃ",
+      "IMIELIN",
+      "LĘDZINY",
+      "BOJSZOWY",
+      "CHEŁM ŚLĄSKI"
+    ],
+    "WODZISŁAWSKI": [
+      "PSZÓW",
+      "RADLIN",
+      "RYDUŁTOWY",
+      "WODZISŁAW ŚLĄSKI",
+      "GODÓW",
+      "GORZYCE",
+      "LUBOMIA",
+      "MARKLOWICE",
+      "MSZANA"
+    ],
+    "ZAWIERCIAŃSKI": [
+      "PORĘBA",
+      "ZAWIERCIE",
+      "IRZĄDZE",
+      "KROCZYCE",
+      "ŁAZY",
+      "OGRODZIENIEC",
+      "PILICA",
+      "SZCZEKOCINY",
+      "WŁODOWICE",
+      "ŻARNOWIEC"
+    ],
+    "ŻYWIECKI": [
+      "ŻYWIEC",
+      "CZERNICHÓW",
+      "GILOWICE",
+      "JELEŚNIA",
+      "KOSZARAWA",
+      "LIPOWA",
+      "ŁĘKAWICA",
+      "ŁODYGOWICE",
+      "MILÓWKA",
+      "RADZIECHOWY-WIEPRZ",
+      "RAJCZA",
+      "ŚLEMIEŃ",
+      "ŚWINNA",
+      "UJSOŁY",
+      "WĘGIERSKA GÓRKA"
+    ],
+    "BIELSKO-BIAŁA": [
+      "BIELSKO-BIAŁA"
+    ],
+    "BYTOM": [
+      "BYTOM"
+    ],
+    "CHORZÓW": [
+      "CHORZÓW"
+    ],
+    "CZĘSTOCHOWA": [
+      "CZĘSTOCHOWA"
+    ],
+    "DĄBROWA GÓRNICZA": [
+      "DĄBROWA GÓRNICZA"
+    ],
+    "GLIWICE": [
+      "GLIWICE"
+    ],
+    "JASTRZĘBIE-ZDRÓJ": [
+      "JASTRZĘBIE-ZDRÓJ"
+    ],
+    "JAWORZNO": [
+      "JAWORZNO"
+    ],
+    "KATOWICE": [
+      "KATOWICE"
+    ],
+    "MYSŁOWICE": [
+      "MYSŁOWICE"
+    ],
+    "PIEKARY ŚLĄSKIE": [
+      "PIEKARY ŚLĄSKIE"
+    ],
+    "RUDA ŚLĄSKA": [
+      "RUDA ŚLĄSKA"
+    ],
+    "RYBNIK": [
+      "RYBNIK"
+    ],
+    "SIEMIANOWICE ŚLĄSKIE": [
+      "SIEMIANOWICE ŚLĄSKIE"
+    ],
+    "SOSNOWIEC": [
+      "SOSNOWIEC"
+    ],
+    "ŚWIĘTOCHŁOWICE": [
+      "ŚWIĘTOCHŁOWICE"
+    ],
+    "TYCHY": [
+      "TYCHY"
+    ],
+    "ZABRZE": [
+      "ZABRZE"
+    ],
+    "ŻORY": [
+      "ŻORY"
+    ]
+  },
+  "ŚWIĘTOKRZYSKIE": {
+    "BUSKI": [
+      "BUSKO-ZDRÓJ",
+      "GNOJNO",
+      "NOWY KORCZYN",
+      "PACANÓW",
+      "SOLEC-ZDRÓJ",
+      "STOPNICA",
+      "TUCZĘPY",
+      "WIŚLICA"
+    ],
+    "JĘDRZEJOWSKI": [
+      "IMIELNO",
+      "JĘDRZEJÓW",
+      "MAŁOGOSZCZ",
+      "NAGŁOWICE",
+      "OKSA",
+      "SĘDZISZÓW",
+      "SŁUPIA",
+      "SOBKÓW",
+      "WODZISŁAW"
+    ],
+    "KAZIMIERSKI": [
+      "BEJSCE",
+      "CZARNOCIN",
+      "KAZIMIERZA WIELKA",
+      "OPATOWIEC",
+      "SKALBMIERZ"
+    ],
+    "KIELECKI": [
+      "BIELINY",
+      "BODZENTYN",
+      "CHĘCINY",
+      "CHMIELNIK",
+      "DALESZYCE",
+      "GÓRNO",
+      "ŁAGÓW",
+      "ŁOPUSZNO",
+      "MASŁÓW",
+      "MIEDZIANA GÓRA",
+      "MNIÓW",
+      "MORAWICA",
+      "NOWA SŁUPIA",
+      "PIEKOSZÓW",
+      "PIERZCHNICA",
+      "RAKÓW",
+      "NOWINY",
+      "STRAWCZYN",
+      "ZAGNAŃSK"
+    ],
+    "KONECKI": [
+      "FAŁKÓW",
+      "GOWARCZÓW",
+      "KOŃSKIE",
+      "RADOSZYCE",
+      "RUDA MALENIECKA",
+      "SŁUPIA KONECKA",
+      "SMYKÓW",
+      "STĄPORKÓW"
+    ],
+    "OPATOWSKI": [
+      "BAĆKOWICE",
+      "IWANISKA",
+      "LIPNIK",
+      "OPATÓW",
+      "OŻARÓW",
+      "SADOWIE",
+      "TARŁÓW",
+      "WOJCIECHOWICE"
+    ],
+    "OSTROWIECKI": [
+      "OSTROWIEC ŚWIĘTOKRZYSKI",
+      "BAŁTÓW",
+      "BODZECHÓW",
+      "ĆMIELÓW",
+      "KUNÓW",
+      "WAŚNIÓW"
+    ],
+    "PIŃCZOWSKI": [
+      "DZIAŁOSZYCE",
+      "KIJE",
+      "MICHAŁÓW",
+      "PIŃCZÓW",
+      "ZŁOTA"
+    ],
+    "SANDOMIERSKI": [
+      "SANDOMIERZ",
+      "DWIKOZY",
+      "KLIMONTÓW",
+      "KOPRZYWNICA",
+      "ŁONIÓW",
+      "OBRAZÓW",
+      "SAMBORZEC",
+      "WILCZYCE",
+      "ZAWICHOST"
+    ],
+    "SKARŻYSKI": [
+      "SKARŻYSKO-KAMIENNA",
+      "BLIŻYN",
+      "ŁĄCZNA",
+      "SKARŻYSKO KOŚCIELNE",
+      "SUCHEDNIÓW"
+    ],
+    "STARACHOWICKI": [
+      "STARACHOWICE",
+      "BRODY",
+      "MIRZEC",
+      "PAWŁÓW",
+      "WĄCHOCK"
+    ],
+    "STASZOWSKI": [
+      "BOGORIA",
+      "ŁUBNICE",
+      "OLEŚNICA",
+      "OSIEK",
+      "POŁANIEC",
+      "RYTWIANY",
+      "STASZÓW",
+      "SZYDŁÓW"
+    ],
+    "WŁOSZCZOWSKI": [
+      "KLUCZEWSKO",
+      "KRASOCIN",
+      "MOSKORZEW",
+      "RADKÓW",
+      "SECEMIN",
+      "WŁOSZCZOWA"
+    ],
+    "KIELCE": [
+      "KIELCE"
+    ]
+  },
+  "WARMIŃSKO-MAZURSKIE": {
+    "BARTOSZYCKI": [
+      "BARTOSZYCE",
+      "GÓROWO IŁAWECKIE",
+      "BISZTYNEK",
+      "SĘPOPOL"
+    ],
+    "BRANIEWSKI": [
+      "BRANIEWO",
+      "FROMBORK",
+      "LELKOWO",
+      "PIENIĘŻNO",
+      "PŁOSKINIA",
+      "WILCZĘTA"
+    ],
+    "DZIAŁDOWSKI": [
+      "DZIAŁDOWO",
+      "IŁOWO-OSADA",
+      "LIDZBARK",
+      "PŁOŚNICA",
+      "RYBNO"
+    ],
+    "ELBLĄSKI": [
+      "ELBLĄG",
+      "GODKOWO",
+      "GRONOWO ELBLĄSKIE",
+      "MARKUSY",
+      "MILEJEWO",
+      "MŁYNARY",
+      "PASŁĘK",
+      "RYCHLIKI",
+      "TOLKMICKO"
+    ],
+    "EŁCKI": [
+      "EŁK",
+      "KALINOWO",
+      "PROSTKI",
+      "STARE JUCHY"
+    ],
+    "GIŻYCKI": [
+      "GIŻYCKO",
+      "KRUKLANKI",
+      "MIŁKI",
+      "RYN",
+      "WYDMINY"
+    ],
+    "IŁAWSKI": [
+      "IŁAWA",
+      "LUBAWA",
+      "KISIELICE",
+      "SUSZ",
+      "ZALEWO"
+    ],
+    "KĘTRZYŃSKI": [
+      "KĘTRZYN",
+      "BARCIANY",
+      "KORSZE",
+      "RESZEL",
+      "SROKOWO"
+    ],
+    "LIDZBARSKI": [
+      "LIDZBARK WARMIŃSKI",
+      "KIWITY",
+      "LUBOMINO",
+      "ORNETA"
+    ],
+    "MRĄGOWSKI": [
+      "MRĄGOWO",
+      "MIKOŁAJKI",
+      "PIECKI",
+      "SORKWITY"
+    ],
+    "NIDZICKI": [
+      "JANOWIEC KOŚCIELNY",
+      "JANOWO",
+      "KOZŁOWO",
+      "NIDZICA"
+    ],
+    "NOWOMIEJSKI": [
+      "NOWE MIASTO LUBAWSKIE",
+      "BISKUPIEC",
+      "GRODZICZNO",
+      "KURZĘTNIK",
+      "BRATIAN"
+    ],
+    "OLECKI": [
+      "KOWALE OLECKIE",
+      "OLECKO",
+      "ŚWIĘTAJNO",
+      "WIELICZKI"
+    ],
+    "OLSZTYŃSKI": [
+      "BARCZEWO",
+      "BISKUPIEC",
+      "DOBRE MIASTO",
+      "DYWITY",
+      "GIETRZWAŁD",
+      "JEZIORANY",
+      "JONKOWO",
+      "KOLNO",
+      "OLSZTYNEK",
+      "PURDA",
+      "STAWIGUDA",
+      "ŚWIĄTKI"
+    ],
+    "OSTRÓDZKI": [
+      "OSTRÓDA",
+      "DĄBRÓWNO",
+      "GRUNWALD",
+      "ŁUKTA",
+      "MAŁDYTY",
+      "MIŁAKOWO",
+      "MIŁOMŁYN",
+      "MORĄG"
+    ],
+    "PISKI": [
+      "BIAŁA PISKA",
+      "ORZYSZ",
+      "PISZ",
+      "RUCIANE-NIDA"
+    ],
+    "SZCZYCIEŃSKI": [
+      "SZCZYTNO",
+      "DŹWIERZUTY",
+      "JEDWABNO",
+      "PASYM",
+      "ROZOGI",
+      "ŚWIĘTAJNO",
+      "WIELBARK"
+    ],
+    "GOŁDAPSKI": [
+      "BANIE MAZURSKIE",
+      "DUBENINKI",
+      "GOŁDAP"
+    ],
+    "WĘGORZEWSKI": [
+      "BUDRY",
+      "POZEZDRZE",
+      "WĘGORZEWO"
+    ],
+    "ELBLĄG": [
+      "ELBLĄG"
+    ],
+    "OLSZTYN": [
+      "OLSZTYN"
+    ]
+  },
+  "WIELKOPOLSKIE": {
+    "CHODZIESKI": [
+      "CHODZIEŻ",
+      "BUDZYŃ",
+      "MARGONIN",
+      "SZAMOCIN"
+    ],
+    "CZARNKOWSKO-TRZCIANECKI": [
+      "CZARNKÓW",
+      "DRAWSKO",
+      "KRZYŻ WIELKOPOLSKI",
+      "LUBASZ",
+      "POŁAJEWO",
+      "TRZCIANKA",
+      "WIELEŃ"
+    ],
+    "GNIEŹNIEŃSKI": [
+      "GNIEZNO",
+      "CZERNIEJEWO",
+      "KISZKOWO",
+      "KŁECKO",
+      "ŁUBOWO",
+      "MIELESZYN",
+      "NIECHANOWO",
+      "TRZEMESZNO",
+      "WITKOWO"
+    ],
+    "GOSTYŃSKI": [
+      "BOREK WIELKOPOLSKI",
+      "GOSTYŃ",
+      "KROBIA",
+      "PĘPOWO",
+      "PIASKI",
+      "POGORZELA",
+      "PONIEC"
+    ],
+    "GRODZISKI": [
+      "GRANOWO",
+      "GRODZISK WIELKOPOLSKI",
+      "KAMIENIEC",
+      "RAKONIEWICE",
+      "WIELICHOWO"
+    ],
+    "JAROCIŃSKI": [
+      "JARACZEWO",
+      "JAROCIN",
+      "KOTLIN",
+      "ŻERKÓW"
+    ],
+    "KALISKI": [
+      "BLIZANÓW",
+      "BRZEZINY",
+      "CEKÓW-KOLONIA",
+      "GODZIESZE WIELKIE",
+      "KOŹMINEK",
+      "LISKÓW",
+      "MYCIELIN",
+      "OPATÓWEK",
+      "STAWISZYN",
+      "SZCZYTNIKI",
+      "ŻELAZKÓW"
+    ],
+    "KĘPIŃSKI": [
+      "BARANÓW",
+      "BRALIN",
+      "KĘPNO",
+      "ŁĘKA OPATOWSKA",
+      "PERZÓW",
+      "RYCHTAL",
+      "TRZCINICA"
+    ],
+    "KOLSKI": [
+      "KOŁO",
+      "BABIAK",
+      "CHODÓW",
+      "DĄBIE",
+      "GRZEGORZEW",
+      "KŁODAWA",
+      "KOŚCIELEC",
+      "OLSZÓWKA",
+      "OSIEK MAŁY",
+      "PRZEDECZ"
+    ],
+    "KONIŃSKI": [
+      "GOLINA",
+      "GRODZIEC",
+      "KAZIMIERZ BISKUPI",
+      "KLECZEW",
+      "KRAMSK",
+      "KRZYMÓW",
+      "RYCHWAŁ",
+      "RZGÓW",
+      "SKULSK",
+      "SOMPOLNO",
+      "STARE MIASTO",
+      "ŚLESIN",
+      "WIERZBINEK",
+      "WILCZYN"
+    ],
+    "KOŚCIAŃSKI": [
+      "KOŚCIAN",
+      "CZEMPIŃ",
+      "KRZYWIŃ",
+      "ŚMIGIEL"
+    ],
+    "KROTOSZYŃSKI": [
+      "SULMIERZYCE",
+      "KOBYLIN",
+      "KOŹMIN WIELKOPOLSKI",
+      "KROTOSZYN",
+      "ROZDRAŻEW",
+      "ZDUNY"
+    ],
+    "LESZCZYŃSKI": [
+      "KRZEMIENIEWO",
+      "LIPNO",
+      "OSIECZNA",
+      "RYDZYNA",
+      "ŚWIĘCIECHOWA",
+      "WIJEWO",
+      "WŁOSZAKOWICE"
+    ],
+    "MIĘDZYCHODZKI": [
+      "CHRZYPSKO WIELKIE",
+      "KWILCZ",
+      "MIĘDZYCHÓD",
+      "SIERAKÓW"
+    ],
+    "NOWOTOMYSKI": [
+      "KUŚLIN",
+      "LWÓWEK",
+      "MIEDZICHOWO",
+      "NOWY TOMYŚL",
+      "OPALENICA",
+      "ZBĄSZYŃ"
+    ],
+    "OBORNICKI": [
+      "OBORNIKI",
+      "ROGOŹNO",
+      "RYCZYWÓŁ"
+    ],
+    "OSTROWSKI": [
+      "OSTRÓW WIELKOPOLSKI",
+      "NOWE SKALMIERZYCE",
+      "ODOLANÓW",
+      "PRZYGODZICE",
+      "RASZKÓW",
+      "SIEROSZEWICE",
+      "SOŚNIE"
+    ],
+    "OSTRZESZOWSKI": [
+      "CZAJKÓW",
+      "DORUCHÓW",
+      "GRABÓW NAD PROSNĄ",
+      "KOBYLA GÓRA",
+      "KRASZEWICE",
+      "MIKSTAT",
+      "OSTRZESZÓW"
+    ],
+    "PILSKI": [
+      "PIŁA",
+      "BIAŁOŚLIWIE",
+      "KACZORY",
+      "ŁOBŻENICA",
+      "MIASTECZKO KRAJEŃSKIE",
+      "SZYDŁOWO",
+      "UJŚCIE",
+      "WYRZYSK",
+      "WYSOKA"
+    ],
+    "PLESZEWSKI": [
+      "CHOCZ",
+      "CZERMIN",
+      "DOBRZYCA",
+      "GIZAŁKI",
+      "GOŁUCHÓW",
+      "PLESZEW"
+    ],
+    "POZNAŃSKI": [
+      "LUBOŃ",
+      "PUSZCZYKOWO",
+      "BUK",
+      "CZERWONAK",
+      "DOPIEWO",
+      "KLESZCZEWO",
+      "KOMORNIKI",
+      "KOSTRZYN",
+      "KÓRNIK",
+      "MOSINA",
+      "MUROWANA GOŚLINA",
+      "POBIEDZISKA",
+      "ROKIETNICA",
+      "STĘSZEW",
+      "SUCHY LAS",
+      "SWARZĘDZ",
+      "TARNOWO PODGÓRNE"
+    ],
+    "RAWICKI": [
+      "BOJANOWO",
+      "JUTROSIN",
+      "MIEJSKA GÓRKA",
+      "PAKOSŁAW",
+      "RAWICZ"
+    ],
+    "SŁUPECKI": [
+      "SŁUPCA",
+      "LĄDEK",
+      "ORCHOWO",
+      "OSTROWITE",
+      "POWIDZ",
+      "STRZAŁKOWO",
+      "ZAGÓRÓW"
+    ],
+    "SZAMOTULSKI": [
+      "OBRZYCKO",
+      "DUSZNIKI",
+      "KAŹMIERZ",
+      "OSTRORÓG",
+      "PNIEWY",
+      "SZAMOTUŁY",
+      "WRONKI"
+    ],
+    "ŚREDZKI": [
+      "DOMINOWO",
+      "KRZYKOSY",
+      "NOWE MIASTO NAD WARTĄ",
+      "ŚRODA WIELKOPOLSKA",
+      "ZANIEMYŚL"
+    ],
+    "ŚREMSKI": [
+      "BRODNICA",
+      "DOLSK",
+      "KSIĄŻ WIELKOPOLSKI",
+      "ŚREM"
+    ],
+    "TURECKI": [
+      "TUREK",
+      "BRUDZEW",
+      "DOBRA",
+      "KAWĘCZYN",
+      "MALANÓW",
+      "PRZYKONA",
+      "TULISZKÓW",
+      "WŁADYSŁAWÓW"
+    ],
+    "WĄGROWIECKI": [
+      "WĄGROWIEC",
+      "DAMASŁAWEK",
+      "GOŁAŃCZ",
+      "MIEŚCISKO",
+      "SKOKI",
+      "WAPNO"
+    ],
+    "WOLSZTYŃSKI": [
+      "PRZEMĘT",
+      "SIEDLEC",
+      "WOLSZTYN"
+    ],
+    "WRZESIŃSKI": [
+      "KOŁACZKOWO",
+      "MIŁOSŁAW",
+      "NEKLA",
+      "PYZDRY",
+      "WRZEŚNIA"
+    ],
+    "ZŁOTOWSKI": [
+      "ZŁOTÓW",
+      "JASTROWIE",
+      "KRAJENKA",
+      "LIPKA",
+      "OKONEK",
+      "TARNÓWKA",
+      "ZAKRZEWO"
+    ],
+    "KALISZ": [
+      "KALISZ"
+    ],
+    "KONIN": [
+      "KONIN"
+    ],
+    "LESZNO": [
+      "LESZNO"
+    ],
+    "POZNAŃ": [
+      "POZNAŃ",
+      "POZNAŃ-GRUNWALD",
+      "POZNAŃ-JEŻYCE",
+      "POZNAŃ-NOWE MIASTO",
+      "POZNAŃ-STARE MIASTO",
+      "POZNAŃ-WILDA"
+    ]
+  },
+  "ZACHODNIOPOMORSKIE": {
+    "BIAŁOGARDZKI": [
+      "BIAŁOGARD",
+      "KARLINO",
+      "TYCHOWO"
+    ],
+    "CHOSZCZEŃSKI": [
+      "BIERZWNIK",
+      "CHOSZCZNO",
+      "DRAWNO",
+      "KRZĘCIN",
+      "PEŁCZYCE",
+      "RECZ"
+    ],
+    "DRAWSKI": [
+      "CZAPLINEK",
+      "DRAWSKO POMORSKIE",
+      "KALISZ POMORSKI",
+      "WIERZCHOWO",
+      "ZŁOCIENIEC"
+    ],
+    "GOLENIOWSKI": [
+      "GOLENIÓW",
+      "MASZEWO",
+      "NOWOGARD",
+      "OSINA",
+      "PRZYBIERNÓW",
+      "STEPNICA"
+    ],
+    "GRYFICKI": [
+      "BROJCE",
+      "GRYFICE",
+      "KARNICE",
+      "PŁOTY",
+      "REWAL",
+      "TRZEBIATÓW"
+    ],
+    "GRYFIŃSKI": [
+      "BANIE",
+      "CEDYNIA",
+      "CHOJNA",
+      "GRYFINO",
+      "MIESZKOWICE",
+      "MORYŃ",
+      "STARE CZARNOWO",
+      "TRZCIŃSKO-ZDRÓJ",
+      "WIDUCHOWA"
+    ],
+    "KAMIEŃSKI": [
+      "DZIWNÓW",
+      "GOLCZEWO",
+      "KAMIEŃ POMORSKI",
+      "MIĘDZYZDROJE",
+      "ŚWIERZNO",
+      "WOLIN"
+    ],
+    "KOŁOBRZESKI": [
+      "KOŁOBRZEG",
+      "DYGOWO",
+      "GOŚCINO",
+      "RYMAŃ",
+      "SIEMYŚL",
+      "USTRONIE MORSKIE"
+    ],
+    "KOSZALIŃSKI": [
+      "BĘDZINO",
+      "BIESIEKIERZ",
+      "BOBOLICE",
+      "MANOWO",
+      "MIELNO",
+      "POLANÓW",
+      "SIANÓW",
+      "ŚWIESZYNO"
+    ],
+    "MYŚLIBORSKI": [
+      "BARLINEK",
+      "BOLESZKOWICE",
+      "DĘBNO",
+      "MYŚLIBÓRZ",
+      "NOWOGRÓDEK POMORSKI"
+    ],
+    "POLICKI": [
+      "DOBRA (SZCZECIŃSKA)",
+      "KOŁBASKOWO",
+      "NOWE WARPNO",
+      "POLICE"
+    ],
+    "PYRZYCKI": [
+      "BIELICE",
+      "KOZIELICE",
+      "LIPIANY",
+      "PRZELEWICE",
+      "PYRZYCE",
+      "WARNICE"
+    ],
+    "SŁAWIEŃSKI": [
+      "DARŁOWO",
+      "SŁAWNO",
+      "MALECHOWO",
+      "POSTOMINO"
+    ],
+    "STARGARDZKI": [
+      "STARGARD",
+      "CHOCIWEL",
+      "DOBRZANY",
+      "DOLICE",
+      "IŃSKO",
+      "KOBYLANKA",
+      "MARIANOWO",
+      "STARA DĄBROWA",
+      "SUCHAŃ"
+    ],
+    "SZCZECINECKI": [
+      "SZCZECINEK",
+      "BARWICE",
+      "BIAŁY BÓR",
+      "BORNE SULINOWO",
+      "GRZMIĄCA"
+    ],
+    "ŚWIDWIŃSKI": [
+      "ŚWIDWIN",
+      "BRZEŻNO",
+      "POŁCZYN-ZDRÓJ",
+      "RĄBINO",
+      "SŁAWOBORZE"
+    ],
+    "WAŁECKI": [
+      "WAŁCZ",
+      "CZŁOPA",
+      "MIROSŁAWIEC",
+      "TUCZNO"
+    ],
+    "ŁOBESKI": [
+      "DOBRA",
+      "ŁOBEZ",
+      "RADOWO MAŁE",
+      "RESKO",
+      "WĘGORZYNO"
+    ],
+    "KOSZALIN": [
+      "KOSZALIN"
+    ],
+    "SZCZECIN": [
+      "SZCZECIN"
+    ],
+    "ŚWINOUJŚCIE": [
+      "ŚWINOUJŚCIE"
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+# Kombajn Leśny PRO — zależności
+customtkinter>=5.2.0
+pyautogui>=0.9.54
+pywin32>=306;platform_system=="Windows"
+python-docx>=0.8.11
+PyMuPDF>=1.23.0
+pypdf>=4.0.0
+Pillow>=10.0.0
+pandas>=2.0.0
+numpy>=1.24.0
+openpyxl>=3.1.0
+pyodbc>=5.0.1
+CTkToolTip>=1.0.0
+xlrd>=2.0.1
+pywebview>=5.0

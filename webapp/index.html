@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Forestly</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <div id="brand">
+      <span class="logo">🌲</span>
+      <div>
+        <div id="app-name">Forestly</div>
+        <div id="app-version"></div>
+      </div>
+    </div>
+    <div id="topbar-right">
+      <button class="btn ghost" id="btn-theme" title="Przełącz jasny / ciemny motyw">☀ Motyw</button>
+      <button class="btn ghost" id="btn-check-update" title="Sprawdź dostępność nowej wersji">↻ Aktualizacje</button>
+      <button class="btn danger ghost hidden" id="btn-stop">■ Zatrzymaj</button>
+    </div>
+  </header>
+
+  <div id="main">
+    <nav id="sidebar"></nav>
+    <div id="content">
+      <div id="content-scroll"></div>
+    </div>
+  </div>
+
+  <footer id="bottombar">
+    <div id="status">
+      <span id="status-dot"></span>
+      <span id="status-text">System aktywny. Skonfiguruj proces i rozpocznij działanie.</span>
+    </div>
+    <div id="progress-wrap">
+      <div id="progress-file"></div>
+      <div id="progress-bar"><div id="progress-fill"></div></div>
+    </div>
+  </footer>
+</div>
+
+<div id="log-panel">
+  <div id="log-head">
+    <span class="log-title">Dziennik zdarzeń</span>
+    <div>
+      <button class="btn ghost small" id="btn-clear-log">Wyczyść</button>
+      <button class="btn ghost small" id="btn-log-toggle">▲</button>
+    </div>
+  </div>
+  <div id="log"></div>
+</div>
+
+<div id="modal-root"></div>
+<div id="toast-root"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,50 @@
+KOMBIAJN LEŚNY PRO — NOWE GUI (PyWebView)
+==========================================
+
+Co to jest?
+-----------
+Nowy, nowoczesny interfejs programu oparty o technikę webową (HTML/CSS/JS)
+wyświetlaną w natywnym oknie Windows (WebView2) przez bibliotekę PyWebView.
+CAŁA logika programu pozostała bez zmian — to dokładnie ten sam Python,
+który działał w wersji CustomTkinter. Zmieniła się tylko warstwa wyglądu.
+
+Oba interfejsy działają równolegle i korzystają z tych samych ustawień:
+  - main.py     → stare GUI (CustomTkinter)   [awaryjne wyjście]
+  - main_web.py → NOWE GUI (PyWebView)        [zalecane]
+
+Uruchomienie
+-----------
+1. Zainstaluj nową zależność (jednorazowo):
+   .venv\Scripts\pip install pywebview
+
+2. Uruchom nowe GUI:
+   .venv\Scripts\python main_web.py
+   (w PyCharm: kliknij prawym na main_web.py → Run 'main_web')
+
+Windows 10/11 ma WebView2 preinstalowany — nic więcej nie trzeba.
+
+Co nowego w GUI
+---------------
+- pionowe menu z sekcjami (MIETEK / TAKSATOR / ROZLICZANIE / KONWERTER PDF)
+- wszystkie 20 zakładek i wszystkie funkcje jak dotychczas:
+  pola ścieżek z przeglądaniem i historią (🕒), checkboxy (w tym grupy
+  "Wszystkie"/pojedyncze pliki), listy rozwijane, tabela marginesów,
+  tabela czcionek Excel, dashboard 5 kroków Pełnego Automatu,
+- panel dziennika zdarzeń na dole (zwijany), pasek postępu i statusu,
+- okienka komunikatów i pytań (Tak/Nie) jako natywne dialogi,
+- "Skonfiguruj układ PDF" i "Ręczne scalanie PDF" jako okna z listą
+  i strzałkami ▲▼ (te same pliki konfiguracyjne co wcześniej),
+- przycisk Zatrzymaj przerywa zadanie po bieżącym kroku,
+- ustawienia pól (ostatnie ścieżki, marginesy, czcionki, dane WSIE)
+  zapisują się tak samo jak w starym GUI.
+
+Struktura plików
+----------------
+main_web.py             — punkt wejścia nowego GUI
+webapp/index.html       — szkielet strony
+webapp/style.css        — wygląd
+webapp/app.js           — renderowanie zakładek + mostek do Pythona
+app/gui/web_schema.py   — opis wszystkich zakładek/kontrolek
+app/gui/web_backend.py  — mostek Python<->JS (sztuczne widgety, zdarzenia)
+
+Jeśli nowe GUI się nie uruchomi, zawsze możesz wrócić do main.py.
