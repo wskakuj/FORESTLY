@@ -495,6 +495,7 @@ select option {
 .order-item:last-child { border-bottom: none; }
 .order-item .grip { color: var(--text-dim); font-size: 14px; }
 .order-item .oi-name { flex: 1; }
+.order-item .oi-aliases { color: var(--text-dim); font-size: 11px; font-weight: 400; margin-left: 2px; }
 .order-item button {
   background: rgba(127, 140, 160, 0.10);
   border: 1px solid var(--border-strong); color: var(--text-dim);

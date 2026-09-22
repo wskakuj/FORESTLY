@@ -631,7 +631,7 @@ function appendLog(text) {
   const div = el("div", null, escapeHtml(text));
   if (/BŁĄD|Error|Traceback/i.test(text)) div.className = "err";
   else if (/\[UWAGA\]|warn/i.test(text)) div.className = "warn";
-  else if (/ZAKOŃCZONO|pomyślnie/i.test(text)) div.className = "ok";
+  else if (/ZAKOŃCZONO|pomyślnie|\[OK\]/i.test(text)) div.className = "ok";
   log.appendChild(div);
   while (log.children.length > 3000) log.removeChild(log.firstChild);
   log.scrollTop = log.scrollHeight;
@@ -806,8 +806,12 @@ async function openOrderDialog(mode) {
       const tpl = templates.find(t => t.key === key);
       const on = isIncluded(key);
       const it = el("div", "order-item" + (on ? "" : " excluded"));
+      const aliasTxt = (tpl && tpl.aliases && tpl.aliases.length)
+        ? ` <span class="oi-aliases">(${escapeHtml(tpl.aliases.join(", "))})</span>`
+        : "";
       it.innerHTML = `<span class="grip">☰</span>` +
         `<span class="oi-name">${i + 1}. ${escapeHtml(tpl ? tpl.label : key)}` +
+        aliasTxt +
         `${on ? "" : ' <span class="excl-badge">WYKLUCZONY</span>'}</span>`;
       const up = el("button", null, "▲");
       up.title = "W górę";

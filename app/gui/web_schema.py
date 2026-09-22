@@ -187,6 +187,10 @@ def build_schema():
                 _path("pdf_dst", "entries.PDF.dst", "Folder docelowy (PDF):", "Wskaż lokalizację..."),
                 _check("pdf_merge", "pdf_merge_var",
                        "Po konwersji scal pliki w jeden dokument PDF", True),
+                _check("pdf_skroty", "pdf_skroty_var",
+                       "Dołącz 'Skróty i symbole' na końcu scalonego PDF", True,
+                       "Dokleja Skróty i symbole (skroty.pdf) na końcu każdego "
+                       "scalonego PDF wsi. Wyłącz, jeśli chcesz same dokumenty."),
             ],
             "buttons": [
                 _button("run", "▶  Rozpocznij proces", "start_pipeline:PDF"),
@@ -242,14 +246,16 @@ def build_schema():
             "buttons": [_button("run", "Generuj struktury (tylko Ewidencja)", "start_nazwiska_mietek")],
         },
         {
-            "key": "MIETEK|Opis ogólny (opis og)",
+            "key": "MIETEK|Opisy ogólne",
             "tooltip": "Tworzy \u201eopis og_<wie\u015b>.docx\u201d w folderach wsi \u2014 liczby czyta z WSK_ZB.doc.",
             "controls": [
                 _info("Generator tworzy plik \u201eopis og_<nazwa wsi>.docx\u201d w każdym folderze wsi. "
-                      "Etaty i użytkowanie przedrębne czyta automatycznie z pliku WSK_ZB.doc "
-                      "znajdującego się w folderze wsi. Formy ochrony przyrody (Natura 2000, "
-                      "parki krajobrazowe) wpisujesz ręcznie \u2014 w pliku zostanie wyraźnie "
-                      "oznaczone miejsce."),
+                      "Jeśli w folderze wsi jest plik WSK_ZB.doc \u2014 liczby czyta z niego. "
+                      "Jeśli są tam dane MIETEKA (O*.DBF) \u2014 program robi w folderze "
+                      "tymczasowym MIETEK -> TXT -> Word, tworzy opis ogólny i usuwa pliki "
+                      "tymczasowe (oryginalne dane zostają nietknięte). Formy ochrony "
+                      "przyrody (Natura 2000, parki krajobrazowe) wpisujesz ręcznie \u2014 "
+                      "w pliku zostanie wyraźnie oznaczone miejsce."),
                 _path("opis_og_root", "opis_og_root_entry",
                       "Folder główny (z folderami wsi) albo folder pojedynczej wsi:",
                       "np. folder \u201eu\u0142o\u017cone\u201d albo folder jednej wsi"),
@@ -426,8 +432,9 @@ def build_schema():
     return {
         "app_name": "Forestly",
         "version": CURRENT_VERSION,
-        "pdf_order_templates": [{"key": t["key"], "label": t["label"]}
-                                for t in PDF_ORDER_TEMPLATES],
+        "pdf_order_templates": [
+            {"key": t["key"], "label": t["label"], "aliases": t["aliases"]}
+            for t in PDF_ORDER_TEMPLATES],
         "tpl_territory": {
             "woj": woj_list, "powiat": powiat_list, "gmina": gmina_list,
         },

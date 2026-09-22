@@ -18,7 +18,7 @@ from pathlib import Path
 import customtkinter as ctk
 
 # --- WERSJA I AKTUALIZACJA ---
-CURRENT_VERSION = "v2.0.9"
+CURRENT_VERSION = "v2.0.14"
 GITHUB_USER = "wskakuj"
 GITHUB_REPO = "FORESTLY"
 
@@ -294,6 +294,12 @@ def build_ordered_pdfs_from_templates(pdfs, template_keys, excluded=None):
         if any(template_matches(t, p.name) for t in excluded_templates):
             continue  # wykluczony — nie dokładamy go na końcu
         ordered.append(p)
+
+    # 'Skróty i symbole' — ZAWSZE na samym końcu scalonego PDF, także gdy
+    # w folderze są pliki niepasujące do żadnego szablonu (dokładane wyżej).
+    skroty_tpl = template_map.get("SKROTY")
+    if skroty_tpl is not None and "SKROTY" not in excluded:
+        ordered.sort(key=lambda _p: 1 if template_matches(skroty_tpl, _p.name) else 0)
     return ordered
 
 

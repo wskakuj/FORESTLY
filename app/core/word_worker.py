@@ -231,6 +231,8 @@ def run_word_worker(in_dir_str, out_dir_str, remove_names, file_filter=None, mar
         # za każdym razem otwierając i zapisując WSZYSTKIE dokumenty w Wordzie
         # (N×N operacji COM). Teraz wykonuje się dokładnie RAZ, po pętli.
         print(">>> Aplikowanie ostatecznych marginesów z konfiguracji...")
+        done = {}    # wieś -> lista plików z ustawionymi marginesami
+        errors = []  # (wieś, plik, komunikat)
         for f in files:
             f_upper = f.stem.upper()
             if f_upper in margin_config:
@@ -247,12 +249,21 @@ def run_word_worker(in_dir_str, out_dir_str, remove_names, file_filter=None, mar
                         doc.PageSetup.LeftMargin = 28.35 * m[2]
                         doc.PageSetup.RightMargin = 28.35 * m[3]
                         doc.Save()
-                        print(f"  └─ Ustawiono marginesy dla: {target.name}")
+                        wies = (rel_path.parent.name
+                                if str(rel_path.parent) != "." else "(folder główny)")
+                        done.setdefault(wies, []).append(target.stem)
                     except Exception as e:
-                        print(f"  └─ Ostrzeżenie: Błąd ustawiania marginesów ({target.name}): {e}")
+                        errors.append((target.parent.name, target.name, str(e)))
                     finally:
                         if doc is not None:
                             doc.Close(SaveChanges=False)
+        # podsumowanie: jedno podsumowanie na wieś (zamiast N powtarzających
+        # się linii z samą nazwą pliku, bez informacji z jakiej wsi pochodzi)
+        for wies, pliki in sorted(done.items()):
+            print(f"  └─ [OK] {wies}: marginesy ustawione dla {len(pliki)} plików "
+                  f"({', '.join(pliki)})")
+        for wies, name, err in errors:
+            print(f"  └─ Ostrzeżenie: Błąd ustawiania marginesów ({wies}/{name}): {err}")
         # --------------------------------------------------------------------
     finally:
         if word is not None:  # <--- Dodany warunek

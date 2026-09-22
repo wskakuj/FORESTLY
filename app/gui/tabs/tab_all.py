@@ -355,6 +355,30 @@ class TabAllMixin:
                 pass
 
     # NOWA METODA: Wstrzykiwanie Skrótów i Symboli do pakietów wsi
+    def _resolve_skroty_path(self):
+        """Plik ze skrótami: własny (checkbox w Pełnym automacie) albo domyślny z zasobów."""
+        if getattr(self, "all_custom_skroty_var", None) and self.all_custom_skroty_var.get():
+            entry = getattr(self, "all_skroty_entry", None)
+            if entry is not None:
+                p = str(entry.get()).strip()
+                if p:
+                    return p
+        # domyślny plik z zasobów programu
+        domyslne = get_resource_path("Skroty.pdf")
+        if not domyslne.exists():
+            domyslne = get_resource_path("Skroty.docx")
+        return str(domyslne) if domyslne.exists() else None
+
+    def _inject_skroty_step(self, pdf_dir):
+        """Dołącza 'Skróty i symbole' (skroty.pdf) do każdego folderu z PDF-ami."""
+        skroty_path = self._resolve_skroty_path()
+        if skroty_path and Path(skroty_path).exists():
+            c = self.task_inject_skroty(pdf_dir, skroty_path)
+            self.log(f"[SKROTY] Dodano plik do {c} folderów wsi.")
+            return c
+        self.log("[UWAGA] Nie znaleziono pliku ze skrótami (ani domyślnego, ani własnego). Pomijam.")
+        return 0
+
     def task_inject_skroty(self, pdf_dir, skroty_source_path):
         pdf_dir = Path(pdf_dir)
         skroty_source_path = Path(skroty_source_path)
@@ -542,25 +566,7 @@ class TabAllMixin:
 
                 # === WSTRZYKIWANIE SKROTÓW (ZAWSZE WŁĄCZONE) ===
                 self.update_status("Dołączanie 'Skrótów i symboli' do pakietów...", "#0078D7")
-
-                skroty_path = None
-                # Sprawdzamy, czy użytkownik chce użyć własnego pliku
-                if getattr(self, "all_custom_skroty_var", None) and self.all_custom_skroty_var.get():
-                    skroty_path = self.all_skroty_entry.get().strip()
-                else:
-                    # Pobieranie domyślnego pliku z zasobów programu w tle
-                    domyslne = get_resource_path("Skroty.pdf")
-                    if not domyslne.exists():
-                        domyslne = get_resource_path("Skroty.docx")
-                    if domyslne.exists():
-                        skroty_path = str(domyslne)
-
-                # Przystępujemy do dołączenia pliku
-                if skroty_path and Path(skroty_path).exists():
-                    c_skroty = self.task_inject_skroty(dir_03, skroty_path)
-                    self.log(f"[SKROTY] Dodano plik do {c_skroty} folderów wsi.")
-                else:
-                    self.log("[UWAGA] Nie znaleziono pliku ze skrótami (ani domyślnego, ani własnego). Pomijam.")
+                self._inject_skroty_step(dir_03)
 
                 self.update_dashboard(4, "running", "Scalanie...")
                 self.check_stop()
@@ -620,13 +626,20 @@ class TabAllMixin:
                     out_root / "PDF Polaczone",
                     out_root / "PDF bez pustych stron",
                 )
-                do_merge = getattr(
-                    self, "pdf_merge_var", ctk.BooleanVar(value=True)
-                ).get()
+                # UWAGA: domyślna wartość getattr jest tworzona ZAWSZE, nawet gdy
+                # atrybut istnieje — ctk.BooleanVar bez okna Tk (web GUI) rzuca
+                # RuntimeError "Too early to create variable", dlatego None + .get().
+                _pmv = getattr(self, "pdf_merge_var", None)
+                do_merge = True if _pmv is None else bool(_pmv.get())
+                # przełącznik: czy dołączać 'Skróty i symbole' (checkbox w GUI)
+                _skr = getattr(self, "pdf_skroty_var", None)
+                add_skroty = True if _skr is None else bool(_skr.get())
+                _total = 4 if (do_merge and add_skroty) else 3
+
                 self.check_stop()
                 (
                     self.update_status(
-                        "ETAP 1/3: Zmiana formatu z Word na PDF", "#0078D7"
+                        f"ETAP 1/{_total}: Zmiana formatu z Word na PDF", "#0078D7"
                     )
                     if do_merge
                     else self.update_status(
@@ -637,14 +650,26 @@ class TabAllMixin:
                 self._flatten_001_subfolders(dir_03)
                 self.set_progress(0.4 if do_merge else 1.0)
                 if do_merge:
+                    _e = 1
+                    if add_skroty:
+                        self.check_stop()
+                        _e = 2
+                        self.update_status(
+                            "ETAP 2/4: Dołączanie 'Skrótów i symboli'", "#0078D7"
+                        )
+                        self._inject_skroty_step(dir_03)
+                        self.set_progress(0.5)
                     self.check_stop()
                     self.update_status(
-                        "ETAP 2/3: Logiczna integracja dokumentacji", "#0078D7"
+                        f"ETAP {_e + 1}/{_total}: Logiczna integracja dokumentacji",
+                        "#0078D7",
                     )
                     self.task_merge_pdfs(dir_03, dir_04, mode_key="PDF")
-                    self.set_progress(0.7)
+                    self.set_progress(0.8)
                     self.check_stop()
-                    self.update_status("ETAP 3/3: Usuwanie anomalii", "#0078D7")
+                    self.update_status(
+                        f"ETAP {_e + 2}/{_total}: Usuwanie anomalii", "#0078D7"
+                    )
                     self.task_remove_blank_pages(dir_04, dir_05)
 
             self.log("\nZAKOŃCZONO POMYŚLNIE.")

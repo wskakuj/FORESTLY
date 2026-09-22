@@ -593,8 +593,8 @@ class ModernApp(
             "Klonuje strukturę MS-DOS i generuje W*.DBF pobierając nazwiska "
             "wyłącznie na podstawie pliku Ewidencji XLS.")
         tab_opis_og = _nowa_zakladka(
-            "MIETEK", "Opis og\u00f3lny (opis og)",
-            "Tworzy \u201eopis og_<wie\u015b>.docx\u201d w folderach wsi \u2014 liczby czyta z WSK_ZB.doc.")
+            "MIETEK", "Opisy og\u00f3lne",
+            "Tworzy \u201eopis og_<wie\u015b>.docx\u201d w folderach wsi \u2014 z Worda (WSK_ZB.doc) lub z danych MIETEKA (tymczasowo).")
 
 
         # ---- TAKSATOR ----

@@ -60,7 +60,7 @@ from app.updater import UpdaterMixin
 # Filtry plików dla przeglądarek (id kontrolki → file_types dla pywebview)
 BROWSE_FILTERS = {
     "all_template": ("Dokument Word", ("*.docx",)),
-    "all_skroty": ("Word/PDF", ("*.docx", "*.doc", "*.pdf")),
+    "all_skroty": ("Word i PDF", ("*.docx", "*.doc", "*.pdf")),
     "mt_template": ("Dokument Word", ("*.docx", "*.doc")),
     "tt_template": ("Dokument Word", ("*.docx", "*.doc")),
     "zm_src": ("Baza Access", ("*.mdb",)),
@@ -556,7 +556,8 @@ class WebBackend(
                 fdesc = BROWSE_FILTERS.get(control_id, ("Wszystkie pliki", ("*.*",)))
                 result = win.create_file_dialog(
                     D_OPEN,
-                    file_types=(f"{fdesc[0]} ({' '.join(fdesc[1])})",),)
+                    # pywebview wymaga wzorców rozdzielonych ŚREDNIKAMI (*.docx;*.doc)
+                file_types=(f"{fdesc[0]} ({';'.join(fdesc[1])})",),)
                 path = result[0] if result else None
         except Exception as e:
             self.log(f"[BŁĄD] Wybór pliku: {e}")

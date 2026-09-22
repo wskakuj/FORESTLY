@@ -26,7 +26,16 @@ class TabPdfMixin:
             variable=self.pdf_merge_var,
             font=ctk.CTkFont(family="Segoe UI", size=13),
         )
-        cb.grid(row=row_idx, column=0, columnspan=3, padx=15, pady=(0, 20), sticky="w")
+        cb.grid(row=row_idx, column=0, columnspan=3, padx=15, pady=(0, 5), sticky="w")
+
+        self.pdf_skroty_var = ctk.BooleanVar(value=True)
+        cb_skroty = ctk.CTkCheckBox(
+            card_frame,
+            text="Dołącz 'Skróty i symbole' na końcu scalonego PDF",
+            variable=self.pdf_skroty_var,
+            font=ctk.CTkFont(family="Segoe UI", size=13),
+        )
+        cb_skroty.grid(row=row_idx + 1, column=0, columnspan=3, padx=15, pady=(0, 20), sticky="w")
 
     def task_convert_to_pdf(self, in_dir, out_dir):
         docs = [
@@ -109,16 +118,29 @@ class TabPdfMixin:
     def task_merge_pdfs(self, in_dir, out_dir, mode_key="ALL"):
         # INTELIGENTNY WYBÓR TRYBU: Jedna wieś vs Wiele wsi
         direct_pdfs = list(in_dir.glob("*.pdf"))
+        pdf_dirs = set()
 
+        # Podfoldery (wsie) — KAŻDY folder z PDF-ami dostaje własny scalony plik,
+        # zawsze, niezależnie od tego, co leży w folderze głównym.
+        for _p in in_dir.rglob("*.pdf"):
+            if _p.parent != in_dir:
+                pdf_dirs.add(_p.parent)
+
+        # Pliki leżące bezpośrednio w folderze głównym — scalane jako jeden
+        # pakiet. Wcześniej jeden luźny PDF wyłączał scalanie wszystkich wsi
+        # (tryb "jednej wsi" łapał tylko luźne pliki i pomijał podfoldery).
         if direct_pdfs:
-            # TRYB JEDNEJ WSI (pliki leżą bezpośrednio w głównym folderze)
-            pdf_dirs = {in_dir}
-        else:
-            # TRYB WIELU WSI (szukamy plików tylko w podfolderach)
-            pdf_dirs = set(p.parent for p in in_dir.rglob("*.pdf"))
+            pdf_dirs.add(in_dir)
 
         if not pdf_dirs:
             return 0
+
+        if direct_pdfs and len(pdf_dirs) > 1:
+            self.log(
+                f"[SCALANIE] {len(direct_pdfs)} plik(ów) PDF bezpośrednio w folderze "
+                f"głównym zostanie scalonych jako jeden pakiet, a każda wieś "
+                f"({len(pdf_dirs) - 1}) osobno."
+            )
 
         # --- KONTROLA KOMPLETNOŚCI ---
         warnings = []
