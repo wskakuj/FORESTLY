@@ -170,8 +170,6 @@ def build_schema():
                       "Wskaż plik bazowy", kind="file"),
                 _path("mt_word", "mietek_title_word_entry", "Fold. z plikami Word (OPTAX):",
                       "Wskaż folder, w którym znajdują się pliki OPTAX"),
-                _path("mt_out", "mietek_title_output_entry", "Folder zapisu STR_TYT:",
-                      "Wskaż folder docelowy dla nowych stron"),
                 _text("mt_village_ph", "mietek_title_village_placeholder_entry",
                       "Placeholder nazwy wsi:", "NAZWA WSI"),
                 _text("mt_area_ph", "mietek_title_area_placeholder_entry",

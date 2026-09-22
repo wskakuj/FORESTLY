@@ -90,26 +90,8 @@ class TabTitlePagesMixin:
             fg_color="#333333",
             hover_color="#444444",
         ).grid(row=1, column=2, padx=15, pady=8)
-        ctk.CTkLabel(
-            card, text="Folder zapisu STR_TYT:", font=font_label, text_color="#E0E0E0"
-        ).grid(row=2, column=0, padx=15, pady=8, sticky="w")
-        self.mietek_title_output_entry = ctk.CTkEntry(
-            card, placeholder_text="Wskaż folder docelowy dla nowych stron", height=36
-        )
-        self.mietek_title_output_entry.grid(
-            row=2, column=1, padx=5, pady=8, sticky="ew"
-        )
-        ctk.CTkButton(
-            card,
-            text="Przeglądaj",
-            image=self.icon_folder,
-            command=lambda: self.select_dir(self.mietek_title_output_entry),
-            width=110,
-            height=36,
-            font=font_btn,
-            fg_color="#333333",
-            hover_color="#444444",
-        ).grid(row=2, column=2, padx=15, pady=8)
+        # Strony tytułowe zapisywane są do folderów, w których leżą pliki OPTAX
+        # (folder z każdą wsią) — nie ma osobnego folderu docelowego.
         # Zmienne wczytywane w tle - ukryte w GUI
         self.mietek_title_village_placeholder_entry = ctk.CTkEntry(card)
         self.mietek_title_village_placeholder_entry.insert(0, "NAZWA WSI")
@@ -242,11 +224,6 @@ class TabTitlePagesMixin:
             if self.mietek_title_word_entry
             else ""
         )
-        output_folder = (
-            self.mietek_title_output_entry.get().strip()
-            if self.mietek_title_output_entry
-            else ""
-        )
         village_placeholder = (
             self.mietek_title_village_placeholder_entry.get().strip()
             if self.mietek_title_village_placeholder_entry
@@ -265,16 +242,15 @@ class TabTitlePagesMixin:
         if not word_folder or not Path(word_folder).exists():
             messagebox.showwarning("Błąd", "Wybierz folder z plikami Word (OPTAX).")
             return
-        if not output_folder:
-            return
         if not village_placeholder or not area_placeholder:
             return
         if self.running:
             return
-        self.last_output_dir = Path(output_folder)
+        self.last_output_dir = Path(word_folder)
         self._disable_ui_for_process()
         self.log(
-            f"[STR_TYT MIETEK] Generowanie stron tytułowych na pods. plików OPTAX..."
+            "[STR_TYT MIETEK] Generowanie stron tytułowych na pods. plików OPTAX "
+            "(zapis do folderów wsi, obok OPTAX)..."
         )
         self.set_progress(0)
         threading.Thread(
@@ -282,7 +258,6 @@ class TabTitlePagesMixin:
             args=(
                 template_path,
                 word_folder,
-                output_folder,
                 village_placeholder,
                 area_placeholder,
             ),
@@ -343,7 +318,6 @@ class TabTitlePagesMixin:
             self,
             template_path_str,
             word_folder_str,
-            output_folder_str,
             village_placeholder,
             area_placeholder,
     ):
@@ -352,8 +326,6 @@ class TabTitlePagesMixin:
         try:
             template_path = Path(template_path_str)
             word_folder = Path(word_folder_str)
-            output_folder = Path(output_folder_str)
-            output_folder.mkdir(parents=True, exist_ok=True)
             files = sorted(
                 [
                     p
@@ -416,9 +388,12 @@ class TabTitlePagesMixin:
                             ]
                         ).strip()
                         new_doc_name = f"STR_TYT_{safe_village_name}.docx"
-                        doc.save(str(output_folder / new_doc_name))
+                        # zapis do folderu, w którym leży OPTAX danej wsi
+                        doc.save(str(file_path.parent / new_doc_name))
                         created += 1
-                        self.log(f"Utworzono: {new_doc_name} (Pow: {area_str})")
+                        self.log(
+                            f"Utworzono: {file_path.parent / new_doc_name} "
+                            f"(Pow: {area_str})")
                     except Exception as e:
                         self.log(f"Błąd podczas obróbki pliku {file_path.name}: {e}")
                     self.set_progress(idx / total)

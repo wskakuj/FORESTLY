@@ -136,7 +136,6 @@ class ModernApp(
         self.title_generate_btn = None
         self.mietek_title_template_entry = None
         self.mietek_title_word_entry = None
-        self.mietek_title_output_entry = None
         self.mietek_title_village_placeholder_entry = None
         self.mietek_title_area_placeholder_entry = None
         self.mietek_title_generate_btn = None

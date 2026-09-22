@@ -152,7 +152,6 @@ class WebBackend(
                      "title_output_entry", "title_village_placeholder_entry",
                      "title_area_placeholder_entry", "title_generate_btn",
                      "mietek_title_template_entry", "mietek_title_word_entry",
-                     "mietek_title_output_entry",
                      "mietek_title_village_placeholder_entry",
                      "mietek_title_area_placeholder_entry",
                      "mietek_title_generate_btn",
