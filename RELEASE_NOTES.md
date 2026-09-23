@@ -1,3 +1,3 @@
-# Co nowego w v2.0.29
-- readme na github
+# Co nowego w v2.0.30
+- readme fix
 
