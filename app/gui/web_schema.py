@@ -271,8 +271,14 @@ def build_schema():
                       "W pustych polach edytora pokazują się przykłady."),
                 {"id": "gdos_table", "kind": "gdos_table",
                  "label": "Obszary ochrony przyrody:"},
+                _path("gdos_xlsx", "gdos_xlsx_entry",
+                      "Plik Excel do importu bazy:",
+                      "np. gdos_obszary.xlsx (kolumny: Nazwa, Typ, Kod, Publikacja PZO, Powiązanie..., Opis)"),
             ],
-            "buttons": [],
+            "buttons": [
+                _button("export", "Eksportuj bazę do Excela", "gdos_export"),
+                _button("import", "Importuj bazę z Excela", "gdos_import"),
+            ],
         },
         {
             "key": "MIETEK|Ręczne scalanie PDF",

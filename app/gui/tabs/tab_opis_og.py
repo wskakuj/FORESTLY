@@ -28,6 +28,7 @@ Skąd bierze dane:
 import json
 import re
 import shutil
+import sys
 import tempfile
 import threading
 import traceback
@@ -492,6 +493,14 @@ class TabOpisOgMixin:
                         if k[:12] == nazwa.casefold()[:12]:
                             entry = v
                             break
+                if entry is None:
+                    # samouzupełnianie bazy: nieznany obszar trafia od razu do
+                    # gdos_obszary.json (kod/powiązanie uzupełniasz w edytorze)
+                    if self._gdos_baza_dopisz(nazwa, typ or "PARK KRAJOBRAZOWY"):
+                        entry = self._gdos_kb().get(nazwa.casefold())
+                        self.log(f"[GDOŚ] Dopisano do bazy nowy obszar: {nazwa} "
+                                 f"({typ or 'PARK KRAJOBRAZOWY'}) — uzupełnij kod "
+                                 f"i powiązanie w edytorze bazy.")
                 if entry is not None:
                     nazwa = entry["nazwa"]
                 z = grupy.setdefault(nazwa, {"pelne": [], "czesciowe": [], "kb": entry,
@@ -988,3 +997,303 @@ class TabOpisOgMixin:
             fg_color="#0067C0", hover_color="#005A9E", height=44, corner_radius=6,
             command=self.start_opis_og_taksator_pipeline,
         ).grid(row=1, column=0, padx=20, pady=(5, 20), sticky="ew")
+
+
+    # ------------------------------------------------ Baza GDOŚ: zapis/dopisywanie
+
+    @classmethod
+    def _gdos_baza_sciezka(cls):
+        """Plik zapisu gdos_obszary.json (obok EXE w wersji przenośnej)."""
+        if getattr(sys, "frozen", False):
+            return Path(sys.executable).resolve().parent / cls.GDOS_OBSZARY_PLIK
+        return Path(__file__).resolve().parents[3] / cls.GDOS_OBSZARY_PLIK
+
+    @classmethod
+    def _gdos_baza_wczytaj(cls):
+        """Lista obszarów z gdos_obszary.json (pusta lista przy braku pliku)."""
+        from app.core.word_worker import get_resource_path
+        try:
+            with open(get_resource_path(cls.GDOS_OBSZARY_PLIK), encoding="utf-8") as f:
+                return json.load(f).get("obszary", [])
+        except Exception:
+            return []
+
+    @classmethod
+    def _gdos_baza_zapisz(cls, obszary):
+        """Zapis bazy obszarów (zachowuje _opis) + odświeżenie cache generatora."""
+        from app.core.word_worker import get_resource_path
+        opis = ("Baza obszarów ochrony przyrody dla generatora opisów "
+                "ogólnych (folder z wynikami GDOŚ).")
+        try:
+            with open(get_resource_path(cls.GDOS_OBSZARY_PLIK), encoding="utf-8") as f:
+                opis = json.load(f).get("_opis", opis)
+        except Exception:
+            pass
+        czyste = []
+        for r in obszary:
+            nazwa = str(r.get("nazwa", "")).strip()
+            if not nazwa:
+                continue
+            czyste.append({k: str(r.get(k, "") or "").strip()
+                           for k in ("nazwa", "typ", "kod", "pzo",
+                                     "powiazanie", "opis")})
+        with open(cls._gdos_baza_sciezka(), "w", encoding="utf-8") as f:
+            json.dump({"_opis": opis, "obszary": czyste},
+                      f, ensure_ascii=False, indent=1)
+        cls._gdos_kb_cache = None  # odśwież cache generatora opisów
+        return len(czyste)
+
+    @classmethod
+    def _gdos_baza_dopisz(cls, nazwa, typ):
+        """Dopisuje nieznany obszar do bazy (kod/powiązanie uzupełniasz potem).
+
+        Zwraca True, gdy obszar był nowy i został dodany."""
+        if not nazwa:
+            return False
+        klucz = nazwa.casefold()
+        if klucz in cls._gdos_kb():
+            return False
+        if any(o.get("nazwa", "").casefold() == klucz
+               for o in cls._gdos_baza_wczytaj()):
+            return False
+        cls._gdos_baza_zapisz(cls._gdos_baza_wczytaj() + [
+            {"nazwa": nazwa, "typ": typ or "", "kod": "", "pzo": "",
+             "powiazanie": "", "opis": ""}])
+        return True
+
+    # ------------------------------------------------ Baza GDOŚ: Excel import/eksport
+
+    GDOS_XLSX_NAGLOWKI = [
+        ("nazwa", "Nazwa"), ("typ", "Typ"), ("kod", "Kod"),
+        ("pzo", "Publikacja PZO"),
+        ("powiazanie", "Powiązanie z gospodarką leśną"),
+        ("opis", "Opis"),
+    ]
+
+    def gdos_exportuj_excel(self, xlsx_path):
+        """Eksport bazy obszarów do Excela (do masowej edycji)."""
+        import openpyxl
+        from openpyxl.utils import get_column_letter
+        obszary = self._gdos_baza_wczytaj()
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Baza GDOŚ"
+        ws.append([n for _, n in self.GDOS_XLSX_NAGLOWKI])
+        for o in obszary:
+            ws.append([str(o.get(k, "") or "") for k, _ in self.GDOS_XLSX_NAGLOWKI])
+        for i, w in enumerate((44, 10, 14, 34, 62, 46), 1):
+            ws.column_dimensions[get_column_letter(i)].width = w
+        for row in ws.iter_rows(min_row=2):
+            for c in row:
+                c.alignment = openpyxl.styles.Alignment(wrap_text=True,
+                                                         vertical="top")
+        wb.save(str(xlsx_path))
+        return len(obszary)
+
+    def gdos_importuj_excel(self, xlsx_path):
+        """Import bazy z Excela (kolumny rozpoznawane po nagłówkach).
+
+        Zwraca liczbę wczytanych obszarów; rzuca ValueError przy złym pliku."""
+        import openpyxl
+        wb = openpyxl.load_workbook(str(xlsx_path), data_only=True)
+        ws = wb.active
+        wiersze = list(ws.iter_rows(values_only=True))
+        if not wiersze:
+            raise ValueError("plik jest pusty")
+        nagl = [str(c).strip().lower() if c is not None else "" for c in wiersze[0]]
+        mapa = {}
+        for k, n in self.GDOS_XLSX_NAGLOWKI:
+            for i, h in enumerate(nagl):
+                if h and (h == n.lower() or h == k):
+                    mapa[k] = i
+                    break
+        if "nazwa" not in mapa:
+            raise ValueError("w pierwszym wierszu brak kolumny 'Nazwa'")
+        obszary = []
+        for w in wiersze[1:]:
+            if not w:
+                continue
+            d = {k: ("" if i >= len(w) or w[i] is None else str(w[i]).strip())
+                 for k, i in mapa.items()}
+            if d.get("nazwa"):
+                obszary.append(d)
+        if not obszary:
+            raise ValueError("brak wierszy z nazwą obszaru")
+        return self._gdos_baza_zapisz(obszary)
+
+    # ------------------------------------------------ Baza GDOŚ: edytor w starym GUI
+
+    def setup_gdos_editor_tab(self, parent):
+        """Zakładka „Baza obszarów GDOŚ" w starym GUI (Forestly_OLD)."""
+        import customtkinter as ctk
+
+        parent.grid_columnconfigure(0, weight=1)
+        parent.grid_rowconfigure(0, weight=1)
+        scroll = ctk.CTkScrollableFrame(parent, fg_color="transparent")
+        scroll.grid(row=0, column=0, sticky="nsew")
+        scroll.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            scroll, text="Baza obszarów ochrony przyrody (gdos_obszary.json)",
+            font=ctk.CTkFont(family="Segoe UI", size=16, weight="bold"),
+            text_color="#E0E0E0",
+        ).grid(row=0, column=0, padx=20, pady=(15, 4), sticky="w")
+        ctk.CTkLabel(
+            scroll,
+            text="Kody, publikacje PZO i powiązania z gospodarką leśną wstawiane "
+                 "automatycznie do opisów ogólnych. Obszary nieobecne w bazie są "
+                 "dopisywane samoczynnie przy generowaniu opisów z wyników GDOŚ "
+                 "(zostaje im do uzupełnienia kod i powiązanie).",
+            font=ctk.CTkFont(family="Segoe UI", size=12), text_color="#888888",
+            wraplength=760, justify="left",
+        ).grid(row=1, column=0, padx=20, sticky="w")
+
+        bar = ctk.CTkFrame(scroll, fg_color="transparent")
+        bar.grid(row=2, column=0, padx=20, pady=12, sticky="ew")
+        ctk.CTkButton(
+            bar, text="Dodaj obszar", height=32,
+            fg_color="#333333", hover_color="#444444",
+            command=self._gdos_edytor_dodaj,
+        ).pack(side="left")
+        ctk.CTkButton(
+            bar, text="Zapisz zmiany", height=32,
+            fg_color="#0067C0", hover_color="#005A9E",
+            font=ctk.CTkFont(family="Segoe UI", size=13, weight="bold"),
+            command=self._gdos_edytor_zapisz,
+        ).pack(side="left", padx=8)
+        ctk.CTkButton(
+            bar, text="Eksportuj do Excela", height=32,
+            fg_color="#333333", hover_color="#444444",
+            command=self._gdos_edytor_eksport,
+        ).pack(side="right")
+        ctk.CTkButton(
+            bar, text="Importuj z Excela", height=32,
+            fg_color="#333333", hover_color="#444444",
+            command=self._gdos_edytor_import,
+        ).pack(side="right", padx=8)
+
+        self._gdos_edytor_karty = []
+        self._gdos_edytor_kontener = ctk.CTkFrame(scroll, fg_color="transparent")
+        self._gdos_edytor_kontener.grid(row=3, column=0, padx=0, pady=(0, 20), sticky="ew")
+        self._gdos_edytor_kontener.grid_columnconfigure(0, weight=1)
+        self._gdos_edytor_wczytaj()
+
+    def _gdos_edytor_karta(self, dane=None):
+        """Jedna karta edycji obszaru w edytorze (OLD)."""
+        import customtkinter as ctk
+        dane = dane or {}
+        fr = ctk.CTkFrame(self._gdos_edytor_kontener, fg_color="#252526",
+                          corner_radius=8, border_width=1, border_color="#333333")
+        fr.grid(row=len(self._gdos_edytor_karty), column=0, padx=20, pady=6, sticky="ew")
+        fr.grid_columnconfigure((0, 2, 4, 6), weight=1)
+        font_lbl = ctk.CTkFont(family="Segoe UI", size=12)
+
+        karta = {"frame": fr}
+        for i, (klucz, etykieta) in enumerate((
+                ("nazwa", "Nazwa:"), ("typ", "Typ (OSO/SOO/PARK KRAJOBRAZOWY...):"),
+                ("kod", "Kod (np. PLB300015):"), ("pzo", "Publikacja PZO:"))):
+            kol = i * 2
+            ctk.CTkLabel(fr, text=etykieta, font=font_lbl,
+                         text_color="#888888").grid(
+                row=0, column=kol, padx=(12, 4), pady=(8, 2), sticky="w")
+            e = ctk.CTkEntry(fr, height=30)
+            e.insert(0, str(dane.get(klucz, "") or ""))
+            e.grid(row=1, column=kol, padx=(12, 4), pady=(0, 6), sticky="ew")
+            karta[klucz] = e
+
+        ctk.CTkLabel(fr, text="Powiązanie z gospodarką leśną (dla Natura 2000):",
+                     font=font_lbl, text_color="#888888").grid(
+            row=2, column=0, columnspan=8, padx=12, pady=(4, 2), sticky="w")
+        tb1 = ctk.CTkTextbox(fr, height=88)
+        tb1.insert("1.0", str(dane.get("powiazanie", "") or ""))
+        tb1.grid(row=3, column=0, columnspan=7, padx=12, pady=(0, 6), sticky="ew")
+        karta["powiazanie"] = tb1
+
+        ctk.CTkLabel(fr, text="Opis (dla pozostałych form):",
+                     font=font_lbl, text_color="#888888").grid(
+            row=4, column=0, columnspan=7, padx=12, sticky="w")
+        tb2 = ctk.CTkTextbox(fr, height=64)
+        tb2.insert("1.0", str(dane.get("opis", "") or ""))
+        tb2.grid(row=5, column=0, columnspan=7, padx=12, pady=(0, 8), sticky="ew")
+        karta["opis"] = tb2
+        ctk.CTkButton(
+            fr, text="Usuń", width=70, height=28,
+            fg_color="#5c1f1f", hover_color="#7a2a2a",
+            command=lambda k=None: self._gdos_edytor_usun(
+                k or [c for c in self._gdos_edytor_karty if c["frame"] is fr][0]),
+        ).grid(row=5, column=7, padx=(4, 12), pady=(0, 8), sticky="e")
+        self._gdos_edytor_karty.append(karta)
+
+    def _gdos_edytor_wczytaj(self):
+        """Odświeża listę kart edytora z pliku bazy."""
+        for karta in getattr(self, "_gdos_edytor_karty", []):
+            karta["frame"].destroy()
+        self._gdos_edytor_karty = []
+        for dane in self._gdos_baza_wczytaj():
+            self._gdos_edytor_karta(dane)
+
+    def _gdos_edytor_dodaj(self):
+        self._gdos_edytor_karta()
+        ostatnia = self._gdos_edytor_karty[-1]
+        ostatnia["nazwa"].focus()
+
+    def _gdos_edytor_usun(self, karta):
+        try:
+            self._gdos_edytor_karty.remove(karta)
+        except ValueError:
+            pass
+        karta["frame"].destroy()
+
+    def _gdos_edytor_zapisz(self):
+        obszary = []
+        for k in self._gdos_edytor_karty:
+            obszary.append({
+                "nazwa": k["nazwa"].get().strip(),
+                "typ": k["typ"].get().strip(),
+                "kod": k["kod"].get().strip(),
+                "pzo": k["pzo"].get().strip(),
+                "powiazanie": k["powiazanie"].get("1.0", "end").strip(),
+                "opis": k["opis"].get("1.0", "end").strip(),
+            })
+        try:
+            n = self._gdos_baza_zapisz(obszary)
+            self.log(f"[GDOŚ] Zapisano bazę obszarów: {n} pozycji.")
+            self.update_status("Baza zapisana", "#107C10", animate=False)
+        except Exception as e:
+            self.log(f"[GDOŚ] Błąd zapisu bazy: {e}")
+            self.update_status("Błąd zapisu", "#D83B01", animate=False)
+
+    def _gdos_edytor_eksport(self):
+        from tkinter import filedialog
+        sciezka = filedialog.asksaveasfilename(
+            defaultextension=".xlsx",
+            filetypes=[("Arkusz Excel", "*.xlsx")],
+            initialfile="gdos_obszary.xlsx",
+            title="Eksport bazy GDOŚ do Excela",
+        )
+        if not sciezka:
+            return
+        try:
+            n = self.gdos_exportuj_excel(Path(sciezka))
+            self.log(f"[GDOŚ] Wyeksportowano {n} obszarów → {sciezka}")
+            self.update_status("Baza wyeksportowana", "#107C10", animate=False)
+        except Exception as e:
+            self.log(f"[GDOŚ] Błąd eksportu: {e}")
+            self.update_status("Błąd eksportu", "#D83B01", animate=False)
+
+    def _gdos_edytor_import(self):
+        from tkinter import filedialog
+        sciezka = filedialog.askopenfilename(
+            filetypes=[("Arkusz Excel", "*.xlsx")],
+            title="Import bazy GDOŚ z Excela",
+        )
+        if not sciezka:
+            return
+        try:
+            n = self.gdos_importuj_excel(Path(sciezka))
+            self.log(f"[GDOŚ] Zaimportowano {n} obszarów z pliku: {sciezka}")
+            self.update_status("Baza zaimportowana", "#107C10", animate=False)
+            self._gdos_edytor_wczytaj()
+        except Exception as e:
+            self.log(f"[GDOŚ] Błąd importu: {e}")
+            self.update_status("Błąd importu", "#D83B01", animate=False)

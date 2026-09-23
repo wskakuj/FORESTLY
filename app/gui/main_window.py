@@ -625,6 +625,11 @@ class ModernApp(
             "MIETEK", "NAZWISKA -> MIETEK",
             "Klonuje strukturę MS-DOS i generuje W*.DBF pobierając nazwiska "
             "wyłącznie na podstawie pliku Ewidencji XLS.")
+        tab_gdos_baza = _nowa_zakladka(
+            "MIETEK", "Baza obszarów GDOŚ",
+            "Edytor bazy obszarów ochrony przyrody (gdos_obszary.json) — kody, "
+            "publikacje PZO i powiązania wstawiane do opisów ogólnych; z importem "
+            "i eksportem do Excela.")
         tab_manual = _nowa_zakladka(
             "MIETEK", "Ręczne scalanie PDF",
             "Moduł ręczny: pozwala wczytać luźne PDF-y, poukładać je myszką "
@@ -709,6 +714,7 @@ class ModernApp(
         self.setup_mietek_rozbieznosci_tab(tab_mietek_rozb)
         self.setup_nazwiska_mietek_tab(tab_nazwiska_mietek)
         self.setup_opis_og_tab(tab_opis_og)
+        self.setup_gdos_editor_tab(tab_gdos_baza)
 
         self.setup_template_generator_tab(tab_template_gen, "TAKSATOR")
         self.setup_title_pages_tab(tab_title)

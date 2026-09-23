@@ -177,7 +177,7 @@ class WebBackend(
                      "manual_pdf_src", "manual_pdf_dst",
                      "opis_og_root_entry",
                      "opis_og_taksator_entry", "opis_og_taksator_gdos_entry",
-                     "opis_og_taksator_start_btn"):
+                     "opis_og_taksator_start_btn", "gdos_xlsx_entry"):
             setattr(self, attr, None)
 
         self._install_messagebox_shim()
@@ -599,6 +599,8 @@ class WebBackend(
             "start_split_pdf": self.start_split_pdf_pipeline,
             "start_opis_og": self.start_opis_og_pipeline,
             "start_opis_og_taksator": self.start_opis_og_taksator_pipeline,
+            "gdos_export": self.gdos_export_task,
+            "gdos_import": self.gdos_import_task,
             "start_mdb_update": self.start_mdb_update_pipeline,
             "start_excel_z_mdb": self.start_excel_z_mdb_pipeline,
             "start_pdf_converter": self.start_pdf_converter_pipeline,
@@ -709,6 +711,38 @@ class WebBackend(
             self.log("[BŁĄD] Zapis bazy obszarów GDOŚ:\n"
                      + traceback.format_exc())
             return {"ok": False, "error": "Nie udało się zapisać bazy (szczegóły w logu)"}
+
+    # --------------------------------------- baza GDOŚ: Excel import/eksport (web)
+    def gdos_export_task(self):
+        """Eksport bazy GDOŚ do Excela (plik obok programu)."""
+        try:
+            out = self._gdos_plik_zapisu().parent / "gdos_obszary.xlsx"
+            n = self.gdos_exportuj_excel(out)
+            self.log(f"[OK] Wyeksportowano bazę GDOŚ ({n} obszarów) → {out}")
+            self.update_status("Baza wyeksportowana", "#107C10", animate=False)
+            return {"ok": True, "path": str(out)}
+        except Exception:
+            self.log("[BŁĄD] Eksport bazy GDOŚ:\n" + traceback.format_exc())
+            self.update_status("Błąd eksportu", "#D83B01", animate=False)
+            return {"ok": False, "error": "Nie udało się wyeksportować (szczegóły w logu)"}
+
+    def gdos_import_task(self):
+        """Import bazy GDOŚ z pliku Excel wskazanego w polu."""
+        try:
+            we = getattr(self, "gdos_xlsx_entry", None)
+            raw = we.get().strip() if we is not None else ""
+            if not raw or not Path(raw).exists():
+                self.log("[BŁĄD] Wskaż najpierw istniejący plik Excel do importu.")
+                self.update_status("Brak pliku", "#D83B01", animate=False)
+                return {"ok": False, "error": "Brak pliku"}
+            n = self.gdos_importuj_excel(Path(raw))
+            self.log(f"[OK] Zaimportowano bazę GDOŚ ({n} obszarów) z pliku: {raw}")
+            self.update_status("Baza zaimportowana", "#107C10", animate=False)
+            return {"ok": True, "count": n}
+        except Exception:
+            self.log("[BŁĄD] Import bazy GDOŚ:\n" + traceback.format_exc())
+            self.update_status("Błąd importu", "#D83B01", animate=False)
+            return {"ok": False, "error": "Nie udało się zaimportować (szczegóły w logu)"}
 
     def notify_update_check(self, is_latest, manual=False):
         """Wynik AUTOMATYCZNEGO sprawdzenia wersji przy starcie —
