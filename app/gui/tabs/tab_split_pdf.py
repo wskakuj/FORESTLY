@@ -13,6 +13,7 @@ import pythoncom
 from app.config import (
     is_file_locked,
 )
+from pypdf import PdfWriter
 
 class TabSplitPdfMixin:
     """Mixin dla ModernApp — metody zostały wyciągnięte z oryginalnego guipia.py."""
@@ -116,7 +117,15 @@ class TabSplitPdfMixin:
             font=font_btn,
             fg_color="#333333",
             hover_color="#444444",
-        ).grid(row=3, column=2, padx=15, pady=(8, 15))
+        ).grid(row=3, column=2, padx=15, pady=(8, 8))
+        self.split_scalony_var = ctk.BooleanVar(value=False)
+        ctk.CTkCheckBox(
+            card,
+            text="Utwórz dodatkowo scalony PDF dla każdej wsi (w kolejności powstawania plików)",
+            variable=self.split_scalony_var,
+            font=ctk.CTkFont(family="Segoe UI", size=13),
+            fg_color="#0067C0", hover_color="#005A9E", checkbox_height=20, checkbox_width=20,
+        ).grid(row=4, column=0, columnspan=3, padx=15, pady=(4, 15), sticky="w")
         self.split_pdf_btn = ctk.CTkButton(
             scroll_frame,
             text="Rozdziel na osobne PDF",
@@ -160,18 +169,27 @@ class TabSplitPdfMixin:
             return
         if self.running:
             return
+        scalony = False
+        var = getattr(self, "split_scalony_var", None)
+        if var is not None:
+            try:
+                scalony = bool(var.get())
+            except Exception:
+                scalony = False
         self.last_output_dir = Path(output_folder)
         self._disable_ui_for_process()
-        self.log(f"[ROZDZIELENIE PDF] Zapis do struktury drzewa...")
+        self.log(f"[ROZDZIELENIE PDF] Zapis do struktury drzewa"
+                 + (" + scalone PDF wsi" if scalony else "") + "...")
         self.set_progress(0)
         threading.Thread(
             target=self.run_split_pdf_thread,
-            args=(title_folder, opisy_folder, raporty_folder, output_folder),
+            args=(title_folder, opisy_folder, raporty_folder, output_folder, scalony),
             daemon=True,
         ).start()
 
     def run_split_pdf_thread(
-            self, title_folder_str, opisy_folder_str, raporty_folder_str, output_folder_str
+            self, title_folder_str, opisy_folder_str, raporty_folder_str, output_folder_str,
+            scalony=False,
     ):
         pythoncom.CoInitialize()
         word = None
@@ -209,6 +227,7 @@ class TabSplitPdfMixin:
 
                 try:
                     file_counter = 1
+                    pdfy_wsi = []   # kolejność powstawania plików w folderze wsi
 
                     path_title = self.find_matching_file(Path(title_folder_str), village_name)
                     if path_title:
@@ -217,6 +236,7 @@ class TabSplitPdfMixin:
                             self.log(f"  [Błąd] Plik tytułowy zablokowany: {path_title.name}")
                         else:
                             self.convert_office_to_pdf(path_title, pdf_str, word, excel)
+                            pdfy_wsi.append(pdf_str)
                             file_counter += 1
 
                     path_opis = self.find_matching_file(Path(opisy_folder_str), village_name)
@@ -226,6 +246,7 @@ class TabSplitPdfMixin:
                         else:
                             pdf_opis = village_out_dir / f"{file_counter}_OPIS_{village_name}.pdf"
                             self.convert_office_to_pdf(path_opis, pdf_opis, word, excel)
+                            pdfy_wsi.append(pdf_opis)
                             file_counter += 1
 
                     path_raport = self.find_matching_file(Path(raporty_folder_str), village_name)
@@ -244,6 +265,7 @@ class TabSplitPdfMixin:
                                         c for c in ws.Name if c.isalnum() or c in (" ", "_", "-")).strip()
                                     pdf_ws = village_out_dir / f"{file_counter}_RAPORT_{village_name}_{safe_ws_name}.pdf"
                                     ws.ExportAsFixedFormat(0, str(pdf_ws))
+                                    pdfy_wsi.append(pdf_ws)
                                     file_counter += 1
                             except InterruptedError:
                                 raise
@@ -252,6 +274,20 @@ class TabSplitPdfMixin:
                             finally:
                                 if wb is not None:
                                     wb.Close(False)
+
+                    # scalony PDF wsi — w tej samej kolejności, w jakiej pliki powstały
+                    if scalony and len(pdfy_wsi) > 1:
+                        try:
+                            writer = PdfWriter()
+                            for pdf_path in pdfy_wsi:
+                                writer.append(str(pdf_path))
+                            scalony_path = village_out_dir / f"{village_name}_scalony.pdf"
+                            with open(scalony_path, "wb") as f:
+                                writer.write(f)
+                            self.log(f"  [SCALONY] {scalony_path.name} "
+                                      f"({len(pdfy_wsi)} plików PDF)")
+                        except Exception as e:
+                            self.log(f"  [Błąd scalania {village_name}]: {e}")
 
                     created_dirs += 1
                 except InterruptedError:

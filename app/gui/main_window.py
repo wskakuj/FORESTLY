@@ -535,11 +535,40 @@ class ModernApp(
         font_btn_menu = ctk.CTkFont(family="Segoe UI", size=13)
         font_naglowka = ctk.CTkFont(family="Segoe UI", size=12, weight="bold")
 
+        # zwijane grupy sekcji — domyślnie zwinięte (klik w nagłówek rozwija)
+        self._sekcje_przyciski = {}
+        self._sekcje_zwiniete = set()
+        _aktualna_sekcja = [None]
+
         def _naglowek(tekst):
-            ctk.CTkLabel(
-                sidebar, text=tekst, font=font_naglowka, anchor="w",
-                text_color=("gray35", "gray60"),
-            ).pack(fill="x", padx=12, pady=(14, 2))
+            sekcja = tekst
+            przyciski = []
+            self._sekcje_przyciski[sekcja] = przyciski
+            _aktualna_sekcja[0] = sekcja
+
+            def _przelacz(s=sekcja, lst=przyciski):
+                if s in self._sekcje_zwiniete:
+                    self._sekcje_zwiniete.discard(s)
+                    for b in lst:
+                        b.pack(fill="x", padx=6, pady=2)
+                else:
+                    self._sekcje_zwiniete.add(s)
+                    for b in lst:
+                        b.pack_forget()
+                _odswiez(s)
+
+            def _odswiez(s=sekcja):
+                naglowek_btn.configure(
+                    text=("▸ " if s in self._sekcje_zwiniete else "▾ ") + s)
+
+            naglowek_btn = ctk.CTkButton(
+                sidebar, text="▸ " + sekcja, font=font_naglowka, anchor="w",
+                fg_color="transparent", hover_color=("gray75", "gray28"),
+                text_color=("gray35", "gray60"), corner_radius=4,
+                command=_przelacz,
+            )
+            naglowek_btn.pack(fill="x", padx=8, pady=(14, 2))
+            self._sekcje_zwiniete.add(sekcja)  # startowo zwinięte
 
         def _nowa_zakladka(sekcja, nazwa, tooltip=None):
             klucz = f"{sekcja}|{nazwa}"
@@ -558,6 +587,11 @@ class ModernApp(
             )
             btn.pack(fill="x", padx=6, pady=2)
             self._zakladka_buttons[klucz] = btn
+            przyciski_sekcji = self._sekcje_przyciski.get(sekcja)
+            if przyciski_sekcji is not None:
+                przyciski_sekcji.append(btn)
+                if sekcja in self._sekcje_zwiniete:
+                    btn.pack_forget()  # grupa startowo zwinięta
             if tooltip:
                 add_tooltip(btn, tooltip)
             return ramka
@@ -572,50 +606,53 @@ class ModernApp(
         tab_word = _nowa_zakladka(
             "MIETEK", "Konwersja: MIETEK -> Word",
             "Tylko etap 1: Oczyszcza surowe pliki z systemu MIETEK i układa pliki Word.")
-        tab_mietek_tpl_gen = _nowa_zakladka(
-            "MIETEK", "Kreator Szablonu STR_TYT",
-            "Generuje jeden bazowy dokument Word ze stroną tytułową "
-            "na podstawie wpisanych danych.")
-        tab_mietek_title = _nowa_zakladka(
-            "MIETEK", "Zaczytywanie danych STR_TYT",
-            "Masowo tworzy strony tytułowe dla każdej wsi (MIETEK), "
-            "wciągając dane z plików Word (OPTAX).")
         tab_pdf = _nowa_zakladka(
             "MIETEK", "Konwersja: Word -> PDF",
             "Tylko etap 2: Zamienia gotowe pliki word na PDF i łączy w jeden plik.")
-        tab_manual = _nowa_zakladka(
-            "MIETEK", "Ręczne scalanie PDF",
-            "Moduł ręczny: pozwala wczytać luźne PDF-y, poukładać je myszką "
-            "w odpowiedniej kolejności i połączyć.")
+        tab_mietek_tpl_gen = _nowa_zakladka(
+            "MIETEK", "Kreator Stron tytułowych",
+            "Generuje jeden bazowy dokument Word ze stroną tytułową "
+            "na podstawie wpisanych danych.")
+        tab_mietek_title = _nowa_zakladka(
+            "MIETEK", "Tworzenie Stron tytułowych",
+            "Masowo tworzy strony tytułowe dla każdej wsi (MIETEK), "
+            "wciągając dane z plików Word (OPTAX).")
+        tab_opis_og = _nowa_zakladka(
+            "MIETEK", "Opisy og\u00f3lne",
+            "Tworzy \u201eopis og_<wie\u015b>.docx\u201d w folderach wsi \u2014 z Worda (WSK_ZB.doc) lub z danych MIETEKA (tymczasowo).")
         tab_mietek_rozb = _nowa_zakladka("MIETEK", "Wykaz Rozbieżności")
         tab_nazwiska_mietek = _nowa_zakladka(
             "MIETEK", "NAZWISKA -> MIETEK",
             "Klonuje strukturę MS-DOS i generuje W*.DBF pobierając nazwiska "
             "wyłącznie na podstawie pliku Ewidencji XLS.")
-        tab_opis_og = _nowa_zakladka(
-            "MIETEK", "Opisy og\u00f3lne",
-            "Tworzy \u201eopis og_<wie\u015b>.docx\u201d w folderach wsi \u2014 z Worda (WSK_ZB.doc) lub z danych MIETEKA (tymczasowo).")
+        tab_manual = _nowa_zakladka(
+            "MIETEK", "Ręczne scalanie PDF",
+            "Moduł ręczny: pozwala wczytać luźne PDF-y, poukładać je myszką "
+            "w odpowiedniej kolejności i połączyć.")
 
 
         # ---- TAKSATOR ----
         _naglowek("TAKSATOR")
-        tab_template_gen = _nowa_zakladka(
-            "TAKSATOR", "Kreator Szablonu STR_TYT",
-            "Generuje jeden bazowy dokument Word ze stroną tytułową "
-            "na podstawie wpisanych danych.")
-        tab_title = _nowa_zakladka(
-            "TAKSATOR", "Zaczytywanie danych STR_TYT",
-            "Masowo tworzy strony tytułowe dla każdej wsi, wciągając dane z zestawień Excel.")
         tab_excel = _nowa_zakladka(
-            "TAKSATOR", "Układanie Exceli",
+            "TAKSATOR", "Układanie Exceli do druku",
             "Optymalizuje pliki Excel: ukrywa zbędne arkusze, sortuje je "
             "i dostosowuje wielkość czcionki do druku.")
         tab_layout_excel = _nowa_zakladka(
-            "TAKSATOR", "Wyłożenie Excel",
+            "TAKSATOR", "Wyłożenie Exceli",
             "Pobiera strony tytułowe, opisy i raporty, a następnie scala je "
             "w gotowe, pełne paczki PDF dla każdej wsi.")
+        tab_template_gen = _nowa_zakladka(
+            "TAKSATOR", "Kreator Stron tytułowych",
+            "Generuje jeden bazowy dokument Word ze stroną tytułową "
+            "na podstawie wpisanych danych.")
+        tab_title = _nowa_zakladka(
+            "TAKSATOR", "Tworzenie Stron tytułowych",
+            "Masowo tworzy strony tytułowe dla każdej wsi, wciągając dane z zestawień Excel.")
+        tab_opis_og_taks = _nowa_zakladka(
+            "TAKSATOR", "Opisy ogólne",
+            "Tworzy opisy ogólne (opis og_<wieś>.docx) na podstawie raportów Excel do druku.")
         tab_split_pdf = _nowa_zakladka(
-            "TAKSATOR", "PDF + segregowanie wsi",
+            "TAKSATOR", "Excel -> PDF",
             "Konwertuje raporty i opisy, zachowując je jako osobne pliki PDF "
             "podzielone na foldery dla poszczególnych wsi.")
         tab_mdb_update = _nowa_zakladka(
@@ -626,13 +663,13 @@ class ModernApp(
         # ---- ROZLICZANIE ----
         _naglowek("ROZLICZANIE")
         tab_rozl_main = _nowa_zakladka("ROZLICZANIE", "Rozliczanie powierzchni")
+        tab_tworzenie_mietkow = _nowa_zakladka("ROZLICZANIE", "Tworzenie i wpisywanie mietków")
+        tab_halizny = _nowa_zakladka("ROZLICZANIE", "Halizny")
         tab_zestawienie = _nowa_zakladka(
             "ROZLICZANIE", "Zestawienie zbiorcze",
             "Składa wszystkie pliki <WIEŚ>_Rozliczone.xlsx w jeden plik: "
             "sumy per wieś + rozpiska działek przybyło/ubyło z właścicielami."
         )
-        tab_tworzenie_mietkow = _nowa_zakladka("ROZLICZANIE", "Tworzenie i wpisywanie mietków")
-        tab_halizny = _nowa_zakladka("ROZLICZANIE", "Halizny")
         tab_excel_z_mdb = _nowa_zakladka("ROZLICZANIE", "Excel z MDB")
 
         # ---- KONWERTER PDF ----
@@ -675,6 +712,7 @@ class ModernApp(
 
         self.setup_template_generator_tab(tab_template_gen, "TAKSATOR")
         self.setup_title_pages_tab(tab_title)
+        self.setup_opis_og_taksator_tab(tab_opis_og_taks)
         self.setup_excel_tab(tab_excel)
         self.setup_layout_excel_tab(tab_layout_excel)
         self.setup_split_pdf_tab(tab_split_pdf)

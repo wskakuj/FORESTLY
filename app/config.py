@@ -18,7 +18,7 @@ from pathlib import Path
 import customtkinter as ctk
 
 # --- WERSJA I AKTUALIZACJA ---
-CURRENT_VERSION = "v2.0.25"
+CURRENT_VERSION = "v2.0.27"
 GITHUB_USER = "wskakuj"
 GITHUB_REPO = "FORESTLY"
 

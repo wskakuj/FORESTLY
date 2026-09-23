@@ -175,7 +175,9 @@ class WebBackend(
                      "mietek_rozb_start_btn", "mietek_rozb_bez_nazwisk_btn",
                      "wydruki_mietki_entry", "wydruki_all_btn",
                      "manual_pdf_src", "manual_pdf_dst",
-                     "opis_og_root_entry"):
+                     "opis_og_root_entry",
+                     "opis_og_taksator_entry", "opis_og_taksator_gdos_entry",
+                     "opis_og_taksator_start_btn"):
             setattr(self, attr, None)
 
         self._install_messagebox_shim()
@@ -596,6 +598,7 @@ class WebBackend(
             "start_layout_excel": self.start_layout_excel_pipeline,
             "start_split_pdf": self.start_split_pdf_pipeline,
             "start_opis_og": self.start_opis_og_pipeline,
+            "start_opis_og_taksator": self.start_opis_og_taksator_pipeline,
             "start_mdb_update": self.start_mdb_update_pipeline,
             "start_excel_z_mdb": self.start_excel_z_mdb_pipeline,
             "start_pdf_converter": self.start_pdf_converter_pipeline,

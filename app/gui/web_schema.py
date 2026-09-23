@@ -157,27 +157,6 @@ def build_schema():
             "buttons": [_button("run", "▶  Rozpocznij proces", "start_pipeline:WORD")],
         },
         {
-            "key": "MIETEK|Kreator Szablonu STR_TYT",
-            "tooltip": "Generuje jeden bazowy dokument Word ze stroną tytułową na podstawie danych.",
-            "controls": _tpl_controls("MIETEK"),
-            "buttons": [_button("run", "Wygeneruj Szablon STR_TYT", "generate_template:MIETEK")],
-        },
-        {
-            "key": "MIETEK|Zaczytywanie danych STR_TYT",
-            "tooltip": "Masowo tworzy strony tytułowe dla każdej wsi (MIETEK), wciągając dane z OPTAX.",
-            "controls": [
-                _path("mt_template", "mietek_title_template_entry", "Szablon STR_TYT:",
-                      "Wskaż plik bazowy", kind="file"),
-                _path("mt_word", "mietek_title_word_entry", "Fold. z plikami Word (OPTAX):",
-                      "Wskaż folder, w którym znajdują się pliki OPTAX"),
-                _text("mt_village_ph", "mietek_title_village_placeholder_entry",
-                      "Placeholder nazwy wsi:", "NAZWA WSI"),
-                _text("mt_area_ph", "mietek_title_area_placeholder_entry",
-                      "Placeholder powierzchni:", "wielkość"),
-            ],
-            "buttons": [_button("run", "Masowo twórz strony STR_TYT", "start_mietek_title_pages")],
-        },
-        {
             "key": "MIETEK|Konwersja: Word -> PDF",
             "tooltip": "Tylko etap 2: Zamienia gotowe pliki Word na PDF i łączy w jeden plik.",
             "controls": [
@@ -196,15 +175,49 @@ def build_schema():
             ],
         },
         {
-            "key": "MIETEK|Ręczne scalanie PDF",
-            "tooltip": "Moduł ręczny: wczytaj luźne PDF-y, ustaw kolejność i połącz.",
+            "key": "MIETEK|Kreator Stron tytułowych",
+            "tooltip": "Generuje jeden bazowy dokument Word ze stroną tytułową na podstawie danych.",
+            "controls": _tpl_controls("MIETEK"),
+            "buttons": [_button("run", "Wygeneruj Szablon STR_TYT", "generate_template:MIETEK")],
+        },
+        {
+            "key": "MIETEK|Tworzenie Stron tytułowych",
+            "tooltip": "Masowo tworzy strony tytułowe dla każdej wsi (MIETEK), wciągając dane z OPTAX.",
             "controls": [
-                _path("mm_src", "manual_pdf_src", "Wybierz folder PDF:",
-                      "Wybierz lokalizację z plikami PDF..."),
-                _path("mm_dst", "manual_pdf_dst", "Wybierz folder docelowy:",
-                      "Gdzie zapisać plik wynikowy?"),
+                _path("mt_template", "mietek_title_template_entry", "Szablon STR_TYT:",
+                      "Wskaż plik bazowy", kind="file"),
+                _path("mt_word", "mietek_title_word_entry", "Fold. z plikami Word (OPTAX):",
+                      "Wskaż folder, w którym znajdują się pliki OPTAX"),
+                _text("mt_village_ph", "mietek_title_village_placeholder_entry",
+                      "Placeholder nazwy wsi:", "NAZWA WSI"),
+                _text("mt_area_ph", "mietek_title_area_placeholder_entry",
+                      "Placeholder powierzchni:", "wielkość"),
             ],
-            "buttons": [_button("run", "Zarządzaj układem i scal pliki", "web_manual_merge")],
+            "buttons": [_button("run", "Masowo twórz strony STR_TYT", "start_mietek_title_pages")],
+        },
+        {
+            "key": "MIETEK|Opisy ogólne",
+            "tooltip": "Tworzy \u201eopis og_<wie\u015b>.docx\u201d w folderach wsi \u2014 liczby czyta z WSK_ZB.doc.",
+            "controls": [
+                _info("Generator tworzy plik \u201eopis og_<nazwa wsi>.docx\u201d w każdym folderze wsi. "
+                      "Jeśli w folderze wsi jest plik WSK_ZB.doc \u2014 liczby czyta z niego. "
+                      "Jeśli są tam dane MIETEKA (O*.DBF) \u2014 program robi w folderze "
+                      "tymczasowym MIETEK -> TXT -> Word, tworzy opis ogólny i usuwa pliki "
+                      "tymczasowe (oryginalne dane zostają nietknięte). Formy ochrony "
+                      "przyrody (Natura 2000, parki krajobrazowe) wpisujesz ręcznie "
+                      "\u2014 chyba że wskażesz folder z wynikami GDOŚ: wtedy zostaną "
+                      "wstawione automatycznie (kody obszarów i publikacje PZO "
+                      "z pliku gdos_obszary.json; nieznane obszary będą oznaczone "
+                      "do uzupełnienia)."),
+                _path("opis_og_root", "opis_og_root_entry",
+                      "Folder główny (z folderami wsi) albo folder pojedynczej wsi:",
+                      "np. folder \u201eu\u0142o\u017cone\u201d albo folder jednej wsi"),
+                _path("opis_og_gdos", "opis_og_gdos_entry",
+                      "Folder z wynikami GDOŚ (opcjonalnie):",
+                      "np. folder z plikami *_wynik.xlsx — formy ochrony przyrody "
+                      "zostaną wstawione automatycznie"),
+            ],
+            "buttons": [_button("run", "Generuj opisy ogólne", "start_opis_og")],
         },
         {
             "key": "MIETEK|Wykaz Rozbieżności",
@@ -243,30 +256,6 @@ def build_schema():
             ],
             "buttons": [_button("run", "Generuj struktury (tylko Ewidencja)", "start_nazwiska_mietek")],
         },
-        {
-            "key": "MIETEK|Opisy ogólne",
-            "tooltip": "Tworzy \u201eopis og_<wie\u015b>.docx\u201d w folderach wsi \u2014 liczby czyta z WSK_ZB.doc.",
-            "controls": [
-                _info("Generator tworzy plik \u201eopis og_<nazwa wsi>.docx\u201d w każdym folderze wsi. "
-                      "Jeśli w folderze wsi jest plik WSK_ZB.doc \u2014 liczby czyta z niego. "
-                      "Jeśli są tam dane MIETEKA (O*.DBF) \u2014 program robi w folderze "
-                      "tymczasowym MIETEK -> TXT -> Word, tworzy opis ogólny i usuwa pliki "
-                      "tymczasowe (oryginalne dane zostają nietknięte). Formy ochrony "
-                      "przyrody (Natura 2000, parki krajobrazowe) wpisujesz ręcznie "
-                      "\u2014 chyba że wskażesz folder z wynikami GDOŚ: wtedy zostaną "
-                      "wstawione automatycznie (kody obszarów i publikacje PZO "
-                      "z pliku gdos_obszary.json; nieznane obszary będą oznaczone "
-                      "do uzupełnienia)."),
-                _path("opis_og_root", "opis_og_root_entry",
-                      "Folder główny (z folderami wsi) albo folder pojedynczej wsi:",
-                      "np. folder \u201eu\u0142o\u017cone\u201d albo folder jednej wsi"),
-                _path("opis_og_gdos", "opis_og_gdos_entry",
-                      "Folder z wynikami GDOŚ (opcjonalnie):",
-                      "np. folder z plikami *_wynik.xlsx — formy ochrony przyrody "
-                      "zostaną wstawione automatycznie"),
-            ],
-            "buttons": [_button("run", "Generuj opisy ogólne", "start_opis_og")],
-        },
 
         {
             "key": "MIETEK|Baza obszarów GDOŚ",
@@ -285,33 +274,21 @@ def build_schema():
             ],
             "buttons": [],
         },
+        {
+            "key": "MIETEK|Ręczne scalanie PDF",
+            "tooltip": "Moduł ręczny: wczytaj luźne PDF-y, ustaw kolejność i połącz.",
+            "controls": [
+                _path("mm_src", "manual_pdf_src", "Wybierz folder PDF:",
+                      "Wybierz lokalizację z plikami PDF..."),
+                _path("mm_dst", "manual_pdf_dst", "Wybierz folder docelowy:",
+                      "Gdzie zapisać plik wynikowy?"),
+            ],
+            "buttons": [_button("run", "Zarządzaj układem i scal pliki", "web_manual_merge")],
+        },
 
         # ============================================================== TAKSATOR
         {
-            "key": "TAKSATOR|Kreator Szablonu STR_TYT",
-            "tooltip": "Generuje jeden bazowy dokument Word ze stroną tytułową na podstawie danych.",
-            "controls": _tpl_controls("TAKSATOR"),
-            "buttons": [_button("run", "Wygeneruj Szablon STR_TYT", "generate_template:TAKSATOR")],
-        },
-        {
-            "key": "TAKSATOR|Zaczytywanie danych STR_TYT",
-            "tooltip": "Masowo tworzy strony tytułowe dla każdej wsi, wciągając dane z zestawień Excel.",
-            "controls": [
-                _path("tt_template", "title_template_entry", "Szablon STR_TYT:",
-                      "Wskaż plik bazowy (np. wygenerowany w Kreatorze Szablonów)", kind="file"),
-                _path("tt_excel", "title_excel_entry", "Fold. z rejestrami Excel:",
-                      "Wskaż folder z plikami .xls / .xlsx"),
-                _path("tt_out", "title_output_entry", "Folder zapisu STR_TYT:",
-                      "Wskaż folder docelowy dla nowych stron"),
-                _text("tt_village_ph", "title_village_placeholder_entry",
-                      "Placeholder nazwy wsi:", "NAZWA WSI"),
-                _text("tt_area_ph", "title_area_placeholder_entry",
-                      "Placeholder powierzchni:", "wielkość"),
-            ],
-            "buttons": [_button("run", "Masowo twórz strony STR_TYT", "start_title_pages")],
-        },
-        {
-            "key": "TAKSATOR|Układanie Exceli",
+            "key": "TAKSATOR|Układanie Exceli do druku",
             "tooltip": "Optymalizuje pliki Excel: ukrywa zbędne arkusze, sortuje i dostosowuje czcionki.",
             "controls": [
                 _path("xl_src", "excel_folder_entry", "Folder z plikami Excel:",
@@ -331,7 +308,7 @@ def build_schema():
             "buttons": [_button("run", "Uruchom układanie Exceli", "start_excel")],
         },
         {
-            "key": "TAKSATOR|Wyłożenie Excel",
+            "key": "TAKSATOR|Wyłożenie Exceli",
             "tooltip": "Scala strony tytułowe, opisy i raporty w gotowe paczki PDF dla każdej wsi.",
             "controls": [
                 _path("le_title", "layout_title_folder_entry", "Folder STR_TYT:",
@@ -346,7 +323,43 @@ def build_schema():
             "buttons": [_button("run", "Twórz gotowe PDF", "start_layout_excel")],
         },
         {
-            "key": "TAKSATOR|PDF + segregowanie wsi",
+            "key": "TAKSATOR|Kreator Stron tytułowych",
+            "tooltip": "Generuje jeden bazowy dokument Word ze stroną tytułową na podstawie danych.",
+            "controls": _tpl_controls("TAKSATOR"),
+            "buttons": [_button("run", "Wygeneruj Szablon STR_TYT", "generate_template:TAKSATOR")],
+        },
+        {
+            "key": "TAKSATOR|Tworzenie Stron tytułowych",
+            "tooltip": "Masowo tworzy strony tytułowe dla każdej wsi, wciągając dane z zestawień Excel.",
+            "controls": [
+                _path("tt_template", "title_template_entry", "Szablon STR_TYT:",
+                      "Wskaż plik bazowy (np. wygenerowany w Kreatorze Szablonów)", kind="file"),
+                _path("tt_excel", "title_excel_entry", "Fold. z rejestrami Excel:",
+                      "Wskaż folder z plikami .xls / .xlsx"),
+                _path("tt_out", "title_output_entry", "Folder zapisu STR_TYT:",
+                      "Wskaż folder docelowy dla nowych stron"),
+                _text("tt_village_ph", "title_village_placeholder_entry",
+                      "Placeholder nazwy wsi:", "NAZWA WSI"),
+                _text("tt_area_ph", "title_area_placeholder_entry",
+                      "Placeholder powierzchni:", "wielkość"),
+            ],
+            "buttons": [_button("run", "Masowo twórz strony STR_TYT", "start_title_pages")],
+        },
+        {
+            "key": "TAKSATOR|Opisy ogólne",
+            "tooltip": "Tworzy opisy ogólne (opis og_<wieś>.docx) na podstawie "
+                       "raportów Excel do druku (zadania gospodarcze z arkusza Zestawienie).",
+            "controls": [
+                _path("ogt_root", "opis_og_taksator_entry", "Folder z raportami Excel:",
+                      "Wskaż folder z ułożonymi raportami (np. 042-0001-Bysław.xls)"),
+                _path("ogt_gdos", "opis_og_taksator_gdos_entry",
+                      "Folder z wynikami GDOŚ (opcjonalnie):",
+                      "Formy ochrony przyrody zostaną wstawione automatycznie"),
+            ],
+            "buttons": [_button("run", "Generuj opisy ogólne", "start_opis_og_taksator")],
+        },
+        {
+            "key": "TAKSATOR|Excel -> PDF",
             "tooltip": "Konwertuje raporty i opisy jako osobne PDF podzielone na foldery wsi.",
             "controls": [
                 _path("sp_title", "split_title_folder_entry", "Folder STR_TYT:",
@@ -357,6 +370,9 @@ def build_schema():
                       "Folder z raportami Excel"),
                 _path("sp_out", "split_output_folder_entry", "Folder docelowy:",
                       "Folder wyjściowy dla rozdzielonych PDF"),
+                _check("split_scalony", "split_scalony_var",
+                       "Utwórz dodatkowo scalony PDF dla każdej wsi (w kolejności powstawania plików)",
+                       False),
             ],
             "buttons": [_button("run", "Rozdziel na osobne PDF", "start_split_pdf")],
         },
@@ -390,22 +406,6 @@ def build_schema():
                        "Usuń wiersze jeśli brakuje wartości w J. rej. (usuwanie wydzieleń bez właścicieli)", False),
             ],
             "buttons": [_button("run", "Uruchom rozliczanie obrębów", "start_rozliczanie")],
-        },
-        {
-            "key": "ROZLICZANIE|Zestawienie zbiorcze",
-            "tooltip": "Składa wszystkie pliki <WIEŚ>_Rozliczone.xlsx w jeden arkusz: "
-                       "sumy per wieś + wiersz RAZEM + rozpiska działek przybyło/ubyło.",
-            "controls": [
-                _path("zestaw", "zestaw_entry", "Folder z plikami rozliczeń (krzyżówki):",
-                      "Folder docelowy rozliczeń (pliki <WIEŚ>_Rozliczone.xlsx)"),
-                _path("zestaw_mietki", "zestaw_mietki_entry", "Folder z mietkami:",
-                      "Foldery obrębów z wpisanymi krzyżówkami (D*.DBF), np. BIAŁCZ\\WOL.001"),
-            ],
-            "buttons": [
-                _button("run", "Zestawienie z rozliczonych Exceli", "start_zestawienie"),
-                _button("mietki", "Zestawienie z mietków (sumy z DBF)",
-                        "start_zestawienie_mietki", "secondary"),
-            ],
         },
         {
             "key": "ROZLICZANIE|Tworzenie i wpisywanie mietków",
@@ -442,6 +442,22 @@ def build_schema():
                       "Gdzie leżą foldery obrębów (np. BIAŁCZ\\WOL.001\\HALIZNY.TXT)?"),
             ],
             "buttons": [_button("run", "Przenieś halizny w D*.DBF", "start_halizny")],
+        },
+        {
+            "key": "ROZLICZANIE|Zestawienie zbiorcze",
+            "tooltip": "Składa wszystkie pliki <WIEŚ>_Rozliczone.xlsx w jeden arkusz: "
+                       "sumy per wieś + wiersz RAZEM + rozpiska działek przybyło/ubyło.",
+            "controls": [
+                _path("zestaw", "zestaw_entry", "Folder z plikami rozliczeń (krzyżówki):",
+                      "Folder docelowy rozliczeń (pliki <WIEŚ>_Rozliczone.xlsx)"),
+                _path("zestaw_mietki", "zestaw_mietki_entry", "Folder z mietkami:",
+                      "Foldery obrębów z wpisanymi krzyżówkami (D*.DBF), np. BIAŁCZ\\WOL.001"),
+            ],
+            "buttons": [
+                _button("run", "Zestawienie z rozliczonych Exceli", "start_zestawienie"),
+                _button("mietki", "Zestawienie z mietków (sumy z DBF)",
+                        "start_zestawienie_mietki", "secondary"),
+            ],
         },
         {
             "key": "ROZLICZANIE|Excel z MDB",

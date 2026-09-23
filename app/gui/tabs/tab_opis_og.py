@@ -33,7 +33,8 @@ import threading
 import traceback
 from pathlib import Path
 
-TPL_FILENAME = "opis_og_szablon.docx"
+TPL_FILENAME = "opis_og_szablon.docx"            # wariant MIETEK (WSK_ZB)
+TPL_TAKSATOR_FILENAME = "opis_og_szablon_taksator.docx"  # wariant TAKSATOR (raporty)
 OCHRONA_MARKER = "[TU WPISZ formy ochrony przyrody — po wpisaniu usuń tę linię]"
 
 
@@ -94,22 +95,27 @@ class TabOpisOgMixin:
         vals["FORMY_OCHRONY"] = (formy[0] if formy
                                  else "Zlokalizowano następujące formy ochrony przyrody:")
 
-        # tabela etatów (jedyna 6-kolumnowa tabela w szablonie)
+        # tabele (etaty, przedrębne): komórka zawierająca sam placeholder
+        # dostaje wartość; klucza brak w danych (np. MIETEK bez arkusza Etaty)
+        # => pusta komórka zamiast dosłownego {{...}}
         for table in doc.tables:
-            if len(table.columns) == 6 and len(table.rows) >= 2:
-                for cell in table.rows[1].cells:
+            for row in table.rows:
+                for cell in row.cells:
                     ph = cell.text.strip()
                     if ph.startswith("{{") and ph.endswith("}}"):
-                        key = ph[2:-2]
-                        if key in vals and cell.paragraphs and cell.paragraphs[0].runs:
-                            cell.paragraphs[0].runs[0].text = vals[key]
+                        if cell.paragraphs and cell.paragraphs[0].runs:
+                            cell.paragraphs[0].runs[0].text = vals.get(ph[2:-2], "")
 
         # akapity + marker do ręcznego wpisania form ochrony przyrody
         marker_done = False
-        for p in doc.paragraphs:
+        for p in list(doc.paragraphs):
             txt = p.text
             m = re.search(r"\{\{(\w+)\}\}", txt)
-            if not m or m.group(1) not in vals:
+            if m and m.group(1) not in vals:
+                # brak danych (np. {{OBREB}} w wariancie MIETEK) — usuń akapit
+                p._p.getparent().remove(p._p)
+                continue
+            if not m:
                 continue
             new_txt = re.sub(r"\{\{(\w+)\}\}", lambda k: vals[k.group(1)], txt)
             if p.runs:
@@ -657,4 +663,328 @@ class TabOpisOgMixin:
             font=ctk.CTkFont(family="Segoe UI", size=15, weight="bold"),
             fg_color="#0067C0", hover_color="#005A9E", height=44, corner_radius=6,
             command=self.start_opis_og_pipeline,
+        ).grid(row=1, column=0, padx=20, pady=(5, 20), sticky="ew")
+
+    # ------------------------------------------------ TAKSATOR: opisy z raportów Excel
+    @staticmethod
+    def _opis_og_fmt(x, nd=0):
+        """Liczba m3/procent: nd=0 całkowita, nd=2 z przecinkiem (jak we wzorcach)."""
+        return f"{float(x):.{nd}f}".replace(".", ",")
+
+    @staticmethod
+    def _sheet_row_po_num(df, n_kol):
+        """Wiersz wartości następujący po wierszu z numeracją 1..n (pozycyjnie,
+        brakujące komórki = None)."""
+        for i in range(len(df) - 1):
+            kom = [str(v).strip() for v in df.iloc[i].tolist()]
+            nn = [v for v in kom if v and v != "nan"]
+            if nn and all(re.fullmatch(r"\d+", v) for v in nn) \
+                    and [int(v) for v in nn] == list(range(1, n_kol + 1)):
+                out = []
+                for v in df.iloc[i + 1].tolist():
+                    try:
+                        fv = float(str(v).replace(",", "."))
+                        out.append(None if fv != fv else fv)  # NaN -> None
+                    except (ValueError, TypeError):
+                        out.append(None)
+                while out and out[-1] is None:
+                    out.pop()
+                return out
+        return None
+
+    @staticmethod
+    def _parse_raport_xls(path):
+        """Wyciąga wartości opisu ogólnego z raportu Excel do druku.
+
+        Arkusz 'Zestawienie', pierwsza tabela (zadania gospodarcze):
+          * kody rzymskie (IB, IIIA, IIIB, IVD...) -> użytki rębne właściwe (etat),
+          * PRZEST / PŁAZ -> pozostałe użytki rębne,
+          * TW + TP -> użytkowanie przedrębne.
+        Zwraca (values, wieś, error).
+        """
+        import pandas as pd
+        RZYMSKI = re.compile(r"^(?:I{1,3}|IV|V|VI)[A-Z]*$")
+
+        def _num(x):
+            try:
+                fv = float(str(x).replace(",", "."))
+                return None if fv != fv else fv  # NaN -> None
+            except (ValueError, TypeError):
+                return None
+
+        try:
+            df = pd.read_excel(path, sheet_name="Zestawienie", header=None)
+        except Exception as e:
+            return None, None, f"nie można odczytać arkusza 'Zestawienie' ({e})"
+
+        rebn = poz = przed = 0.0
+        for _, row in df.iterrows():
+            kom = [str(c) for c in row.tolist()]
+            if any(k.startswith("Zestawienie zabieg") for k in kom if k and k != "nan"):
+                break  # koniec pierwszej tabeli
+            kod = kom[1].strip().upper() if len(kom) > 1 else ""
+            if not kod or kod == "NAN":
+                continue
+            brutto = _num(kom[3]) if len(kom) > 3 else None
+            if brutto is None:
+                brutto = _num(kom[2]) if len(kom) > 2 else None
+            if brutto is None:
+                continue
+            if RZYMSKI.match(kod):
+                rebn += brutto
+            elif kod in ("TW", "TP"):
+                przed += brutto
+            elif kod in ("PRZEST", "PŁAZ", "POZ"):
+                poz += brutto
+
+        # 2) nazwa wsi (TPM_FL)
+        wieś = None
+        try:
+            tpm = pd.read_excel(path, sheet_name="TPM_FL", header=None)
+            for _, row in tpm.iterrows():
+                for v in row.tolist():
+                    s = str(v)
+                    if s.startswith("Obiekt (obr. ew.):") and " - " in s:
+                        wieś = s.split(" - ", 1)[1].strip().rstrip(".").strip()
+                        break
+                if wieś:
+                    break
+        except Exception:
+            pass
+
+        # 3) arkusze Etaty / Przedrebne (raporty nietknięte) + linia obrębu
+        etaty = przedr = None
+        obreb = None
+        try:
+            et = pd.read_excel(path, sheet_name="Etaty", header=None)
+            etaty = TabOpisOgMixin._sheet_row_po_num(et, 6)
+            for _, row in et.iterrows():
+                for v in row.tolist():
+                    sx = str(v).strip()
+                    if re.match(r"^\d+[-/]\d+[-/]\d+[-/]\d+\s*-\s*.+", sx):
+                        obreb = sx
+                        break
+                if obreb:
+                    break
+        except Exception:
+            pass
+        try:
+            pr = pd.read_excel(path, sheet_name="Przedrebne", header=None)
+            przedr = TabOpisOgMixin._sheet_row_po_num(pr, 5)
+        except Exception:
+            pass
+        if obreb is None:
+            try:
+                tpm = pd.read_excel(path, sheet_name="TPM_FL", header=None)
+                for _, row in tpm.iterrows():
+                    for v in row.tolist():
+                        s = str(v)
+                        if s.startswith("Obiekt (obr. ew.):") and " - " in s:
+                            czesci = s.split(":", 1)[1].strip().split(" - ", 1)
+                            obreb = f"{czesci[0].strip()} - " \
+                                    f"{czesci[1].strip().rstrip('.').strip()}"
+                            break
+                    if obreb:
+                        break
+            except Exception:
+                pass
+
+        if etaty is None and przedr is None and rebn == 0 and poz == 0 and przed == 0:
+            return None, wieś, "brak zadań gospodarczych w arkuszu 'Zestawienie'"
+
+        _l = TabOpisOgMixin._opis_og_fmt
+        vals = {}
+        if obreb:
+            vals["OBREB"] = obreb
+        if etaty:
+            for i, key in enumerate(("ETAT_OST_KL", "ETAT_2_OST", "ETAT_POTRZEBY",
+                                     "ETAT_PRZYJETY", "POZOSTALE_REBNE")):
+                if i < len(etaty) and etaty[i] is not None:
+                    vals[key] = _l(etaty[i])
+        vals.setdefault("ETAT_POTRZEBY", _l(rebn))
+        vals.setdefault("ETAT_PRZYJETY", _l(rebn))
+        vals.setdefault("POZOSTALE_REBNE", _l(poz))
+        # maksymalna = etat przyjęty + pozostałe użytki rębne (wartość z arkusza
+        # Etaty bywa błędna, gdy "Etat przyjęty" jest tam pusty)
+        _f = lambda x: float(str(x).replace(",", "."))
+        vals["MAKS_MIAZSZOSC"] = _l(_f(vals["ETAT_PRZYJETY"])
+                                    + _f(vals["POZOSTALE_REBNE"]))
+        if przedr:
+            vals["PRZEDRZ_MIAZSZ"] = _l(przedr[0])
+            if len(przedr) > 1 and przedr[1] is not None:
+                vals["PRZEDRZ_PRZYROST"] = _l(przedr[1], nd=2)
+            if len(przedr) > 2 and przedr[2] is not None:
+                vals["UZYTK_PRZEDRZEBNE"] = _l(przedr[2])
+            if len(przedr) > 3 and przedr[3] is not None:
+                vals["PRZEDRZ_P1"] = _l(przedr[3], nd=2)
+            if len(przedr) > 4 and przedr[4] is not None:
+                vals["PRZEDRZ_P2"] = _l(przedr[4], nd=2)
+        vals.setdefault("UZYTK_PRZEDRZEBNE", _l(przed))
+        return vals, wieś, None
+
+    def start_opis_og_taksator_pipeline(self):
+        """Zadanie z mapy zadań (web) / przycisk (stare GUI) — wariant TAKSATOR."""
+        self._disable_ui_for_process()
+
+        def _run():
+            try:
+                self._opis_og_taksator_run()
+            except Exception:
+                self.log("[OPIS OG/TAKSATOR BŁĄD] " + traceback.format_exc())
+                self.update_status("Błąd", "#D83B01", animate=False)
+            finally:
+                self.restore_all_buttons()
+
+        threading.Thread(target=_run, daemon=True).start()
+
+    def _opis_og_taksator_run(self):
+        from app.core.word_worker import get_resource_path
+
+        entry = getattr(self, "opis_og_taksator_entry", None)
+        raw = entry.get().strip() if entry else ""
+        if not raw or not Path(raw).exists():
+            self.log("[OPIS OG/TAKSATOR] Wskaż najpierw folder z raportami Excel do druku.")
+            self.update_status("Brak folderu", "#D83B01", animate=False)
+            return
+        root = Path(raw)
+        self.last_output_dir = root
+
+        xlsy = [p for p in sorted(root.rglob("*.xls")) + sorted(root.rglob("*.xlsx"))
+                if not p.name.startswith("~$") and not p.name.lower().endswith(".dbf")]
+        if not xlsy:
+            self.log(f"[OPIS OG/TAKSATOR] Brak plików Excel (.xls/.xlsx) w: {root}")
+            self.update_status("Brak raportów", "#D83B01", animate=False)
+            return
+
+        tpl = get_resource_path(TPL_TAKSATOR_FILENAME)
+        if not Path(tpl).exists():
+            self.log(f"[OPIS OG/TAKSATOR BŁĄD] Brak szablonu taksatora: {tpl} "
+                     f"(plik opis_og_szablon_taksator.docx musi być w głównym folderze)")
+            self.update_status("Brak szablonu", "#D83B01", animate=False)
+            return
+            self.update_status("Brak szablonu", "#D83B01", animate=False)
+            return
+
+        # opcjonalny folder z wynikami GDOŚ -> automatyczne formy ochrony przyrody
+        gdos_entry = getattr(self, "opis_og_taksator_gdos_entry", None)
+        gdos_raw = gdos_entry.get().strip() if gdos_entry is not None else ""
+        gdos_map = {}
+        if gdos_raw:
+            if Path(gdos_raw).exists():
+                gdos_map = self._gdos_files_map(gdos_raw)
+                if gdos_map:
+                    self.log(f"[OPIS OG/TAKSATOR] Wyniki GDOŚ: {len(gdos_map)} plik(ów) — "
+                             "formy ochrony przyrody zostaną wstawione automatycznie.")
+            else:
+                self.log(f"[OPIS OG/TAKSATOR] Folder GDOŚ nie istnieje: {gdos_raw} — pomijam.")
+
+        self.log(f"[OPIS OG/TAKSATOR] Generator start — raportów: {len(xlsy)}, "
+                 f"szablon: {Path(tpl).name}")
+        done = 0
+        for i, xls in enumerate(xlsy, 1):
+            self.check_stop()
+            vals, wieś, err = self._parse_raport_xls(xls)
+            if vals is None:
+                self.log(f"[OPIS OG/TAKSATOR] {xls.name}: POMINIĘTO — {err}")
+                continue
+            if not wieś:
+                wieś = xls.stem.split("-")[-1].strip()
+            self.update_status(f"Opis ogólny: {wieś} ({i}/{len(xlsy)})", "#0078D7")
+
+            # nazwa pliku: zachowaj pisownię istniejącego "opis og_*" dla tej wsi
+            out_name = f"opis og_{wieś}.docx"
+            for existing in xls.parent.glob("opis og_*"):
+                if existing.stem.split("og_", 1)[-1].casefold() == wieś.casefold():
+                    out_name = existing.name
+                    break
+            out_path = xls.parent / out_name
+
+            formy = None
+            if gdos_map:
+                fx = self._gdos_find_for_village(gdos_map, wieś)
+                if fx is not None:
+                    try:
+                        formy = self._gdos_formy_dla_wsi(fx)
+                        n_for = sum(1 for f_ in formy if f_.startswith("- "))
+                        self.log(f"[OPIS OG/TAKSATOR] {wieś}: formy ochrony z GDOŚ "
+                                 f"({fx.name}; {n_for} form)")
+                    except Exception as e:
+                        self.log(f"[OPIS OG/TAKSATOR] {wieś}: błąd odczytu GDOŚ "
+                                 f"({fx.name}) — {e}")
+
+            try:
+                self._fill_template(tpl, vals, out_path, formy=formy)
+            except Exception as e:
+                self.log(f"[OPIS OG/TAKSATOR] {wieś}: BŁĄD zapisu — {e}")
+                continue
+
+            done += 1
+            self.log(f"[OPIS OG/TAKSATOR] {wieś}: zapisano {out_path.name} "
+                     f"(rębne {vals['MAKS_MIAZSZOSC']} m3, "
+                     f"przedrębne {vals['UZYTK_PRZEDRZEBNE']} m3)")
+
+        self.log(f"[OPIS OG/TAKSATOR] Zakończono — wygenerowano {done}/{len(xlsy)}."
+                 + ("" if gdos_map else
+                    " Pamiętaj o ręcznym wpisaniu form ochrony przyrody "
+                    "(Natura 2000 itp.) w wygenerowanych plikach."))
+        self.update_status("Opisy ogólne gotowe", "#107C10", animate=False)
+
+    def setup_opis_og_taksator_tab(self, parent):
+        """Zakładka „Opisy ogólne" (TAKSATOR) w starym GUI (Forestly_OLD)."""
+        import customtkinter as ctk
+
+        parent.grid_columnconfigure(0, weight=1)
+        parent.grid_rowconfigure(0, weight=1)
+        scroll_frame = ctk.CTkScrollableFrame(parent, fg_color="transparent")
+        scroll_frame.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
+        scroll_frame.grid_columnconfigure(0, weight=1)
+        font_label = ctk.CTkFont(family="Segoe UI", size=13, weight="bold")
+        font_btn = ctk.CTkFont(family="Segoe UI", size=13)
+        card = ctk.CTkFrame(
+            scroll_frame, fg_color="#252526", corner_radius=8,
+            border_width=1, border_color="#333333",
+        )
+        card.grid(row=0, column=0, padx=20, pady=(15, 15), sticky="new")
+        card.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(
+            card, text="Folder z raportami Excel do druku:",
+            font=font_label, text_color="#E0E0E0",
+        ).grid(row=0, column=0, padx=15, pady=(15, 8), sticky="w")
+        self.opis_og_taksator_entry = ctk.CTkEntry(
+            card, placeholder_text="np. folder z plikami 042-0001-Bysław.xls",
+            height=36,
+        )
+        self.opis_og_taksator_entry.grid(row=0, column=1, padx=5, pady=(15, 8), sticky="ew")
+        ctk.CTkButton(
+            card, text="Przeglądaj", image=self.icon_folder,
+            command=lambda: self.select_dir(self.opis_og_taksator_entry),
+            width=110, height=36, font=font_btn, fg_color="#333333", hover_color="#444444",
+        ).grid(row=0, column=2, padx=15, pady=(15, 8))
+        ctk.CTkLabel(
+            card,
+            text="Liczby (etat przyjęty, pozostałe użytki rębne, użytkowanie przedrębne) "
+                 "czytane są z arkusza 'Zestawienie' każdego raportu — na podstawie zadań "
+                 "gospodarczych (rębne, PRZEST/PŁAZ, TW+TP).",
+            font=ctk.CTkFont(family="Segoe UI", size=12), text_color="#888888",
+            wraplength=700, justify="left",
+        ).grid(row=1, column=0, columnspan=3, padx=15, pady=(0, 15), sticky="w")
+        ctk.CTkLabel(
+            card, text="Folder z wynikami GDOŚ (opcjonalnie):",
+            font=font_label, text_color="#E0E0E0",
+        ).grid(row=2, column=0, padx=15, pady=(0, 8), sticky="w")
+        self.opis_og_taksator_gdos_entry = ctk.CTkEntry(
+            card, placeholder_text="np. folder z plikami *_wynik.xlsx (GDOŚ)",
+            height=36,
+        )
+        self.opis_og_taksator_gdos_entry.grid(row=2, column=1, padx=5, pady=(0, 8), sticky="ew")
+        ctk.CTkButton(
+            card, text="Przeglądaj", image=self.icon_folder,
+            command=lambda: self.select_dir(self.opis_og_taksator_gdos_entry),
+            width=110, height=36, font=font_btn, fg_color="#333333", hover_color="#444444",
+        ).grid(row=2, column=2, padx=15, pady=(0, 8))
+        ctk.CTkButton(
+            scroll_frame, text="Generuj opisy ogólne", image=self.icon_start,
+            font=ctk.CTkFont(family="Segoe UI", size=15, weight="bold"),
+            fg_color="#0067C0", hover_color="#005A9E", height=44, corner_radius=6,
+            command=self.start_opis_og_taksator_pipeline,
         ).grid(row=1, column=0, padx=20, pady=(5, 20), sticky="ew")

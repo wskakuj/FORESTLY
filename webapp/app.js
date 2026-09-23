@@ -65,7 +65,9 @@ function renderAll(cfg) {
     const [section, name] = tab.key.split("|");
     if (!groups[section]) {
       const g = document.createElement("div");
-      g.className = "nav-group" + (collapsedSections.indexOf(section) >= 0 ? " collapsed" : "");
+      g.className = "nav-group" +
+        ((collapsedSections === null || collapsedSections.indexOf(section) >= 0)
+          ? " collapsed" : "");
       g.dataset.section = section;
       const count = SCHEMA.tabs.filter(t => t.key.split("|")[0] === section).length;
       const header = document.createElement("div");
@@ -122,15 +124,20 @@ function secColor(sec) { return SECTION_COLORS[sec] || { "fg": "var(--accent)", 
 function secKey(sec) { return "__sec__" + sec; }
 
 function loadCollapsedSections() {
-  try { return JSON.parse(localStorage.getItem("klp-nav-collapsed") || "[]"); }
-  catch (e) { return []; }
+  /* brak zapisu w localStorage (pierwsze uruchomienie) => wszystkie grupy
+     zwinięte domyślnie; null = "nie było wyboru użytkownika" */
+  try {
+    const raw = localStorage.getItem("klp-nav-collapsed");
+    if (raw === null) return null;
+    return JSON.parse(raw);
+  } catch (e) { return null; }
 }
 function saveCollapsedSections(list) {
   try { localStorage.setItem("klp-nav-collapsed", JSON.stringify(list)); } catch (e) {}
 }
 function toggleSection(g, section) {
   const closed = g.classList.toggle("collapsed");
-  const list = loadCollapsedSections().filter(s => s !== section);
+  const list = (loadCollapsedSections() || []).filter(s => s !== section);
   if (closed) list.push(section);
   saveCollapsedSections(list);
 }
