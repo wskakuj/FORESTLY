@@ -675,7 +675,14 @@ button.order-toggle.off:hover {
 #task-timer.hidden { display: none; }
 
 /* edytor bazy obszarów GDOŚ — karty zamiast tabeli */
-.gdos-field { width: 100%; }
+.gdos-field {
+  width: 100%; max-width: 900px;
+  /* nadpisuje poziomy układ .field: etykieta, podpowiedź i karty jedno pod drugim */
+  display: flex; flex-direction: column; align-items: stretch; gap: 0;
+}
+/* flex-basis 260px z .field > label w pionowym układzie robiloby z etykiety
+   pudlo o wysokosci 260px — przywracam naturalna wysokosc linii */
+.gdos-field > label { flex: 0 0 auto; }
 .gdos-hint { font-size: 12px; color: var(--text-dim); margin: -4px 0 10px 0; line-height: 1.5; }
 .gdos-wrap { width: 100%; display: flex; flex-direction: column; gap: 12px; }
 
@@ -717,6 +724,12 @@ button.order-toggle.off:hover {
 .gdos-nazwa { flex: 1 1 auto; min-width: 180px; font-weight: 600; }
 .gdos-typ   { flex: 0 1 100px; min-width: 76px; }
 .gdos-kod   { flex: 0 1 140px; min-width: 104px; }
+
+/* proporcje pól w nagłówku karty: nazwa dostaje resztę szerokości,
+   typ i kod mają stałe, wąskie sloty (nadpisuje szerokości powyżej) */
+.gdos-item-head input.gdos-nazwa { flex: 1 1 260px; }
+.gdos-item-head input.gdos-typ   { flex: 0 1 108px; }
+.gdos-item-head input.gdos-kod   { flex: 0 1 160px; }
 
 .gdos-item-head .gdos-del { padding: 7px 9px; }
 .gdos-item-head .gdos-del .bi { stroke: var(--red); }

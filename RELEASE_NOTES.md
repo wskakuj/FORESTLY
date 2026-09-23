@@ -1,3 +1,3 @@
-# Co nowego w v2.0.30
-- readme fix
+# Co nowego w v2.0.31
+- - poprawiona tabela w gdoś
 

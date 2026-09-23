@@ -535,7 +535,10 @@ function renderGdosTable(wrap, rows) {
   };
 
   rows.forEach((row, i) => {
-    const item = el("div", "gdos-item");
+    /* karty domyślnie zwinięte — rozwinięta tylko nowa (pusta nazwa),
+       żeby od razu dało się ją wypełnić */
+    const nowy = !String(row.nazwa || "").trim();
+    const item = el("div", "gdos-item" + (nowy ? "" : " collapsed"));
 
     /* --- nagłówek karty: zwijanie, nazwa, typ, kod, usuń --- */
     const head = el("div", "gdos-item-head");
@@ -602,6 +605,8 @@ function renderGdosTable(wrap, rows) {
   add.onclick = () => {
     rows.push({ nazwa: "", typ: "", kod: "", pzo: "", powiazanie: "", opis: "" });
     renderGdosTable(wrap, rows);
+    const karty = wrap.querySelectorAll(".gdos-item");
+    if (karty.length) karty[karty.length - 1].querySelector(".gdos-nazwa").focus();
   };
   const save = el("button", "btn primary");
   save.innerHTML = ICON("save") + "<span>Zapisz bazę</span>";

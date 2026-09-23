@@ -4,14 +4,18 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="5553df60-78eb-40cf-b78a-3e24e8981b9c" name="Changes" comment="" />
+    <list default="true" id="5553df60-78eb-40cf-b78a-3e24e8981b9c" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/docs/images/forestly-gdos.png" beforeDir="false" afterPath="$PROJECT_DIR$/docs/images/forestly-gdos.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/images/forestly-logo.png" beforeDir="false" afterPath="$PROJECT_DIR$/docs/images/forestly-logo.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/webapp/style.css" beforeDir="false" afterPath="$PROJECT_DIR$/webapp/style.css" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="106" />
+    <option name="cachedIndexableFilesCount" value="107" />
     <option name="fileBasedEmbeddingIndicesEnabled" value="true" />
   </component>
   <component name="Git.Settings">
