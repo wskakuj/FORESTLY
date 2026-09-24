@@ -59,7 +59,7 @@ from app.updater import UpdaterMixin
 
 # Filtry plików dla przeglądarek (id kontrolki → file_types dla pywebview)
 BROWSE_FILTERS = {
-    "all_template": ("Dokument Word", ("*.docx",)),
+    "gdos_xlsx": ("Arkusz Excel", ("*.xlsx", "*.xls")),
     "all_skroty": ("Word i PDF", ("*.docx", "*.doc", "*.pdf")),
     "mt_template": ("Dokument Word", ("*.docx", "*.doc")),
     "tt_template": ("Dokument Word", ("*.docx", "*.doc")),

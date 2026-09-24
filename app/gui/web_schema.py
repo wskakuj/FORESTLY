@@ -304,7 +304,8 @@ def build_schema():
                  "label": "Obszary ochrony przyrody:"},
                 _path("gdos_xlsx", "gdos_xlsx_entry",
                       "Plik Excel do importu bazy:",
-                      "np. gdos_obszary.xlsx (kolumny: Nazwa, Typ, Kod, Publikacja PZO, Powiązanie..., Opis)"),
+                      "np. gdos_obszary.xlsx (kolumny: Nazwa, Typ, Kod, Publikacja PZO, Powiązanie..., Opis)",
+                      kind="file"),
             ],
             "buttons": [
                 _button("export", "Eksportuj bazę do Excela", "gdos_export"),
