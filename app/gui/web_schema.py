@@ -14,7 +14,7 @@ Rodzaje kontrolek (kind):
   check    — checkbox (bool)
   checks   — grupa checkboxów z opcją "Wszystkie" (wzajemne wykluczanie)
   select   — lista rozwijana
-  margins  — tabela marginesów (9 typów plików × 4 strony)
+  margins  — tabela marginesów (10 typów plików × 4 strony)
   fonts    — tabela rozmiarów czcionek arkuszy Excel
   dashboard— kafelki postępu (tylko Pełny Automat)
   info     — statyczny tekst informacyjny
@@ -135,9 +135,6 @@ def build_schema():
                        "Po utworzeniu plików Word generuje dla każdej wsi opis ogólny "
                        "i dołącza go do zestawienia (w PDF zaraz za stroną tytułową).\n"
                        "Dane liczbowe pochodzą z WSK_ZB.doc wsi."),
-                _path("all_gdos", "all_gdos_entry",
-                      "Folder z wynikami GDOŚ (opcjonalny):",
-                      "Formy ochrony przyrody (np. NN_WIEŚ_wynik.xlsx) do opisów ogólnych"),
                 _check("all_custom_skroty", "all_custom_skroty_var",
                        "Użyj własnego pliku 'Skróty i symbole' (zamiast domyślnego z programu)", False),
                 _path("all_skroty", "all_skroty_entry", "Własny plik:",

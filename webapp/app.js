@@ -327,7 +327,9 @@ function allTabKey() {
 
 function wizField(cid) {
   const n = WIZ.home && WIZ.home.querySelector('[data-cid="' + cssEscape(cid) + '"]');
-  return n ? (n.closest(".field") || n) : null;
+  /* cała kontrolka — dla checków label.check-row (gdyby przenieść sam input,
+     straciłby etykietę i ginął przy kolejnym renderWizStep) */
+  return n ? (n.closest(".field, .check-row") || n) : null;
 }
 
 function wizVal(cid) {
@@ -425,7 +427,6 @@ function renderWizStep() {
       moveTo(grp.parentElement);
     }
     moveTo(wizField("all_gen_opis_og"));
-    moveTo(wizField("all_gdos"));
     moveTo(wizField("all_custom_skroty"));
     moveTo(wizField("all_skroty"));
     next.onclick = () => { WIZ.step = 3; renderWizStep(); };
@@ -446,7 +447,22 @@ function renderWizStep() {
       '<div class="wiz-sub">Włącz, jeśli z wydruków REJESTR (oraz z 1. strony)' +
       ' mają zniknąć nazwiska właścicieli.</div>';
     const f = wizField("remove_names");
-    if (f) big.appendChild(f);
+    if (f) {
+      f.classList.add("wiz-switch-big");
+      big.appendChild(f);
+      const cap = el("div", "wiz-switch-cap");
+      const inp = f.querySelector('input[type="checkbox"]');
+      const refresh = () => {
+        const on = !!(inp && inp.checked);
+        cap.textContent = on
+          ? "Nazwiska właścicieli zostaną usunięte z REJESTRU (oraz z 1. strony)."
+          : "REJESTR zostanie wygenerowany z pełnymi nazwiskami właścicieli.";
+        cap.classList.toggle("on", on);
+      };
+      if (inp) inp.addEventListener("change", refresh);
+      refresh();
+      big.appendChild(cap);
+    }
     st.appendChild(big);
     next.onclick = () => { WIZ.step = 5; renderWizStep(); };
   } else if (WIZ.step === 5) {
@@ -463,11 +479,12 @@ function renderWizStep() {
       ["Stan na", wizVal("all_tpl_stan") || "—"],
       ["Okres 10-lecia WSK_ZB", (String(wizVal("all_wsk_od")) + " – " +
                   wizVal("all_wsk_do")).replace(/^ – $|^ – | – $/g, "").trim() || "—"],
-      ["Nazwiska w REJESTRZE", wizVal("remove_names") ? "usuwane" : "zostają"],
+      ["Nazwiska w REJESTRZE", wizVal("remove_names")
+        ? "usuwane z REJESTRU" : "REJESTR z pełnymi nazwiskami"],
       ["Własne skróty i symbole", wizVal("all_custom_skroty")
         ? (wizVal("all_skroty") || "(nie wskazano pliku)") : "domyślne z programu"],
       ["Opisy ogólne", wizVal("all_gen_opis_og")
-        ? (wizVal("all_gdos") ? "z folderem GDOŚ" : "bez GDOŚ") : "pomijane"],
+        ? "generowane dla każdej wsi" : "pomijane"],
     ];
     rows.forEach(r => {
       sum.appendChild(el("div", "wiz-row",
@@ -852,7 +869,8 @@ function wireTerritory() {
 }
 
 /* kontrolka: marginesy */
-const MARGIN_TYPES = ["REJESTR1", "OPTAX", "TAB_KLW3", "WSKAZ1", "HALIZNY", "WYK_NEG", "OPIS", "ZEST1", "WK_ZM1"];
+const MARGIN_TYPES = ["REJESTR1", "OPTAX", "TAB_KLW3", "WSKAZ1", "HALIZNY", "WYK_NEG",
+                     "OPIS", "ZEST1", "WSK_ZB", "WK_ZM1"];
 const MARGIN_SIDES = ["T", "B", "L", "R"];
 
 function renderMargins(c) {

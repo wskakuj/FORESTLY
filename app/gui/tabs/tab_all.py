@@ -172,21 +172,33 @@ class TabAllMixin:
         for i, d in enumerate(self._all_wiz_dots):
             d.configure(text_color="#2dd4a7" if i == step
                         else ("#3a7a68" if i < step else "#555555"))
+        # przyciski nawigacji są w nav zarządzane przez pack — używamy
+        # pack/pack_forget (grid na packowanym widżetie rzuca TclError)
         if step == 0:
-            self._all_wiz_back.grid_remove()
-            self._all_wiz_next.grid()
+            self._all_wiz_back.pack_forget()
+            self._all_wiz_next.pack(side="right")
             self._all_wiz_next.configure(text="Zaczynamy  ›")
         elif step < 5:
-            self._all_wiz_back.grid()
-            self._all_wiz_next.grid()
+            self._all_wiz_back.pack(side="left")
+            self._all_wiz_next.pack(side="right")
             self._all_wiz_next.configure(text="Dalej  ›")
         elif step == 5:
-            self._all_wiz_back.grid()
-            self._all_wiz_next.grid_remove()
+            self._all_wiz_back.pack(side="left")
+            self._all_wiz_next.pack_forget()
             self._all_wiz_refresh_summary()
         else:  # postęp
-            self._all_wiz_back.grid_remove()
-            self._all_wiz_next.grid_remove()
+            self._all_wiz_back.pack_forget()
+            self._all_wiz_next.pack_forget()
+
+    def _all_wiz_names_refresh(self):
+        """Podpis pod przełącznikiem nazwisk — informacja o skutku wyboru."""
+        on = bool(self.remove_names_var.get())
+        self._all_wiz_names_cap.configure(
+            text=("Nazwiska właścicieli zostaną usunięte z REJESTRU\n"
+                  "(oraz z 1. strony)." if on
+                  else "REJESTR zostanie wygenerowany z pełnymi\n"
+                       "nazwiskami właścicieli."),
+            text_color="#34d399" if on else "#888888")
 
     def _all_wiz_build_steps(self, body):
         from app.config import TERRITORY_DATA
@@ -355,36 +367,18 @@ class TabAllMixin:
         ).grid(row=0, column=2, padx=(5, 10), pady=8)
 
         # --- opisy ogólne (zawsze z gotowych WSK_ZB.doc z pipeline) ---
+        # Folder z wynikami GDOŚ nie jest już potrzebny — cała baza obszarów
+        # ochrony przyrody jest w programie (zakładka GDOŚ / gdos_obszary.json)
         self.all_gen_opis_og_var = ctk.BooleanVar(value=True)
         cb_opis = ctk.CTkCheckBox(
             f2,
             text="Generuj opisy ogólne (opis og_<wieś>.docx) po plikach Word",
             variable=self.all_gen_opis_og_var,
             font=ctk.CTkFont(family="Segoe UI", size=12),
-            command=self._toggle_all_gdos_ui,
         )
         cb_opis.grid(row=5, column=0, padx=5, pady=(2, 2), sticky="w")
-        self.all_gdos_frame = ctk.CTkFrame(
-            f2, fg_color="#1E1E1E", border_width=1, border_color="#333333")
-        self.all_gdos_frame.grid(row=6, column=0, padx=5, pady=(0, 10), sticky="ew")
-        self.all_gdos_frame.grid_columnconfigure(1, weight=1)
-        ctk.CTkLabel(self.all_gdos_frame,
-                     text="Folder z wynikami GDOŚ (opcjonalny):", font=font_label,
-                     text_color="#E0E0E0").grid(row=0, column=0, padx=(10, 10),
-                                                pady=5, sticky="w")
-        self.all_gdos_entry = ctk.CTkEntry(
-            self.all_gdos_frame,
-            placeholder_text="Formy ochrony przyrody (NN_WIEŚ_wynik.xlsx) — puste = bez GDOŚ",
-            height=32)
-        self.all_gdos_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
-        ctk.CTkButton(
-            self.all_gdos_frame, text="Wybierz",
-            command=lambda: self.select_dir(self.all_gdos_entry),
-            width=90, height=32, fg_color="#333333", hover_color="#444444",
-        ).grid(row=0, column=2, padx=(5, 10), pady=5)
 
         self._toggle_all_skroty_ui()
-        self._toggle_all_gdos_ui()
         S.append(f2)
 
         # ---------- krok 3: marginesy ----------
@@ -411,12 +405,22 @@ class TabAllMixin:
             karta, text="Włącz, jeśli z wydruków REJESTR (oraz z 1. strony)\nmają zniknąć nazwiska właścicieli.",
             font=font_norm, text_color="#888888", justify="left",
         ).grid(row=1, column=0, padx=18, sticky="w")
-        ctk.CTkCheckBox(
+        self._all_wiz_names_switch = ctk.CTkSwitch(
             karta, text="Usuwaj nazwiska z REJESTRU (oraz 1. stronę)",
             variable=self.remove_names_var,
             font=ctk.CTkFont(family="Segoe UI", size=15, weight="bold"),
-            checkbox_height=24, checkbox_width=24,
-        ).grid(row=2, column=0, padx=18, pady=(10, 18), sticky="w")
+            switch_width=52, switch_height=28,
+            progress_color="#2dd4a7",
+            command=self._all_wiz_names_refresh,
+        )
+        self._all_wiz_names_switch.grid(row=2, column=0, padx=18,
+                                        pady=(10, 4), sticky="w")
+        self._all_wiz_names_cap = ctk.CTkLabel(
+            karta, text="", font=ctk.CTkFont(family="Segoe UI", size=13),
+            justify="left")
+        self._all_wiz_names_cap.grid(row=3, column=0, padx=18,
+                                     pady=(0, 18), sticky="w")
+        self._all_wiz_names_refresh()
         S.append(f4)
 
         # ---------- krok 5: podsumowanie i start ----------
@@ -505,13 +509,13 @@ class TabAllMixin:
             ("Obszar", " / ".join(x for x in [
                 _v("all_tpl_gmina_var"), _v("all_tpl_powiat_var"), _v("all_tpl_woj_var")] if x) or "—"),
             ("Stan na", _v("all_tpl_stan_na_entry") or "—"),
-            ("Nazwiska w REJESTRZE", "usuwane" if self.remove_names_var.get() else "zostają"),
+            ("Nazwiska w REJESTRZE",
+             "usuwane z REJESTRU" if self.remove_names_var.get()
+             else "REJESTR z pełnymi nazwiskami"),
             ("Własne skróty i symbole",
              (self.all_skroty_entry.get().strip() or "(nie wskazano pliku)") if skroty
              else "domyślne z programu"),
-            ("Opisy ogólne",
-             ("z folderem GDOŚ" if self.all_gdos_entry.get().strip() else "bez GDOŚ")
-             if opis_og else "pomijane"),
+            ("Opisy ogólne", "generowane dla każdej wsi" if opis_og else "pomijane"),
         ]
         for i, (k, val) in enumerate(wiersze):
             ctk.CTkLabel(w, text=k, font=font_k, text_color="#888888", anchor="w"
@@ -691,13 +695,6 @@ class TabAllMixin:
         if n_stan or n_wsk:
             self.log(f"[DATY] Zamieniono \"Stan na\" {n_stan}×, "
                      f"okres 10-lecia WSK_ZB {n_wsk}×.")
-
-    def _toggle_all_gdos_ui(self):
-        wlasny = bool(self.all_gen_opis_og_var.get())
-        if wlasny:
-            self.all_gdos_frame.grid()
-        else:
-            self.all_gdos_frame.grid_remove()
 
     def _toggle_all_skroty_ui(self):
         if getattr(self, "all_custom_skroty_var", None) and getattr(self, "all_skroty_frame", None):

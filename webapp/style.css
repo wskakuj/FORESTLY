@@ -344,6 +344,20 @@ select option {
 .check-row input[type="checkbox"]:checked::after { transform: translateX(18px); }
 .check-row span { font-size: 13px; line-height: 1.4; }
 .check-row.disabled { opacity: .35; pointer-events: none; }
+.wiz-check-big .check-row input[type="checkbox"] {
+  width: 54px; height: 30px;
+}
+.wiz-check-big .check-row input[type="checkbox"]::after {
+  width: 22px; height: 22px;
+}
+.wiz-check-big .check-row input[type="checkbox"]:checked::after {
+  transform: translateX(24px);
+}
+.wiz-switch-cap {
+  margin-top: 12px; font-size: 14px; line-height: 1.5;
+  color: var(--muted, #8b97a5);
+}
+.wiz-switch-cap.on { color: #2dd4a7; }
 .checks-grid { display: flex; flex-wrap: wrap; gap: 10px 26px; padding: 6px 0; }
 .checks-grid .check-row input[type="checkbox"] { width: 34px; height: 19px; }
 .checks-grid .check-row input[type="checkbox"]::after {
@@ -464,7 +478,8 @@ select option {
   position: fixed; inset: 0;
   background: rgba(5, 8, 12, 0.65);
   display: flex; align-items: center; justify-content: center;
-  z-index: 100; backdrop-filter: blur(4px);
+  /* nad oknem kreatora (#wizard = 300) — żeby dało się zmieniać układ PDF */
+  z-index: 400; backdrop-filter: blur(4px);
   animation: fadein .15s ease-out;
 }
 @keyframes fadein { from { opacity: 0; } }
@@ -540,7 +555,7 @@ button.order-toggle.off:hover {
 
 /* ================================= toasty ================================ */
 #toast-root {
-  position: fixed; right: 20px; top: 70px; z-index: 200;
+  position: fixed; right: 20px; top: 70px; z-index: 500;
   display: flex; flex-direction: column; gap: 10px;
 }
 .toast {

@@ -775,7 +775,7 @@ class TabRozliczanieMixin:
                 row=1, column=c, padx=5, pady=(0, 5))
 
         file_types = ["REJESTR1", "OPTAX", "TAB_KLW3", "WSKAZ1", "HALIZNY",
-                      "WYK_NEG", "OPIS", "ZEST1", "WK_ZM1"]
+                      "WYK_NEG", "OPIS", "ZEST1", "WSK_ZB", "WK_ZM1"]
         saved_config = load_margins()
         mode_saved = saved_config.get(mode_key, {})
 

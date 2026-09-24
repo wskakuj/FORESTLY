@@ -532,6 +532,7 @@ class ModernApp(
 
         # zwijane grupy sekcji — domyślnie zwinięte (klik w nagłówek rozwija)
         self._sekcje_przyciski = {}
+        self._sekcje_odstepy = {}
         self._sekcje_zwiniete = set()
         _aktualna_sekcja = [None]
 
@@ -542,10 +543,14 @@ class ModernApp(
             _aktualna_sekcja[0] = sekcja
 
             def _przelacz(s=sekcja, lst=przyciski):
+                kotwica = self._sekcje_odstepy.get(s)
                 if s in self._sekcje_zwiniete:
                     self._sekcje_zwiniete.discard(s)
                     for b in lst:
-                        b.pack(fill="x", padx=6, pady=2)
+                        if kotwica is not None:
+                            b.pack(fill="x", padx=6, pady=2, before=kotwica)
+                        else:
+                            b.pack(fill="x", padx=6, pady=2)
                 else:
                     self._sekcje_zwiniete.add(s)
                     for b in lst:
@@ -564,6 +569,11 @@ class ModernApp(
             )
             naglowek_btn.pack(fill="x", padx=8, pady=(14, 2))
             self._sekcje_zwiniete.add(sekcja)  # startowo zwinięte
+            # niewidoczny odstęp-zakładka: przyciski sekcji pakują się przed
+            # nim, więc rozwinięcie grupy NIE spada na koniec menu
+            odstep = ctk.CTkFrame(sidebar, fg_color="transparent", height=0)
+            odstep.pack(fill="x")
+            self._sekcje_odstepy[sekcja] = odstep
 
         def _nowa_zakladka(sekcja, nazwa, tooltip=None):
             klucz = f"{sekcja}|{nazwa}"
@@ -580,7 +590,11 @@ class ModernApp(
                 text_color=("gray10", "gray90"),
                 command=lambda k=klucz: self.pokaz_zakladke(k),
             )
-            btn.pack(fill="x", padx=6, pady=2)
+            kotwica = self._sekcje_odstepy.get(sekcja)
+            if kotwica is not None:
+                btn.pack(fill="x", padx=6, pady=2, before=kotwica)
+            else:
+                btn.pack(fill="x", padx=6, pady=2)
             self._zakladka_buttons[klucz] = btn
             przyciski_sekcji = self._sekcje_przyciski.get(sekcja)
             if przyciski_sekcji is not None:
