@@ -650,17 +650,29 @@ class WebBackend(
         return {"ok": True}
 
     def open_last_output(self):
-        """Otwiera Eksplorator w folderze wyników ostatniego zadania."""
+        """Otwiera Eksplorator w folderze z finalnymi wynikami ostatniego zadania.
+
+        Dla Pełnego Automatu otwieramy od razu folder 'PDF polaczone'
+        (finalne pliki), a nie folder nadrzędny z całą strukturą etapów.
+        """
         try:
             d = getattr(self, "last_output_dir", None)
             if not (d and Path(d).exists()):
                 return {"ok": False,
                         "error": "Folder wyników nieznany \u2014 uruchom najpierw zadanie."}
+            target = Path(d)
+            final = target / "PDF polaczone"
+            if final.exists():
+                target = final
             if os.name == "nt":
-                os.startfile(str(d))  # tylko Windows
+                try:
+                    os.startfile(str(target))
+                except Exception:
+                    # awaryjnie przez explorer.exe (inne błędy ShellExecute)
+                    subprocess.Popen(["explorer", str(target)])
             else:
                 self.log("[UWAGA] Otwieranie folderu jest dostępne na Windows.")
-            return {"ok": True, "path": str(d)}
+            return {"ok": True, "path": str(target)}
         except Exception as e:
             return {"ok": False, "error": str(e)}
 

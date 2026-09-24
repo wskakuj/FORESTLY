@@ -194,8 +194,7 @@ class TabAllMixin:
         """Podpis pod przełącznikiem nazwisk — informacja o skutku wyboru."""
         on = bool(self.remove_names_var.get())
         self._all_wiz_names_cap.configure(
-            text=("Nazwiska właścicieli zostaną usunięte z REJESTRU\n"
-                  "(oraz z 1. strony)." if on
+            text=("Nazwiska właścicieli zostaną usunięte z REJESTRU." if on
                   else "REJESTR zostanie wygenerowany z pełnymi\n"
                        "nazwiskami właścicieli."),
             text_color="#34d399" if on else "#888888")
@@ -1027,6 +1026,7 @@ class TabAllMixin:
 
                 # === ETAP 0: GENEROWANIE TXT Z DBF MIETEKA ===
                 if getattr(self, "all_gen_txt_var", None) is None or self.all_gen_txt_var.get():
+                    self.update_status("Generowanie plików TXT z DBF mietka...", "#0078D7")
                     self.update_dashboard(0, "running", "Generowanie TXT...")
                     self.check_stop()
                     c0 = self.task_generuj_txt(in_root)
@@ -1035,6 +1035,7 @@ class TabAllMixin:
                     self.update_dashboard(0, "done", "Pominięto")
                 self.set_progress(0.05)
 
+                self.update_status("Czyszczenie plików TXT...", "#0078D7")
                 self.update_dashboard(1, "running", "Czyszczenie...")
                 self.check_stop()
                 c1 = self.task_clean_txt(in_root, dir_01)
@@ -1052,6 +1053,7 @@ class TabAllMixin:
                     self.update_status("Błąd — brak plików TXT", "#D83B01", animate=False)
                     return
 
+                self.update_status("Generowanie plików Word...", "#0078D7")
                 self.update_dashboard(2, "running", "Kompilacja...")
                 self.check_stop()
                 self.task_word_processing_subprocess(dir_01, dir_02, remove_names, margins_dict=margins_dict)
@@ -1096,6 +1098,7 @@ class TabAllMixin:
                         self.log("[OPIS OG] Błąd generowania opisów ogólnych:\n"
                                  + traceback.format_exc())
 
+                self.update_status("Konwersja plików Word na PDF...", "#0078D7")
                 self.update_dashboard(3, "running", "Konwersja...")
                 self.check_stop()
                 c3 = self.task_convert_to_pdf(dir_02, dir_03)
@@ -1107,6 +1110,7 @@ class TabAllMixin:
                 self.update_status("Dołączanie 'Skrótów i symboli' do pakietów...", "#0078D7")
                 self._inject_skroty_step(dir_03)
 
+                self.update_status("Scalanie pakietów PDF...", "#0078D7")
                 self.update_dashboard(4, "running", "Scalanie...")
                 self.check_stop()
                 c4 = self.task_merge_pdfs(dir_03, dir_04, mode_key="ALL")
@@ -1114,10 +1118,12 @@ class TabAllMixin:
                 self.set_progress(0.80)
 
                 # usuwanie pustych stron — bez osobnego kroku na dashboardzie
+                self.update_status("Usuwanie pustych stron z PDF...", "#0078D7")
                 self.check_stop()
                 c5 = self.task_remove_blank_pages(dir_04, dir_05)
 
                 # === PORZĄDKI: zostaje tylko finalny folder "PDF polaczone" ===
+                self.update_status("Porządkowanie folderów wynikowych...", "#0078D7")
                 try:
                     if dir_04 and dir_04.exists():
                         shutil.rmtree(dir_04)

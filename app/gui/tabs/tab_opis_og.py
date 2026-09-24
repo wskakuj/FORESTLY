@@ -86,7 +86,7 @@ class TabOpisOgMixin:
         """Wypełnia opis_og_szablon.docx liczbami i zapisuje jako .docx.
 
         formy — lista akapitów o formach ochrony przyrody (z wyników GDOŚ);
-        None => zachowanie dotychczasowe (marker do ręcznego wpisania).
+        None => w tekście zostaje zdanie o braku form ochrony przyrody.
         """
         from docx import Document
         import copy
@@ -94,7 +94,7 @@ class TabOpisOgMixin:
         doc = Document(str(tpl_path))
         vals = dict(values)
         vals["FORMY_OCHRONY"] = (formy[0] if formy
-                                 else "Zlokalizowano następujące formy ochrony przyrody:")
+                                 else "Nie zlokalizowano form ochrony przyrody.")
 
         # tabele (etaty, przedrębne): komórka zawierająca sam placeholder
         # dostaje wartość; klucza brak w danych (np. MIETEK bez arkusza Etaty)
@@ -190,18 +190,14 @@ class TabOpisOgMixin:
                             _usun_keepnext(np_)
                             anchor = new_p
                         _usun_puste_za(anchor)
-                elif not formy and not marker_done:
-                    # dodaj pod spodem wyraźny marker do ręcznego wpisania
-                    new_p = copy.deepcopy(p._p)
-                    p._p.addnext(new_p)
-                    marker = Paragraph(new_p, p._parent)
-                    if marker.runs:
-                        marker.runs[0].text = OCHRONA_MARKER
-                        for r in marker.runs[1:]:
-                            r.text = ""
-                    else:
-                        marker.add_run(OCHRONA_MARKER)
-                    marker_done = True
+                elif not formy:
+                    # brak form ochrony przyrody — zwykła czcionka (nie jak
+                    # nagłówek sekcji), bez keepNext i pustych akapitów za sekcją
+                    for r in p.runs:
+                        if r.bold:
+                            r.bold = None
+                    _usun_keepnext(p)
+                    _usun_puste_za(p._p)
 
         doc.save(str(out_path))
 

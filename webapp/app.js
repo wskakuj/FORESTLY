@@ -455,7 +455,7 @@ function renderWizStep() {
       const refresh = () => {
         const on = !!(inp && inp.checked);
         cap.textContent = on
-          ? "Nazwiska właścicieli zostaną usunięte z REJESTRU (oraz z 1. strony)."
+          ? "Nazwiska właścicieli zostaną usunięte z REJESTRU."
           : "REJESTR zostanie wygenerowany z pełnymi nazwiskami właścicieli.";
         cap.classList.toggle("on", on);
       };
@@ -543,7 +543,12 @@ function wizDone(ok) {
   if (nav) {
     nav.querySelectorAll("button").forEach(b => b.remove());
     const openBtn = el("button", "btn secondary", "Otwórz folder wyników");
-    openBtn.onclick = async () => { try { await api().open_last_output(); } catch (e) {} };
+    openBtn.onclick = async () => {
+      try {
+        const r = await api().open_last_output();
+        if (r && r.ok === false) toast(r.error || "Nie udało się otworzyć folderu.", "warn");
+      } catch (e) { toast("Nie udało się otworzyć folderu.", "warn"); }
+    };
     const closeBtn = el("button", "btn primary wiz-big", "Zamknij");
     closeBtn.onclick = () => closeWizard();
     nav.appendChild(openBtn);

@@ -444,7 +444,12 @@ class ModernApp(
         self.icon_stop = self._create_fallback_icon("#DC143C", "stop")
     def open_last_output_dir(self):
         if self.last_output_dir and Path(self.last_output_dir).exists():
-            os.startfile(str(self.last_output_dir))
+            # finalne wyniki 1-Click: od razu folder 'PDF polaczone'
+            target = Path(self.last_output_dir)
+            final = target / "PDF polaczone"
+            if final.exists():
+                target = final
+            os.startfile(str(target))
         else:
             messagebox.showwarning(
                 "Brak folderu",
