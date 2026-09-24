@@ -140,8 +140,14 @@ def run_word_worker(in_dir_str, out_dir_str, remove_names, file_filter=None, mar
 
     print(">>> Przygotowywanie środowiska Microsoft Word...")
     word = None  # <--- Inicjalizacja przed try
+    _word_pid = None  # PID w rejestrze Office (patrz app/core/office_guard)
     try:
         word = win32com.client.DispatchEx("Word.Application")
+        try:
+            from app.core import office_guard as _og
+            _word_pid = _og.register(word)
+        except Exception:
+            pass
         word.Visible = False  # <--- ZMIANA NA True (Word będzie widoczny)
         word.DisplayAlerts = 0  # <--- ZMIANA NA -1 (Włączamy alerty)
         shell = win32com.client.Dispatch("WScript.Shell")
@@ -283,7 +289,15 @@ def run_word_worker(in_dir_str, out_dir_str, remove_names, file_filter=None, mar
         # --------------------------------------------------------------------
     finally:
         if word is not None:  # <--- Dodany warunek
-            word.Quit()
+            try:
+                word.Quit()
+            except Exception:
+                pass
+            try:
+                from app.core import office_guard as _og
+                _og.unregister(_word_pid)
+            except Exception:
+                pass
         time.sleep(2)
         print(">>> Zakończono procesy tła Word.")
 

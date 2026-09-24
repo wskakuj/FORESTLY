@@ -213,6 +213,14 @@ class TabWordMixin:
                     )
                 except:
                     process.kill()
+            # Word startowany przez COM żyje POZA drzewem procesów workera
+            # i przeżywa taskkill /T — ubijamy go z rejestru, bo inaczej
+            # trzyma blokady na folderach wynikowych po przerwanym zadaniu
+            try:
+                from app.core import office_guard
+                office_guard.kill_registered(log=self.log)
+            except Exception:
+                pass
             try:
                 os.remove(bat_path)
             except:

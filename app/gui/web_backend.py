@@ -657,7 +657,19 @@ class WebBackend(
     def stop(self):
         self.stop_event.set()
         self.log("[STOP] Zatrzymywanie po bieżącym kroku...")
+        # po chwili ubij procesy Office zostawione w tle — zwalniają
+        # blokady na folderach wynikowych (patrz app/core/office_guard)
+        threading.Thread(target=self._office_sweep_after_stop,
+                         daemon=True).start()
         return {"ok": True}
+
+    def _office_sweep_after_stop(self):
+        time.sleep(2.5)
+        try:
+            from app.core import office_guard
+            office_guard.kill_registered(log=self.log)
+        except Exception:
+            pass
 
     def _zapamietaj_folder_wynikow(self, path):
         """Zapisuje folder wyników w settings.json — przetrwa restart GUI
@@ -1046,6 +1058,14 @@ class WebBackend(
                                    stderr=subprocess.DEVNULL)
                 except Exception:
                     process.kill()
+            # Word startowany przez COM żyje POZA drzewem procesów workera
+            # i przeżywa taskkill /T — ubijamy go z rejestru, żeby nie
+            # trzymał blokad na folderach wynikowych po przerwaniu zadania
+            try:
+                from app.core import office_guard
+                office_guard.kill_registered(log=self.log)
+            except Exception:
+                pass
             for p in (bat_path, log_path, margins_file_path):
                 if p:
                     try:

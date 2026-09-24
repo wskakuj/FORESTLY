@@ -60,9 +60,15 @@ class TabPdfMixin:
             self.add_to_stream_queue(doc_path, target)
 
         word = None
+        word_pid = None
         count = 0
         try:
             word = win32com.client.DispatchEx("Word.Application")
+            try:
+                from app.core import office_guard
+                word_pid = office_guard.register(word)
+            except Exception:
+                pass
             word.Visible, word.DisplayAlerts = False, 0
             # --- OPTYMALIZACJA PRĘDKOŚCI ---
             word.Application.ScreenUpdating = False
@@ -115,7 +121,15 @@ class TabPdfMixin:
                         doc.Close(SaveChanges=False)
         finally:
             if word is not None:
-                word.Quit()
+                try:
+                    word.Quit()
+                except Exception:
+                    pass
+                try:
+                    from app.core import office_guard
+                    office_guard.unregister(word_pid)
+                except Exception:
+                    pass
         return count
 
     def task_merge_pdfs(self, in_dir, out_dir, mode_key="ALL"):

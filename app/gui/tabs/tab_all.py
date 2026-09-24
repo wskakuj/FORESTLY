@@ -884,6 +884,12 @@ class TabAllMixin:
             f"[STR_TYT] Rozpoczynam generowanie stron tytułowych dla {len(optax_files)} wsi..."
         )
         word_app = win32com.client.DispatchEx("Word.Application")
+        _word_pid = None
+        try:
+            from app.core import office_guard
+            _word_pid = office_guard.register(word_app)
+        except Exception:
+            pass
         word_app.Visible = False
         word_app.DisplayAlerts = 0
 
@@ -940,6 +946,11 @@ class TabAllMixin:
                 word_app.Quit()
             except:
                 pass
+            try:
+                from app.core import office_guard
+                office_guard.unregister(_word_pid)
+            except Exception:
+                pass
 
     # NOWA METODA: Wstrzykiwanie Skrótów i Symboli do pakietów wsi
     def _resolve_skroty_path(self):
@@ -985,8 +996,14 @@ class TabAllMixin:
         if ext in {".doc", ".docx"}:
             self.log("[SKROTY] Konwertuję plik Word na PDF...")
             word_app = None
+            _word_pid = None
             try:
                 word_app = win32com.client.DispatchEx("Word.Application")
+                try:
+                    from app.core import office_guard
+                    _word_pid = office_guard.register(word_app)
+                except Exception:
+                    pass
                 word_app.Visible = False
                 word_app.DisplayAlerts = 0
                 doc = word_app.Documents.Open(str(skroty_source_path.resolve()), AddToRecentFiles=False)
@@ -1015,6 +1032,11 @@ class TabAllMixin:
                     try:
                         word_app.Quit()
                     except:
+                        pass
+                    try:
+                        from app.core import office_guard
+                        office_guard.unregister(_word_pid)
+                    except Exception:
                         pass
         elif ext == ".pdf":
             skroty_pdf_to_copy = skroty_source_path

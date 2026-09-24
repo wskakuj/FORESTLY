@@ -992,6 +992,18 @@ class ModernApp(
             )
             self.stop_event.set()
             self.stop_btn.configure(state="disabled", text="Zatrzymywanie...")
+            # po chwili ubij procesy Office zostawione w tle — zwalniają
+            # blokady na folderach wynikowych (patrz app/core/office_guard)
+            threading.Thread(target=self._office_sweep_after_stop,
+                             daemon=True).start()
+
+    def _office_sweep_after_stop(self):
+        time.sleep(2.5)
+        try:
+            from app.core import office_guard
+            office_guard.kill_registered(log=self.log)
+        except Exception:
+            pass
 
     # === METODY LIVE FILE STREAM ===
     def init_live_stream(self, total_files=None):

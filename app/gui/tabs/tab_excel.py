@@ -296,6 +296,7 @@ class TabExcelMixin:
     ):
         pythoncom.CoInitialize()
         excel = None
+        _excel_pid = None
         try:
             folder = Path(folder_str)
             output_folder = Path(output_folder_str)
@@ -310,6 +311,11 @@ class TabExcelMixin:
             if not files:
                 raise Exception("Brak plików Excel.")
             excel = win32com.client.DispatchEx("Excel.Application")
+            try:
+                from app.core import office_guard
+                _excel_pid = office_guard.register(excel)
+            except Exception:
+                pass
             excel.Visible = False
             excel.DisplayAlerts = False
             total = len(files)
@@ -387,6 +393,11 @@ class TabExcelMixin:
                 try:
                     excel.Quit()
                 except:
+                    pass
+                try:
+                    from app.core import office_guard
+                    office_guard.unregister(_excel_pid)
+                except Exception:
                     pass
             pythoncom.CoUninitialize()
             self.running = False

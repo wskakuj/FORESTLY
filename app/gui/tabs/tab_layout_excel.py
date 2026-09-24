@@ -180,6 +180,7 @@ class TabLayoutExcelMixin:
     ):
         pythoncom.CoInitialize()
         word, excel = None, None
+        _word_pid = _excel_pid = None
         try:
             # --- SŁOWNIK ZAKŁADEK DLA ARKUSZY EXCEL ---
             SHEET_BOOKMARKS = {
@@ -225,12 +226,21 @@ class TabLayoutExcelMixin:
             temp_folder = Path(output_folder_str) / "_TEMP_PDF_WYLOZENIE"
             temp_folder.mkdir(parents=True, exist_ok=True)
             word = win32com.client.DispatchEx("Word.Application")
+            try:
+                from app.core import office_guard
+                _word_pid = office_guard.register(word)
+            except Exception:
+                pass
             word.Visible, word.DisplayAlerts = False, 0
             word.Application.ScreenUpdating = False
             word.Options.BackgroundSave = False
             word.Options.CheckSpellingAsYouType = False
             word.Options.CheckGrammarAsYouType = False
             excel = win32com.client.DispatchEx("Excel.Application")
+            try:
+                _excel_pid = office_guard.register(excel)
+            except Exception:
+                pass
             excel.Visible, excel.DisplayAlerts = False, False
 
             total = len(all_villages)
@@ -337,10 +347,18 @@ class TabLayoutExcelMixin:
                     word.Quit()
                 except:
                     pass
+                try:
+                    office_guard.unregister(_word_pid)
+                except Exception:
+                    pass
             if excel:
                 try:
                     excel.Quit()
                 except:
+                    pass
+                try:
+                    office_guard.unregister(_excel_pid)
+                except Exception:
                     pass
             pythoncom.CoUninitialize()
             self.running = False
