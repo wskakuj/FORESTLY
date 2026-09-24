@@ -12,23 +12,10 @@ let activeTab = null;
 let setValuesTimer = null;
 
 /* Pokazywanie kontrolki warunkowej: id kontrolki -> id checkboxa */
-/* gałązka do ekranu postępu kreatora — sucha gałązka, która w pętli
-   zarasta zielonymi liśćmi (każdy liść wyrasta z lekkim opóźnieniem) */
-const BRANCH_SVG = `
-<svg viewBox="0 0 150 100" aria-hidden="true">
-  <path class="twig" d="M 16 90 C 44 68, 62 52, 100 30 C 114 22, 126 14, 136 8"/>
-  <path class="twig" d="M 56 62 C 50 50, 46 42, 40 30"/>
-  <path class="twig" d="M 84 42 C 92 48, 100 52, 112 56"/>
-  <path class="twig" d="M 100 30 C 104 22, 108 14, 110 4"/>
-  <g class="leaf" style="animation-delay:0s"    transform="translate(38,66) rotate(-34)"><path d="M0 0 C4 -6, 12 -8, 18 -4 C12 2, 4 3, 0 0 Z"/></g>
-  <g class="leaf" style="animation-delay:.22s"  transform="translate(52,44) rotate(20)"><path d="M0 0 C4 -6, 12 -8, 18 -4 C12 2, 4 3, 0 0 Z"/></g>
-  <g class="leaf" style="animation-delay:.44s"  transform="translate(70,40) rotate(-18)"><path d="M0 0 C4 -6, 12 -8, 18 -4 C12 2, 4 3, 0 0 Z"/></g>
-  <g class="leaf" style="animation-delay:.66s"  transform="translate(48,26) rotate(38)"><path d="M0 0 C4 -6, 12 -8, 18 -4 C12 2, 4 3, 0 0 Z"/></g>
-  <g class="leaf" style="animation-delay:.88s"  transform="translate(96,52) rotate(-30)"><path d="M0 0 C4 -6, 12 -8, 18 -4 C12 2, 4 3, 0 0 Z"/></g>
-  <g class="leaf" style="animation-delay:1.1s"  transform="translate(108,34) rotate(12)"><path d="M0 0 C4 -6, 12 -8, 18 -4 C12 2, 4 3, 0 0 Z"/></g>
-  <g class="leaf" style="animation-delay:1.32s" transform="translate(118,18) rotate(-24)"><path d="M0 0 C4 -6, 12 -8, 18 -4 C12 2, 4 3, 0 0 Z"/></g>
-  <g class="leaf" style="animation-delay:1.54s" transform="translate(128,8) rotate(30)"><path d="M0 0 C4 -6, 12 -8, 18 -4 C12 2, 4 3, 0 0 Z"/></g>
-</svg>`;
+/* drzewko do ekranu postępu kreatora — animowany GIF
+   (gołe drzewko -> zielone liście -> złota jesień -> opadają, w pętli) */
+const BRANCH_HTML =
+  '<img src="drzewko.gif" alt="" draggable="false">';
 
 const DEPENDS = {
   all_skroty: "all_custom_skroty",
@@ -536,7 +523,7 @@ function renderWizStep() {
         '<div class="wiz-file" id="wiz-file"></div>' +
       '</div>';
     const br = document.getElementById("wiz-spin");
-    if (br) br.innerHTML = BRANCH_SVG;
+    if (br) br.innerHTML = BRANCH_HTML;
     const stopBtn = el("button", "btn secondary wiz-stop", "Przerwij zadanie");
     stopBtn.id = "wiz-stop";
     stopBtn.onclick = async () => {

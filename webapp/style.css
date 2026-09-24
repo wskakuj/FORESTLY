@@ -943,12 +943,14 @@ details.margins-details[open] > summary {
 .wiz-row-v { color: var(--text); word-break: break-all; }
 /* ekran postępu */
 .wiz-prog { text-align: center; padding: 14px 0 4px; }
-.wiz-spinner {
-  width: 52px; height: 52px; margin: 0 auto 16px; border-radius: 50%;
-  border: 3px solid var(--border-strong); border-top-color: var(--accent);
-  animation: wizSpin 1s linear infinite;
+/* drzewko (ekran postępu): animowany GIF w pętli — gołe drzewko
+   zarasta zielonymi liśćmi, potem złota jesień i opadają;
+   przezroczyste tło gra z jasnym i ciemnym motywem */
+.wiz-branch { width: 320px; max-width: 82%; margin: 6px auto 12px; }
+.wiz-branch img {
+  display: block; width: 100%; height: auto;
+  filter: drop-shadow(0 10px 22px rgba(0, 0, 0, .18));
 }
-@keyframes wizSpin { to { transform: rotate(360deg); } }
 .wiz-op { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 14px; min-height: 22px; }
 .wiz-bar {
   height: 8px; border-radius: 6px; overflow: hidden;

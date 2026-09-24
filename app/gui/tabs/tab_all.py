@@ -508,12 +508,9 @@ class TabAllMixin:
         self._all_wiz_file = ctk.CTkLabel(
             f6, text="", font=font_norm, text_color="#888888")
         self._all_wiz_file.grid(row=3, column=0, pady=(0, 4))
-        self._all_wiz_stop = ctk.CTkButton(
-            f6, text="Przerwij zadanie", height=36, width=150,
-            fg_color="#8B0000", hover_color="#A52A2A",
-            font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"),
-            command=self._all_wiz_stop_clicked)
-        self._all_wiz_stop.grid(row=4, column=0, pady=(10, 2))
+        # („Przerwij zadanie" żyje w pasku nawigacji — dolny prawy róg;
+        #  drugie tworzenie w f6 nadpisywało przycisk z nawigacji i
+        #  wywalało pack/grid w kroku 6)
         self._all_wiz_done_lbl = ctk.CTkLabel(
             f6, text="", font=ctk.CTkFont(family="Segoe UI", size=20, weight="bold"))
         self._all_wiz_actions = ctk.CTkFrame(f6, fg_color="transparent")
