@@ -140,6 +140,14 @@ class WebBackend(
         self.word_filter_checkboxes = {}
         self.excel_font_entries = {}
 
+        # folder wyników zapamiętany z poprzedniego uruchomienia (settings.json)
+        try:
+            _d = (self.load_settings() or {}).get("last_output_dir")
+            if _d and Path(_d).exists():
+                self.last_output_dir = Path(_d)
+        except Exception:
+            pass
+
         # zdarzenia do frontendu + dialogi
         self._events = deque()
         self._ev_lock = threading.Lock()
@@ -649,6 +657,16 @@ class WebBackend(
         self.log("[STOP] Zatrzymywanie po bieżącym kroku...")
         return {"ok": True}
 
+    def _zapamietaj_folder_wynikow(self, path):
+        """Zapisuje folder wyników w settings.json — przetrwa restart GUI
+        (przycisk 'Otwórz folder wyników' działa też po ponownym uruchomieniu)."""
+        try:
+            ustaw = self.load_settings() or {}
+            ustaw["last_output_dir"] = str(path)
+            self.save_settings(ustaw)
+        except Exception:
+            pass
+
     def open_last_output(self):
         """Otwiera Eksplorator w folderze z finalnymi wynikami ostatniego zadania.
 
@@ -657,6 +675,21 @@ class WebBackend(
         """
         try:
             d = getattr(self, "last_output_dir", None)
+            if not (d and Path(d).exists()):
+                # awaryjnie: folder zapisany w ustawieniach (działa po restarcie)
+                try:
+                    d = (self.load_settings() or {}).get("last_output_dir") or d
+                except Exception:
+                    pass
+            if not (d and Path(d).exists()):
+                # awaryjnie: folder docelowy 1-Click z bieżących ustawień
+                try:
+                    e = (self.entries or {}).get("ALL", {}).get("dst")
+                    alt = e.get() if e is not None else ""
+                    if alt and Path(alt).exists():
+                        d = alt
+                except Exception:
+                    d = None
             if not (d and Path(d).exists()):
                 return {"ok": False,
                         "error": "Folder wyników nieznany \u2014 uruchom najpierw zadanie."}

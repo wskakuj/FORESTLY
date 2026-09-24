@@ -7,12 +7,14 @@ const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
 let SCHEMA = null;
 let VALUES = {};
 let RUNNING = false;
+let LAST_STATUS_TEXT = "";
 let activeTab = null;
 let setValuesTimer = null;
 
 /* Pokazywanie kontrolki warunkowej: id kontrolki -> id checkboxa */
 const DEPENDS = {
   all_skroty: "all_custom_skroty",
+  all_gdos: "all_gen_opis_og",
   xl_global_size: "xl_global_font",
   tpl_MIETEK_village: "tpl_MIETEK_single",
   tpl_MIETEK_area_v: "tpl_MIETEK_area",
@@ -427,6 +429,7 @@ function renderWizStep() {
       moveTo(grp.parentElement);
     }
     moveTo(wizField("all_gen_opis_og"));
+    moveTo(wizField("all_gdos"));
     moveTo(wizField("all_custom_skroty"));
     moveTo(wizField("all_skroty"));
     next.onclick = () => { WIZ.step = 3; renderWizStep(); };
@@ -484,7 +487,8 @@ function renderWizStep() {
       ["Własne skróty i symbole", wizVal("all_custom_skroty")
         ? (wizVal("all_skroty") || "(nie wskazano pliku)") : "domyślne z programu"],
       ["Opisy ogólne", wizVal("all_gen_opis_og")
-        ? "generowane dla każdej wsi" : "pomijane"],
+        ? (wizVal("all_gdos") ? "z formami ochrony z GDOŚ" : "bez folderu GDOŚ")
+        : "pomijane"],
     ];
     rows.forEach(r => {
       sum.appendChild(el("div", "wiz-row",
@@ -513,6 +517,16 @@ function renderWizStep() {
         '<div class="wiz-bar"><div class="wiz-fill" id="wiz-fill"></div></div>' +
         '<div class="wiz-file" id="wiz-file"></div>' +
       '</div>';
+    const stopBtn = el("button", "btn secondary wiz-stop", "Przerwij zadanie");
+    stopBtn.id = "wiz-stop";
+    stopBtn.onclick = async () => {
+      try { await api().stop(); } catch (e) {}
+      STOP_REQUESTED = true;
+      stopBtn.disabled = true;
+      stopBtn.textContent = "Przerywanie…";
+      toast("Zatrzymywanie — program zakończy po bieżącym kroku…", "warn");
+    };
+    st.appendChild(stopBtn);
     const dash = WIZ.home.querySelector("#dashboard");
     if (dash) st.appendChild(dash.closest(".card"));
     back.classList.add("hidden");
@@ -527,16 +541,20 @@ function renderWizStep() {
 /* koniec zadania w kroku postępu — ekran "Ukończono" */
 function wizDone(ok) {
   if (!WIZ.open || WIZ.step !== 6) return;
+  const stopBtn = document.getElementById("wiz-stop");
+  if (stopBtn) stopBtn.remove();
+  const przerwano = (LAST_STATUS_TEXT || "").indexOf("Przerwano") === 0;
   const spin = document.getElementById("wiz-spin");
   if (spin) {
     spin.id = "wiz-done";
-    spin.className = "wiz-done" + (ok ? "" : " err");
-    spin.textContent = ok ? "✓" : "✗";
+    spin.className = "wiz-done" + (ok && !przerwano ? "" : " err");
+    spin.textContent = przerwano ? "⏹" : (ok ? "✓" : "✗");
   }
   const op = document.getElementById("wiz-op");
-  if (op) op.textContent = ok
-    ? "Ukończono!"
-    : "Zadanie zakończone z błędem — szczegóły w dzienniku zdarzeń";
+  if (op) op.textContent = przerwano
+    ? "Przerwano przez użytkownika"
+    : (ok ? "Ukończono!"
+         : "Zadanie zakończone z błędem — szczegóły w dzienniku zdarzeń");
   const fill = document.getElementById("wiz-fill");
   if (fill && ok) fill.style.width = "100%";
   const nav = document.querySelector("#wiz-body .wiz-nav");
@@ -1255,6 +1273,7 @@ function handleEvent(ev) {
     case "clear_log": $("#log").innerHTML = ""; break;
     case "status":
       $("#status-text").textContent = ev.text;
+      LAST_STATUS_TEXT = ev.text || "";
       LAST_STATUS_ERR = (ev.color === "#D83B01");
       $("#status-dot").className = LAST_STATUS_ERR ? "err" : "";
       { const wo = document.getElementById("wiz-op");

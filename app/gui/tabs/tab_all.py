@@ -190,6 +190,15 @@ class TabAllMixin:
             self._all_wiz_back.pack_forget()
             self._all_wiz_next.pack_forget()
 
+    def _toggle_all_gdos_ui(self):
+        """Pole folderu GDOŚ widoczne tylko przy włączonych opisach ogólnych."""
+        if getattr(self, "all_gen_opis_og_var", None) is None:
+            return
+        if self.all_gen_opis_og_var.get():
+            self.all_gdos_frame.grid()
+        else:
+            self.all_gdos_frame.grid_remove()
+
     def _all_wiz_names_refresh(self):
         """Podpis pod przełącznikiem nazwisk — informacja o skutku wyboru."""
         on = bool(self.remove_names_var.get())
@@ -374,10 +383,32 @@ class TabAllMixin:
             text="Generuj opisy ogólne (opis og_<wieś>.docx) po plikach Word",
             variable=self.all_gen_opis_og_var,
             font=ctk.CTkFont(family="Segoe UI", size=12),
+            command=self._toggle_all_gdos_ui,
         )
         cb_opis.grid(row=5, column=0, padx=5, pady=(2, 2), sticky="w")
 
+        # folder z wynikami GDOŚ — źródło form ochrony przyrody dla opisów
+        self.all_gdos_frame = ctk.CTkFrame(
+            f2, fg_color="#1E1E1E", border_width=1, border_color="#333333")
+        self.all_gdos_frame.grid(row=6, column=0, padx=5, pady=(0, 10), sticky="ew")
+        self.all_gdos_frame.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(self.all_gdos_frame,
+                     text="Folder z wynikami GDOŚ (opcjonalny):", font=font_label,
+                     text_color="#E0E0E0").grid(row=0, column=0, padx=(10, 10),
+                                                pady=5, sticky="w")
+        self.all_gdos_entry = ctk.CTkEntry(
+            self.all_gdos_frame,
+            placeholder_text="Formy ochrony przyrody (NN_WIEŚ_wynik.xlsx) — puste = bez GDOŚ",
+            height=32)
+        self.all_gdos_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+        ctk.CTkButton(
+            self.all_gdos_frame, text="Wybierz",
+            command=lambda: self.select_dir(self.all_gdos_entry),
+            width=90, height=32, fg_color="#333333", hover_color="#444444",
+        ).grid(row=0, column=2, padx=(5, 10), pady=5)
+
         self._toggle_all_skroty_ui()
+        self._toggle_all_gdos_ui()
         S.append(f2)
 
         # ---------- krok 3: marginesy ----------
@@ -467,6 +498,12 @@ class TabAllMixin:
         self._all_wiz_file = ctk.CTkLabel(
             f6, text="", font=font_norm, text_color="#888888")
         self._all_wiz_file.grid(row=3, column=0, pady=(0, 4))
+        self._all_wiz_stop = ctk.CTkButton(
+            f6, text="Przerwij zadanie", height=36, width=150,
+            fg_color="#8B0000", hover_color="#A52A2A",
+            font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"),
+            command=self._all_wiz_stop_clicked)
+        self._all_wiz_stop.grid(row=4, column=0, pady=(10, 2))
         self._all_wiz_done_lbl = ctk.CTkLabel(
             f6, text="", font=ctk.CTkFont(family="Segoe UI", size=20, weight="bold"))
         self._all_wiz_actions = ctk.CTkFrame(f6, fg_color="transparent")
@@ -514,7 +551,9 @@ class TabAllMixin:
             ("Własne skróty i symbole",
              (self.all_skroty_entry.get().strip() or "(nie wskazano pliku)") if skroty
              else "domyślne z programu"),
-            ("Opisy ogólne", "generowane dla każdej wsi" if opis_og else "pomijane"),
+            ("Opisy ogólne",
+             "z formami ochrony z GDOŚ" if (opis_og and self.all_gdos_entry.get().strip())
+             else ("bez folderu GDOŚ" if opis_og else "pomijane")),
         ]
         for i, (k, val) in enumerate(wiersze):
             ctk.CTkLabel(w, text=k, font=font_k, text_color="#888888", anchor="w"
@@ -536,6 +575,11 @@ class TabAllMixin:
             pass
 
     def _all_wiz_run(self):
+        try:
+            self._all_wiz_stop.configure(state="normal", text="Przerwij zadanie")
+            self._all_wiz_stop.grid()
+        except Exception:
+            pass
         if self.running:
             self._all_wiz_started = True
             self._all_wiz_show(6)
@@ -583,6 +627,14 @@ class TabAllMixin:
         self._all_wiz_was_running = self.running
         wiz.after(350, self._all_wiz_poll)
 
+    def _all_wiz_stop_clicked(self):
+        """Bezpiecznie przerywa bieżące zadanie (jak przycisk w pasku statusu)."""
+        try:
+            self.cancel_process()
+            self._all_wiz_stop.configure(state="disabled", text="Przerywanie…")
+        except Exception:
+            pass
+
     def _all_wiz_set_done(self, ok, text=None):
         try:
             self._all_wiz_bar.stop()
@@ -594,8 +646,12 @@ class TabAllMixin:
             text=text if text else ("✓  Ukończono!" if ok
                                     else "✗  Zakończono z błędem — szczegóły w dzienniku"),
             text_color="#34d399" if ok else "#fb7185")
-        self._all_wiz_done_lbl.grid(row=4, column=0, pady=(14, 4))
-        self._all_wiz_actions.grid(row=5, column=0, padx=80, pady=(2, 10), sticky="ew")
+        self._all_wiz_done_lbl.grid(row=5, column=0, pady=(14, 4))
+        self._all_wiz_actions.grid(row=6, column=0, padx=80, pady=(2, 10), sticky="ew")
+        try:
+            self._all_wiz_stop.grid_remove()
+        except Exception:
+            pass
         if not ok:
             self._all_wiz_started = False   # można wrócić (Wstecz) i poprawić
             self._all_wiz_back.grid()
@@ -763,6 +819,9 @@ class TabAllMixin:
         if self.running:
             return
         self.last_output_dir = Path(dst_path)
+        _zap = getattr(self, "_zapamietaj_folder_wynikow", None)
+        if _zap is not None:
+            _zap(self.last_output_dir)
         self._disable_ui_for_process()
         self.log(f"[{mode}] URUCHOMIENIE ZADANIA\nZ: {src_path}\nDo: {dst_path}")
         self.set_progress(0)
@@ -1137,6 +1196,14 @@ class TabAllMixin:
                                  "przemianowano na 'PDF polaczone'.")
                 except Exception as e:
                     self.log(f"[PORZĄDKI] Nie udało się zmienić nazwy folderu: {e}")
+
+                # folder wyników = finalne pliki (dla przycisku "Otwórz folder
+                # wyników" — także po zamknięciu i restarcie programu)
+                _final = out_root / "PDF polaczone"
+                self.last_output_dir = _final if _final.exists() else out_root
+                _zap = getattr(self, "_zapamietaj_folder_wynikow", None)
+                if _zap is not None:
+                    _zap(self.last_output_dir)
 
             elif mode == "WORD":
                 dir_01, dir_02 = out_root / "TXT", out_root / "Word"

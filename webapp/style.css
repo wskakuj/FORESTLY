@@ -353,6 +353,12 @@ select option {
 .wiz-check-big .check-row input[type="checkbox"]:checked::after {
   transform: translateX(24px);
 }
+.wiz-stop {
+  margin-top: 14px;
+  color: #e08a8a;
+  border-color: #5f3434;
+}
+.wiz-stop:disabled { opacity: .55; cursor: default; }
 .wiz-switch-cap {
   margin-top: 12px; font-size: 14px; line-height: 1.5;
   color: var(--muted, #8b97a5);
