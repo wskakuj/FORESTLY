@@ -1189,9 +1189,33 @@ class TabOpisOgMixin:
             command=self._gdos_edytor_import,
         ).pack(side="right", padx=8)
 
+        # --- pasek szukania (duże bazy: bez niego 40 tys. kart zamraża GUI) ---
+        self._gdos_edytor_dane = []
+        self._gdos_edytor_filtr = ""
+        self._gdos_edytor_limit = 100
+        szukaj = ctk.CTkFrame(scroll, fg_color="transparent")
+        szukaj.grid(row=3, column=0, padx=20, pady=(0, 8), sticky="ew")
+        ctk.CTkLabel(szukaj, text="Szukaj:", font=ctk.CTkFont(family="Segoe UI", size=12),
+                     text_color="#888888").pack(side="left")
+        self._gdos_szukaj_entry = ctk.CTkEntry(
+            szukaj, width=280, height=30,
+            placeholder_text="nazwa, kod lub typ obszaru…")
+        self._gdos_szukaj_entry.pack(side="left", padx=8)
+        self._gdos_szukaj_entry.bind(
+            "<KeyRelease>", lambda _e: self._gdos_edytor_szukaj())
+        self._gdos_szukaj_wiecej_btn = ctk.CTkButton(
+            szukaj, text="Pokaż więcej (+100)", height=30,
+            fg_color="#333333", hover_color="#444444",
+            command=self._gdos_edytor_wiecej)
+        self._gdos_szukaj_wiecej_btn.pack(side="left", padx=8)
+        self._gdos_edytor_info = ctk.CTkLabel(
+            szukaj, text="", font=ctk.CTkFont(family="Segoe UI", size=12),
+            text_color="#888888")
+        self._gdos_edytor_info.pack(side="right")
+
         self._gdos_edytor_karty = []
         self._gdos_edytor_kontener = ctk.CTkFrame(scroll, fg_color="transparent")
-        self._gdos_edytor_kontener.grid(row=3, column=0, padx=0, pady=(0, 20), sticky="ew")
+        self._gdos_edytor_kontener.grid(row=4, column=0, padx=0, pady=(0, 20), sticky="ew")
         self._gdos_edytor_kontener.grid_columnconfigure(0, weight=1)
         self._gdos_edytor_wczytaj()
 
@@ -1239,39 +1263,88 @@ class TabOpisOgMixin:
             command=lambda k=None: self._gdos_edytor_usun(
                 k or [c for c in self._gdos_edytor_karty if c["frame"] is fr][0]),
         ).grid(row=5, column=7, padx=(4, 12), pady=(0, 8), sticky="e")
+        # edycje kart od razu trafiają do danych w pamięci — dzięki temu
+        # zapis zbiera CAŁĄ bazę, a nie tylko wyrenderowane karty
+        karta["dane"] = dane
+        for klucz in ("nazwa", "typ", "kod", "pzo"):
+            w = karta[klucz]
+            w.bind("<KeyRelease>",
+                   lambda _e, k=klucz, ww=w: dane.__setitem__(k, ww.get()))
+        for klucz in ("powiazanie", "opis"):
+            w = karta[klucz]
+            w.bind("<KeyRelease>",
+                   lambda _e, k=klucz, ww=w: dane.__setitem__(
+                       k, ww.get("1.0", "end-1c")))
         self._gdos_edytor_karty.append(karta)
 
     def _gdos_edytor_wczytaj(self):
-        """Odświeża listę kart edytora z pliku bazy."""
+        """Wczytuje całą bazę do pamięci i renderuje (z limitem) karty."""
+        self._gdos_edytor_dane = self._gdos_baza_wczytaj()
+        self._gdos_edytor_render()
+
+    def _gdos_edytor_szukaj(self):
+        self._gdos_edytor_filtr = self._gdos_szukaj_entry.get().strip().lower()
+        self._gdos_edytor_limit = 100
+        self._gdos_edytor_render()
+
+    def _gdos_edytor_wiecej(self):
+        self._gdos_edytor_limit += 100
+        self._gdos_edytor_render()
+
+    def _gdos_edytor_render(self):
+        """Rysuje tylko przefiltrowane + pierwsze N kart (zabezpieczenie
+        przed zamrożeniem GUI przy bazie z tysięcy obszarów)."""
         for karta in getattr(self, "_gdos_edytor_karty", []):
             karta["frame"].destroy()
         self._gdos_edytor_karty = []
-        for dane in self._gdos_baza_wczytaj():
-            self._gdos_edytor_karta(dane)
+        f = getattr(self, "_gdos_edytor_filtr", "")
+        widok = [d for d in self._gdos_edytor_dane
+                 if not f or f in " ".join(
+                     str(d.get(k, "") or "").lower()
+                     for k in ("nazwa", "kod", "typ"))]
+        for d in widok[:getattr(self, "_gdos_edytor_limit", 100)]:
+            self._gdos_edytor_karta(d)
+        lim = getattr(self, "_gdos_edytor_limit", 100)
+        txt = (f"Pokazano {min(len(widok), lim)} z {len(widok)} obszarów"
+               + (f" (cała baza: {len(self._gdos_edytor_dane)})" if f else ""))
+        if hasattr(self, "_gdos_edytor_info"):
+            self._gdos_edytor_info.configure(text=txt)
+        if hasattr(self, "_gdos_szukaj_wiecej_btn"):
+            self._gdos_szukaj_wiecej_btn.configure(
+                state="normal" if len(widok) > lim else "disabled")
 
     def _gdos_edytor_dodaj(self):
-        self._gdos_edytor_karta()
+        dane = {}
+        self._gdos_edytor_dane.append(dane)
+        self._gdos_edytor_karta(dane)
         ostatnia = self._gdos_edytor_karty[-1]
         ostatnia["nazwa"].focus()
 
     def _gdos_edytor_usun(self, karta):
+        dane = karta.get("dane")
+        if dane is not None:
+            try:
+                self._gdos_edytor_dane.remove(dane)
+            except ValueError:
+                pass
         try:
             self._gdos_edytor_karty.remove(karta)
         except ValueError:
             pass
         karta["frame"].destroy()
+        self._gdos_edytor_render()
 
     def _gdos_edytor_zapisz(self):
-        obszary = []
-        for k in self._gdos_edytor_karty:
-            obszary.append({
-                "nazwa": k["nazwa"].get().strip(),
-                "typ": k["typ"].get().strip(),
-                "kod": k["kod"].get().strip(),
-                "pzo": k["pzo"].get().strip(),
-                "powiazanie": k["powiazanie"].get("1.0", "end").strip(),
-                "opis": k["opis"].get("1.0", "end").strip(),
-            })
+        # baza w pamięci jest źródłem prawdy (karty synchronizują ją na żywo),
+        # więc zapis obejmuje także wiersze ukryte przez filtr/limit
+        obszary = [{
+            "nazwa": str(d.get("nazwa", "") or "").strip(),
+            "typ": str(d.get("typ", "") or "").strip(),
+            "kod": str(d.get("kod", "") or "").strip(),
+            "pzo": str(d.get("pzo", "") or "").strip(),
+            "powiazanie": str(d.get("powiazanie", "") or "").strip(),
+            "opis": str(d.get("opis", "") or "").strip(),
+        } for d in getattr(self, "_gdos_edytor_dane", [])]
         try:
             n = self._gdos_baza_zapisz(obszary)
             self.log(f"[GDOŚ] Zapisano bazę obszarów: {n} pozycji.")

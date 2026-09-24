@@ -229,6 +229,9 @@ function showTab(key) {
   activeTab = key;
   $$(".tab-view").forEach(v => v.classList.toggle("hidden", v.dataset.key !== key));
   $$(".nav-item").forEach(i => i.classList.toggle("active", i.dataset.key === key));
+  /* baza GDOŚ ładuje się dopiero przy pierwszym otwarciu zakładki */
+  const g = document.querySelector('.tab-view:not(.hidden) .gdos-wrap[data-lazy="1"]');
+  if (g) gdosLoad();
   const active = $$(".nav-item").find(i => i.dataset.key === key);
   if (active) {
     const g = active.closest(".nav-group");
@@ -668,120 +671,206 @@ function renderFonts(c) {
 
 /* dashboard */
 /* ------------------------------------- kontrolka: edytor bazy obszarów GDOŚ */
+/* kontrolka: baza obszarów GDOŚ — ładuje dane dopiero przy pierwszym
+   otwarciu zakładki (przy 40 tys.+ obszarach renderowanie na starcie
+   zamrażało cały interfejs); lista stronicowana + z wyszukiwarką */
+const GDOS = { wrap: null, rows: [], q: "", page: 0, per: 50, loaded: false };
+
 function renderGdos(c) {
   const box = el("div", "field gdos-field");
   box.innerHTML = `<label>${escapeHtml(c.label || "Obszary ochrony przyrody")}</label>` +
     `<div class="gdos-hint">Nazwa musi być taka sama jak w pliku wynikowym GDOŚ (np. „Ostoja Międzychodzko-Sierakowska”). Publikacja PZO, powiązanie i opis trafiają do opisu ogólnego. W pustych polach pokazuję przykłady.</div>`;
   const wrap = el("div", "gdos-wrap");
+  wrap.dataset.lazy = "1";
+  wrap.innerHTML = '<div class="gdos-hint">Baza wczyta się po otwarciu tej zakładki.</div>';
   box.appendChild(wrap);
-  api().gdos_list().then(r => {
-    renderGdosTable(wrap, (r && r.ok) ? r.rows : []);
-    if (r && !r.ok) toast(r.error || "Nie udało się wczytać bazy obszarów.", "error");
-  }).catch(() => { /* pywebview jeszcze niegotowy */ });
+  GDOS.wrap = wrap;
   return box;
 }
 
-function renderGdosTable(wrap, rows) {
-  wrap.innerHTML = "";
-  const PH = {
-    nazwa: "np. Ostoja Międzychodzko-Sierakowska",
-    typ: "OSO lub SOO — puste dla parku krajobrazowego",
-    kod: "np. PLH300036",
-    pzo: "np. Dz. Urz. Woj. Wielkopolskiego z 2014 r. poz. 1793",
-    powiazanie: "np. PZO wskazuje zagrożenia związane m.in. z cięciami starodrzewów, pracami w okresach wrażliwych oraz usuwaniem drzew dziuplastych i martwego drewna...",
-    opis: "np. Sierakowski Park Krajobrazowy: według stanu na 21 września 2026 r. nie zgłoszono sprzeciwu do zadań gospodarki leśnej na gruntach prywatnych."
+function gdosLoad() {
+  if (!GDOS.wrap) return;
+  GDOS.wrap.dataset.lazy = "0";
+  GDOS.loaded = false;
+  GDOS.wrap.innerHTML = '<div class="gdos-hint">Wczytywanie bazy obszarów… (przy dużej bazie może chwilę potrwać)</div>';
+  api().gdos_list().then(r => {
+    GDOS.rows = (r && r.ok && Array.isArray(r.rows)) ? r.rows : [];
+    GDOS.loaded = true;
+    GDOS.q = "";
+    GDOS.page = 0;
+    gdosRender();
+    if (r && !r.ok) toast(r.error || "Nie udało się wczytać bazy obszarów.", "error");
+  }).catch(() => {
+    GDOS.wrap.innerHTML = '<div class="gdos-hint">Nie udało się wczytać bazy (program jeszcze się uruchamia?).</div>';
+  });
+}
+
+function gdosFiltered() {
+  const q = GDOS.q.trim().toLowerCase();
+  if (!q) return GDOS.rows;
+  return GDOS.rows.filter(r =>
+    (r.nazwa || "").toLowerCase().includes(q) ||
+    (r.kod || "").toLowerCase().includes(q) ||
+    (r.typ || "").toLowerCase().includes(q));
+}
+
+const GDOS_PH = {
+  nazwa: "np. Ostoja Międzychodzko-Sierakowska",
+  typ: "OSO lub SOO — puste dla parku krajobrazowego",
+  kod: "np. PLH300036",
+  pzo: "np. Dz. Urz. Woj. Wielkopolskiego z 2014 r. poz. 1793",
+  powiazanie: "np. PZO wskazuje zagrożenia związane m.in. z cięciami starodrzewów, pracami w okresach wrażliwych oraz usuwaniem drzew dziuplastych i martwego drewna...",
+  opis: "np. Sierakowski Park Krajobrazowy: według stanu na 21 września 2026 r. nie zgłoszono sprzeciwu do zadań gospodarki leśnej na gruntach prywatnych."
+};
+
+function gdosCard(row) {
+  const nowy = !String(row.nazwa || "").trim();
+  const item = el("div", "gdos-item" + (nowy ? "" : " collapsed"));
+  const bind = (w, f) => { w.oninput = () => { row[f] = w.value; }; };
+
+  const head = el("div", "gdos-item-head");
+  const tog = el("button", "gdos-tog");
+  tog.type = "button";
+  tog.title = "Rozwiń / zwiń szczegóły obszaru";
+  tog.innerHTML = ICON("chevron");
+
+  const nazwa = el("input", "gdos-nazwa");
+  nazwa.type = "text";
+  nazwa.placeholder = GDOS_PH.nazwa;
+  nazwa.value = row.nazwa != null ? String(row.nazwa) : "";
+  nazwa.title = "Nazwa obszaru — dokładnie taka jak w pliku GDOŚ";
+  bind(nazwa, "nazwa");
+
+  const typ = el("input", "gdos-typ");
+  typ.type = "text";
+  typ.placeholder = GDOS_PH.typ;
+  typ.value = row.typ != null ? String(row.typ) : "";
+  typ.title = "Typ obszaru";
+  bind(typ, "typ");
+
+  const kod = el("input", "gdos-kod");
+  kod.type = "text";
+  kod.placeholder = GDOS_PH.kod;
+  kod.value = row.kod != null ? String(row.kod) : "";
+  kod.title = "Kod obszaru Natura 2000";
+  bind(kod, "kod");
+
+  const del = el("button", "btn secondary gdos-del");
+  del.innerHTML = ICON("trash");
+  del.title = "Usuń ten obszar";
+  del.onclick = () => {
+    const i = GDOS.rows.indexOf(row);
+    if (i >= 0) GDOS.rows.splice(i, 1);
+    gdosRender();
   };
 
-  rows.forEach((row, i) => {
-    /* karty domyślnie zwinięte — rozwinięta tylko nowa (pusta nazwa),
-       żeby od razu dało się ją wypełnić */
-    const nowy = !String(row.nazwa || "").trim();
-    const item = el("div", "gdos-item" + (nowy ? "" : " collapsed"));
+  head.appendChild(tog);
+  head.appendChild(nazwa);
+  head.appendChild(typ);
+  head.appendChild(kod);
+  head.appendChild(del);
+  item.appendChild(head);
 
-    /* --- nagłówek karty: zwijanie, nazwa, typ, kod, usuń --- */
-    const head = el("div", "gdos-item-head");
-    const tog = el("button", "gdos-tog");
-    tog.type = "button";
-    tog.title = "Rozwiń / zwiń szczegóły obszaru";
-    tog.innerHTML = ICON("chevron");
-
-    const nazwa = el("input", "gdos-nazwa");
-    nazwa.type = "text";
-    nazwa.placeholder = PH.nazwa;
-    nazwa.value = row.nazwa != null ? String(row.nazwa) : "";
-    nazwa.dataset.g = i + ":nazwa";
-    nazwa.title = "Nazwa obszaru — dokładnie taka jak w pliku GDOŚ";
-
-    const typ = el("input", "gdos-typ");
-    typ.type = "text";
-    typ.placeholder = PH.typ;
-    typ.value = row.typ != null ? String(row.typ) : "";
-    typ.dataset.g = i + ":typ";
-    typ.title = "Typ obszaru";
-
-    const kod = el("input", "gdos-kod");
-    kod.type = "text";
-    kod.placeholder = PH.kod;
-    kod.value = row.kod != null ? String(row.kod) : "";
-    kod.dataset.g = i + ":kod";
-    kod.title = "Kod obszaru Natura 2000";
-
-    const del = el("button", "btn secondary gdos-del");
-    del.innerHTML = ICON("trash");
-    del.title = "Usuń ten obszar";
-    del.onclick = () => { rows.splice(i, 1); renderGdosTable(wrap, rows); };
-
-    head.appendChild(tog);
-    head.appendChild(nazwa);
-    head.appendChild(typ);
-    head.appendChild(kod);
-    head.appendChild(del);
-    item.appendChild(head);
-
-    /* --- rozwijana treść: publikacja, powiązanie, opis --- */
-    const body = el("div", "gdos-item-body");
-    [["pzo", "Publikacja PZO"], ["powiazanie", "Powiązanie z gospodarką leśną"],
-     ["opis", "Opis (pozostałe formy)"]].forEach(f => {
-      const fld = el("div", "gdos-fld");
-      fld.appendChild(el("label", null, escapeHtml(f[1])));
-      const ta = el("textarea");
-      ta.rows = 3;
-      ta.placeholder = PH[f[0]];
-      ta.value = row[f[0]] != null ? String(row[f[0]]) : "";
-      ta.dataset.g = i + ":" + f[0];
-      fld.appendChild(ta);
-      body.appendChild(fld);
-    });
-    item.appendChild(body);
-    tog.onclick = () => item.classList.toggle("collapsed");
-    wrap.appendChild(item);
+  const body = el("div", "gdos-item-body");
+  [["pzo", "Publikacja PZO"], ["powiazanie", "Powiązanie z gospodarką leśną"],
+   ["opis", "Opis (pozostałe formy)"]].forEach(f => {
+    const fld = el("div", "gdos-fld");
+    fld.appendChild(el("label", null, escapeHtml(f[1])));
+    const ta = el("textarea");
+    ta.rows = 3;
+    ta.placeholder = GDOS_PH[f[0]];
+    ta.value = row[f[0]] != null ? String(row[f[0]]) : "";
+    bind(ta, f[0]);
+    fld.appendChild(ta);
+    body.appendChild(fld);
   });
+  item.appendChild(body);
+  tog.onclick = () => item.classList.toggle("collapsed");
+  return item;
+}
 
+function gdosRender() {
+  const wrap = GDOS.wrap;
+  if (!wrap || !GDOS.loaded) return;
+  const fil = gdosFiltered();
+  const pages = Math.max(1, Math.ceil(fil.length / GDOS.per));
+  if (GDOS.page >= pages) GDOS.page = pages - 1;
+  const from = GDOS.page * GDOS.per;
+  const slice = fil.slice(from, from + GDOS.per);
+
+  wrap.innerHTML = "";
+
+  /* pasek narzędzi: szukajka + licznik + odśwież */
+  const top = el("div", "gdos-toolbar");
+  const srch = el("input", "gdos-search");
+  srch.type = "text";
+  srch.placeholder = "Szukaj po nazwie, kodzie lub typie…";
+  srch.value = GDOS.q;
+  srch.oninput = () => { GDOS.q = srch.value; GDOS.page = 0; gdosRender(); };
+  const info = el("div", "gdos-info");
+  info.textContent = GDOS.q.trim()
+    ? `Znaleziono ${fil.length} z ${GDOS.rows.length} obszarów`
+    : `${GDOS.rows.length} obszarów w bazie`;
+  const rl = el("button", "btn ghost small", "Odśwież");
+  rl.title = "Pobierz bazę ponownie z dysku (np. po imporcie z Excela)";
+  rl.onclick = () => gdosLoad();
+  top.appendChild(srch);
+  top.appendChild(info);
+  top.appendChild(rl);
+  wrap.appendChild(top);
+
+  const list = el("div", "gdos-list");
+  slice.forEach(row => list.appendChild(gdosCard(row)));
+  if (!slice.length) {
+    list.appendChild(el("div", "gdos-hint",
+      "Brak obszarów pasujących do wyszukiwania."));
+  }
+  wrap.appendChild(list);
+
+  /* stronicowanie */
+  const pager = el("div", "gdos-pager");
+  const prev = el("button", "btn secondary small", "‹ Poprzednia");
+  prev.disabled = GDOS.page <= 0;
+  prev.onclick = () => { GDOS.page--; gdosRender(); };
+  const lab = el("span", "gdos-page-info",
+    `Strona ${GDOS.page + 1} z ${pages} — pozycje ` +
+    `${fil.length ? from + 1 : 0}–${from + slice.length}`);
+  const next = el("button", "btn secondary small", "Następna ›");
+  next.disabled = GDOS.page >= pages - 1;
+  next.onclick = () => { GDOS.page++; gdosRender(); };
+  pager.appendChild(prev);
+  pager.appendChild(lab);
+  pager.appendChild(next);
+  wrap.appendChild(pager);
+
+  /* akcje */
   const acts = el("div", "actions");
   const add = el("button", "btn secondary");
   add.innerHTML = ICON("plus") + "<span>Dodaj obszar</span>";
   add.onclick = () => {
-    rows.push({ nazwa: "", typ: "", kod: "", pzo: "", powiazanie: "", opis: "" });
-    renderGdosTable(wrap, rows);
+    GDOS.rows.push({ nazwa: "", typ: "", kod: "", pzo: "", powiazanie: "", opis: "" });
+    GDOS.q = "";
+    GDOS.page = Math.floor((GDOS.rows.length - 1) / GDOS.per);
+    gdosRender();
     const karty = wrap.querySelectorAll(".gdos-item");
     if (karty.length) karty[karty.length - 1].querySelector(".gdos-nazwa").focus();
   };
   const save = el("button", "btn primary");
   save.innerHTML = ICON("save") + "<span>Zapisz bazę</span>";
   save.onclick = async () => {
-    const out = [];
-    wrap.querySelectorAll(".gdos-item").forEach(it => {
-      const o = {};
-      it.querySelectorAll("[data-g]").forEach(inp => { o[inp.dataset.g.split(":")[1]] = inp.value; });
-      out.push(o);
-    });
-    const czyste = out.filter(o => String(o.nazwa || "").trim());
-    if (out.length !== czyste.length) toast("Pominięto obszary bez nazwy.", "warn");
+    const czyste = GDOS.rows.filter(o => String(o.nazwa || "").trim());
+    if (czyste.length !== GDOS.rows.length) toast("Pominięto obszary bez nazwy.", "warn");
+    save.disabled = true;
+    save.innerHTML = ICON("save") + "<span>Zapisuję…</span>";
     try {
       const r = await api().gdos_save(JSON.stringify(czyste));
-      if (r.ok) toast("✓ Zapisano bazę obszarów (" + r.count + ")", "done");
-      else toast(r.error || "Nie udało się zapisać bazy.", "error");
-    } catch (e) { toast("Nie udało się zapisać bazy.", "error"); }
+      if (r && r.ok) toast("✓ Zapisano bazę obszarów (" + r.count + ")", "done");
+      else toast((r && r.error) || "Nie udało się zapisać bazy.", "error");
+    } catch (e) {
+      toast("Nie udało się zapisać bazy.", "error");
+    }
+    save.disabled = false;
+    save.innerHTML = ICON("save") + "<span>Zapisz bazę</span>";
   };
   acts.appendChild(add);
   acts.appendChild(save);
@@ -896,6 +985,11 @@ async function pollLoop() {
 function handleEvent(ev) {
   switch (ev.type) {
     case "log": appendLog(ev.text); break;
+    case "gdos_changed":
+      /* baza została nadpisana (import z Excela) — odśwież edytor,
+         żeby nie nadpisał nowej bazy starymi danymi z pamięci */
+      if (GDOS.wrap && GDOS.wrap.dataset.lazy === "0") gdosLoad();
+      break;
     case "clear_log": $("#log").innerHTML = ""; break;
     case "status":
       $("#status-text").textContent = ev.text;

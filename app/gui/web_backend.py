@@ -749,8 +749,12 @@ class WebBackend(
                 self.update_status("Brak pliku", "#D83B01", animate=False)
                 return {"ok": False, "error": "Brak pliku"}
             n = self.gdos_importuj_excel(Path(raw))
-            self.log(f"[OK] Zaimportowano bazę GDOŚ ({n} obszarów) z pliku: {raw}")
+            self.log(f"[OK] Zaimportowano bazę GDOŚ ({n} obszarów) z pliku: {raw} "
+                     "— poprzednia baza została w całości zastąpiona.")
             self.update_status("Baza zaimportowana", "#107C10", animate=False)
+            # edytor (jeśli otwarty) musi przeładować dane, żeby nie nadpisał
+            # nowej bazy starym stanem z pamięci
+            self._emit({"type": "gdos_changed", "count": n})
             return {"ok": True, "count": n}
         except Exception:
             self.log("[BŁĄD] Import bazy GDOŚ:\n" + traceback.format_exc())
