@@ -74,20 +74,36 @@ def run_word_worker(in_dir_str, out_dir_str, remove_names, file_filter=None, mar
                 text = text.replace("\x0b", "\n\xa0")
 
                 # 2. Odpowiednik wycinania kolumny od dołu (w Pythonie tniemy po linijkach)
+                #    UWAGA: nagłówki stron ('AGENCJA...' / 'Rejestr działek...')
+                #    są POMIJANE — to nie wiersze danych. Wcześniej cięcie
+                #    zniekształcało je na każdej stronie oprócz pierwszej
+                #    (na stronie 1 chronił je tylko start od 3. linii),
+                #    przez co znikało np. '"CEZAR"' i rozjeżdżał się układ.
+                _naglowek_strony = re.compile(
+                    r'^\s*(AGENCJA\b|Rejestr (działek|deli|ieli))')
                 lines = text.split("\n")
                 for i in range(2, len(lines)):
-                    if len(lines[i]) >= 62:  # 11 (StartUsun) + 51 (DlugoscUsun) = 62
+                    if len(lines[i]) >= 62 and not _naglowek_strony.match(lines[i]):
+                        # 11 (StartUsun) + 51 (DlugoscUsun) = 62
                         # Zostawiamy 10 pierwszych znaków i łączymy z resztą tekstu za nazwiskiem
                         lines[i] = lines[i][:10] + lines[i][61:]
                 text = "\n".join(lines)
 
                 # 3. Odpowiedniki "Replace" (dokładnie jak w VBA)
-                text = text.replace('AGENCJA "C', 'AGENCJA "CEZAR"')
+                # Naprawa nagłówka agencji — WYŁĄCZNIE pierwsza strona
+                # rejestru (tekst przed pierwszym \f), nic poza nim.
+                # Stary łańcuch replace z VBA doklejał "EZAR"" do nagłówka
+                # KAŻDEJ strony w całym dokumencie i rozjeżdżał układ —
+                # teraz tylko zdeglatkowujemy nagłówek strony 1:
+                # 'AGENCJA "CEZAR"EZAR"' -> 'AGENCJA "CEZAR"' itp.
+                _head, _ff, _rest = text.partition("\f")
+                _head = re.sub(
+                    r'(AGENCJA[ \t]*["„"][ \t]*CEZAR[ \t]*["”"])'
+                    r'[ \t]*EZAR[ \t]*["”"]?',
+                    r'\1', _head, count=1)
+                text = _head + _ff + _rest
                 text = text.replace('Rejestr deli',
                                     'Rejestr działek leśnych i gruntów do zalesienia wg. właścicieli')
-                text = text.replace('AGENCJA „CEZAR"EZAR"', 'AGENCJA "CEZAR"')
-                text = text.replace('AGENCJA', 'AGENCJA "CEZAR"')
-                text = text.replace('AGENCJA "CEZAR" "CEZAR"', 'AGENCJA "CEZAR"')
                 text = text.replace('Rejestr ieli',
                                     'Rejestr działek leśnych i gruntów do zalesienia wg. właścicieli')
                 text = re.sub(r'E\s*$', '', text)

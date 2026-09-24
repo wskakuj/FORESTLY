@@ -140,6 +140,13 @@ class TabAllMixin:
             font=ctk.CTkFont(family="Segoe UI", size=14, weight="bold"),
             command=self._all_wiz_next_step)
         self._all_wiz_next.pack(side="right")
+        # „Przerwij zadanie" — pokazywany tylko w kroku 6 (postęp),
+        # w dolnym prawym rogu okienka kreatora
+        self._all_wiz_stop = ctk.CTkButton(
+            nav, text="Przerwij zadanie", width=150, height=34,
+            fg_color="#8B0000", hover_color="#A52A2A",
+            font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"),
+            command=self._all_wiz_stop_clicked)
 
         self._all_wiz_build_steps(body)
         self._all_wiz_show(0)
@@ -178,10 +185,12 @@ class TabAllMixin:
             self._all_wiz_back.pack_forget()
             self._all_wiz_next.pack(side="right")
             self._all_wiz_next.configure(text="Zaczynamy  ›")
+            self._all_wiz_stop.pack_forget()
         elif step < 5:
             self._all_wiz_back.pack(side="left")
             self._all_wiz_next.pack(side="right")
             self._all_wiz_next.configure(text="Dalej  ›")
+            self._all_wiz_stop.pack_forget()
         elif step == 5:
             self._all_wiz_back.pack(side="left")
             self._all_wiz_next.pack_forget()
@@ -189,6 +198,7 @@ class TabAllMixin:
         else:  # postęp
             self._all_wiz_back.pack_forget()
             self._all_wiz_next.pack_forget()
+            self._all_wiz_stop.pack(side="right")
 
     def _toggle_all_gdos_ui(self):
         """Pole folderu GDOŚ widoczne tylko przy włączonych opisach ogólnych."""
@@ -577,7 +587,6 @@ class TabAllMixin:
     def _all_wiz_run(self):
         try:
             self._all_wiz_stop.configure(state="normal", text="Przerwij zadanie")
-            self._all_wiz_stop.grid()
         except Exception:
             pass
         if self.running:
@@ -646,10 +655,10 @@ class TabAllMixin:
             text=text if text else ("✓  Ukończono!" if ok
                                     else "✗  Zakończono z błędem — szczegóły w dzienniku"),
             text_color="#34d399" if ok else "#fb7185")
-        self._all_wiz_done_lbl.grid(row=5, column=0, pady=(14, 4))
-        self._all_wiz_actions.grid(row=6, column=0, padx=80, pady=(2, 10), sticky="ew")
+        self._all_wiz_done_lbl.grid(row=4, column=0, pady=(14, 4))
+        self._all_wiz_actions.grid(row=5, column=0, padx=80, pady=(2, 10), sticky="ew")
         try:
-            self._all_wiz_stop.grid_remove()
+            self._all_wiz_stop.pack_forget()
         except Exception:
             pass
         if not ok:
