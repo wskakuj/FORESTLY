@@ -935,18 +935,22 @@ class ModernApp(
         self.aktualna_zakladka = klucz
         self.aktualna_zakladka_nazwa = klucz.split("|", 1)[1] if klucz else None
         self.update_options_visibility()
+        # wejście w Pełny Automat (1-Click) otwiera kreatora — jak w webowym GUI
+        if klucz == "MIETEK|Pełny Automat (1-Click)":
+            self.after(150, self._open_all_wizard)
 
     def update_options_visibility(self):
         of = getattr(self, "options_frame", None)
         if of is None:
             return
         nazwa = getattr(self, "aktualna_zakladka_nazwa", None)
-        if nazwa in ("Pełny Automat (1-Click)", "Konwersja: MIETEK -> Word"):
+        if nazwa == "Konwersja: MIETEK -> Word":
             of.grid()
         else:
             of.grid_remove()
 
     def update_status(self, text, color="#0078D7", animate=True):
+        self.status_color = color
         def _update_stat():
             self.status_base_text = text
             self.status_label.configure(text_color=color)
@@ -1314,6 +1318,7 @@ class ModernApp(
             bar_value = max(0.0, min(1.0, float(value)))
         except Exception:
             bar_value = 0.0
+        self.progress_bar_value = bar_value
 
         def _update():
             try:

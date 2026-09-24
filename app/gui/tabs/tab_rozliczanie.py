@@ -727,7 +727,7 @@ class TabRozliczanieMixin:
             self.running = False
             self.after(0, self.restore_all_buttons)
 
-    def _build_margins_ui(self, parent_frame, row_idx, mode_key):
+    def _build_margins_ui(self, parent_frame, row_idx, mode_key, start_open=False):
         """Tabela marginesów jako zwijana lista (domyślnie zwinęta)."""
         if not hasattr(self, "margin_vars"):
             self.margin_vars = {}
@@ -763,7 +763,11 @@ class TabRozliczanieMixin:
         body = ctk.CTkFrame(margin_frame, fg_color="transparent")
         body.grid(row=1, column=0, padx=5, pady=(0, 6), sticky="ew")
         body.grid_columnconfigure((1, 2, 3, 4), weight=0)
-        body.grid_remove()  # domyślnie zwinięte
+        self._margins_open[mode_key] = bool(start_open)
+        if start_open:
+            hdr.configure(text="▾  Ustawienia marginesów (w cm)")
+        else:
+            body.grid_remove()  # domyślnie zwinięte
 
         headers = ["Typ pliku", "Góra", "Dół", "Lewo", "Prawo"]
         for c, h in enumerate(headers):

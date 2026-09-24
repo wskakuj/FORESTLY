@@ -232,6 +232,8 @@ function showTab(key) {
   /* baza GDOŚ ładuje się dopiero przy pierwszym otwarciu zakładki */
   const g = document.querySelector('.tab-view:not(.hidden) .gdos-wrap[data-lazy="1"]');
   if (g) gdosLoad();
+  /* wejście w Pełny Automat (także z ekranu Start) otwiera kreatora */
+  if (key === allTabKey()) openWizard();
   const active = $$(".nav-item").find(i => i.dataset.key === key);
   if (active) {
     const g = active.closest(".nav-group");
@@ -276,9 +278,24 @@ function renderGroup(c) {
 }
 
 function renderControls(view, tab) {
+  /* Pełny Automat (1-Click): klasyczny formularz chowam — zakładka
+     otwiera kreatora krok po kroku (wizard), który korzysta z tych pól */
+  const isAll = tab.key.indexOf("Pełny Automat") >= 0;
+  let target = view;
+  if (isAll) {
+    const hide = document.createElement("div");
+    hide.style.display = "none";
+    view.appendChild(hide);
+    target = hide;
+  }
   for (const c of tab.controls) {
     const node = renderOneControl(c);
-    if (node) view.appendChild(node);
+    if (node) target.appendChild(node);
+  }
+  if (isAll) {
+    WIZ.home = target;
+    WIZ.children = [...target.childNodes];
+    return;  /* przyciski akcji ma kreator */
   }
   const actions = document.createElement("div");
   actions.className = "actions";
@@ -293,6 +310,228 @@ function renderControls(view, tab) {
     actions.appendChild(btn);
   }
   view.appendChild(actions);
+}
+
+/* ================== Kreator Pełnego Automatu (1-Click) ==================
+   Zakładka 1-Click otwiera okno kreatora: krótki opis → lokalizacje →
+   strona tytułowa i daty → marginesy → nazwiska → uruchomienie → postęp.
+   Kreator korzysta z PRAWDZIWYCH pól formularza (przenosi je do okna),
+   więc zapisywanie i odczyt ustawień działa bez zmian. */
+const WIZ = { open: false, step: 0, home: null, children: [] };
+const WIZ_NAV = ["Lokalizacje", "Strona tytułowa i daty", "Marginesy",
+                 "Nazwiska", "Uruchomienie"];
+
+function allTabKey() {
+  return (SCHEMA.tabs.find(t => t.key.indexOf("Pełny Automat") >= 0) || {}).key || "";
+}
+
+function wizField(cid) {
+  const n = WIZ.home && WIZ.home.querySelector('[data-cid="' + cssEscape(cid) + '"]');
+  return n ? (n.closest(".field") || n) : null;
+}
+
+function wizVal(cid) {
+  const n = WIZ.home && WIZ.home.querySelector('[data-cid="' + cssEscape(cid) + '"]');
+  if (!n) return "";
+  if (n.type === "checkbox") return n.checked;
+  return String(n.value || "").trim();
+}
+
+function openWizard() {
+  if (WIZ.open || !allTabKey() || !WIZ.home) return;
+  WIZ.open = true;
+  WIZ.step = 0;
+  const wz = document.createElement("div");
+  wz.id = "wizard";
+  wz.innerHTML =
+    '<div class="wiz-box">' +
+      '<div class="wiz-head">' +
+        '<div class="wiz-title">Pełny Automat (1-Click)</div>' +
+        '<div class="wiz-dots" id="wiz-dots"></div>' +
+        '<button class="wiz-close" id="wiz-close" title="Zamknij kreatora">×</button>' +
+      '</div>' +
+      '<div class="wiz-body" id="wiz-body"></div>' +
+    '</div>';
+  document.body.appendChild(wz);
+  wz.querySelector("#wiz-close").onclick = () => closeWizard();
+  renderWizStep();
+}
+
+function closeWizard() {
+  const wz = document.getElementById("wizard");
+  if (wz) wz.remove();
+  /* kontrolki wracają na swoje miejsce (w oryginalnej kolejności) */
+  if (WIZ.home) WIZ.children.forEach(n => WIZ.home.appendChild(n));
+  WIZ.open = false;
+  showTab(START_KEY);
+}
+
+function renderWizStep() {
+  if (!WIZ.open) return;
+  const body = document.getElementById("wiz-body");
+  const dots = document.getElementById("wiz-dots");
+  if (!body) return;
+  /* wszystkie pola wracają najpierw do ukrytego formularza — dzięki temu
+     przechodzenie Wstecz/Dalej nie gubi kontrolek, a odczyty wartości,
+     zapis ustawień i collectValues działają zawsze */
+  if (WIZ.home) WIZ.children.forEach(n => WIZ.home.appendChild(n));
+  dots.innerHTML = "";
+  WIZ_NAV.forEach((n, i) => {
+    const d = document.createElement("div");
+    d.className = "wiz-dot" + (i === WIZ.step ? " on" : (i < WIZ.step ? " done" : ""));
+    d.title = n;
+    dots.appendChild(d);
+  });
+  body.innerHTML = "";
+  const st = document.createElement("div");
+  st.className = "wiz-step";
+  body.appendChild(st);
+
+  const back = el("button", "btn secondary", "‹ Wstecz");
+  back.onclick = () => { if (WIZ.step > 0 && WIZ.step < 6) { WIZ.step--; renderWizStep(); } };
+  const next = el("button", "btn primary wiz-big", "Dalej ›");
+  const nav = document.createElement("div");
+  nav.className = "wiz-nav";
+
+  const moveTo = (f) => { if (f) st.appendChild(f); };
+
+  if (WIZ.step === 0) {
+    st.innerHTML =
+      '<div class="wiz-hero">' +
+        '<div class="wh-ic">' + (SECTION_ICONS["MIETEK"] || "🚜") + '</div>' +
+        '<h2>Cały proces jednym kliknięciem</h2>' +
+        '<div class="wiz-sub">Halizny → TXT z DBF → pliki Word (ze stronami tytułowymi' +
+        ' i opisami ogólnymi) → PDF → scalenie w jeden dokument.<br>' +
+        'Przeprowadzę Cię przez cztery krótkie kroki — potem zrobię wszystko sama.</div>' +
+      '</div>';
+    back.classList.add("hidden");
+    next.innerHTML = "<span>Zaczynamy ›</span>";
+    next.onclick = () => { WIZ.step = 1; renderWizStep(); };
+  } else if (WIZ.step === 1) {
+    st.innerHTML = '<h2>Gdzie są mietki i gdzie zapisać wyniki?</h2>' +
+      '<div class="wiz-sub">Wskaż folder z danymi źródłowymi (obręby z plikami DBF)' +
+      ' oraz folder docelowy, w którym powstanie cała dokumentacja.</div>';
+    moveTo(wizField("all_src"));
+    moveTo(wizField("all_dst"));
+    next.onclick = () => { WIZ.step = 2; renderWizStep(); };
+  } else if (WIZ.step === 2) {
+    st.innerHTML = '<h2>Strona tytułowa i daty</h2>' +
+      '<div class="wiz-sub">Z tych danych powstanie strona tytułowa każdej wsi.' +
+      ' „Stan na” zastępuje daty we wszystkich dokumentach Word,' +
+      ' a pola 10-lecia — okres w WSK_ZB.</div>';
+    const grp = WIZ.home.querySelector("details.group-details");
+    if (grp) {
+      grp.open = true;
+      moveTo(grp.parentElement);
+    }
+    moveTo(wizField("all_gen_opis_og"));
+    moveTo(wizField("all_gdos"));
+    moveTo(wizField("all_custom_skroty"));
+    moveTo(wizField("all_skroty"));
+    next.onclick = () => { WIZ.step = 3; renderWizStep(); };
+  } else if (WIZ.step === 3) {
+    st.innerHTML = '<h2>Marginesy wydruków (cm)</h2>' +
+      '<div class="wiz-sub">Odstępy od krawędzi strony dla poszczególnych typów' +
+      ' wydruków. Rozwiń listę, jeśli chcesz coś zmienić.</div>';
+    const md = WIZ.home.querySelector("details.margins-details");
+    if (md) {
+      md.open = true;
+      moveTo(md.parentElement);
+    }
+    next.onclick = () => { WIZ.step = 4; renderWizStep(); };
+  } else if (WIZ.step === 4) {
+    const big = document.createElement("div");
+    big.className = "wiz-check-big";
+    big.innerHTML = '<h2>Nazwiska w REJESTRZE</h2>' +
+      '<div class="wiz-sub">Włącz, jeśli z wydruków REJESTR (oraz z 1. strony)' +
+      ' mają zniknąć nazwiska właścicieli.</div>';
+    const f = wizField("remove_names");
+    if (f) big.appendChild(f);
+    st.appendChild(big);
+    next.onclick = () => { WIZ.step = 5; renderWizStep(); };
+  } else if (WIZ.step === 5) {
+    st.innerHTML = '<h2>Wszystko gotowe!</h2>' +
+      '<div class="wiz-sub">Tak uruchomię proces — jeszcze możesz coś zmienić,' +
+      ' wracając do poprzednich kroków.</div>';
+    const sum = document.createElement("div");
+    sum.className = "wiz-summary";
+    const rows = [
+      ["Mietki (źródło)", wizVal("all_src") || "— nie wskazano —"],
+      ["Folder wyników", wizVal("all_dst") || "— nie wskazano —"],
+      ["Obszar", [wizVal("all_tpl_gmina"), wizVal("all_tpl_powiat"),
+                  wizVal("all_tpl_woj")].filter(Boolean).join(" / ") || "—"],
+      ["Stan na", wizVal("all_tpl_stan") || "—"],
+      ["Okres 10-lecia WSK_ZB", (String(wizVal("all_wsk_od")) + " – " +
+                  wizVal("all_wsk_do")).replace(/^ – $|^ – | – $/g, "").trim() || "—"],
+      ["Nazwiska w REJESTRZE", wizVal("remove_names") ? "usuwane" : "zostają"],
+      ["Własne skróty i symbole", wizVal("all_custom_skroty")
+        ? (wizVal("all_skroty") || "(nie wskazano pliku)") : "domyślne z programu"],
+      ["Opisy ogólne", wizVal("all_gen_opis_og")
+        ? (wizVal("all_gdos") ? "z folderem GDOŚ" : "bez GDOŚ") : "pomijane"],
+    ];
+    rows.forEach(r => {
+      sum.appendChild(el("div", "wiz-row",
+        '<div class="wiz-row-k">' + escapeHtml(r[0]) + '</div>' +
+        '<div class="wiz-row-v">' + escapeHtml(r[1]) + '</div>'));
+    });
+    st.appendChild(sum);
+    const extra = el("button", "btn ghost", "Skonfiguruj układ PDF…");
+    extra.onclick = () => openOrderDialog("ALL");
+    nav.appendChild(extra);
+    next.innerHTML = ICON("play") + "<span>Generuj dokumenty</span>";
+    next.classList.add("wiz-run");
+    next.onclick = async () => {
+      WIZ.step = 6;
+      renderWizStep();
+      await runTask("start_pipeline:ALL");
+      /* jeśli backend nie wystartował (np. brak ścieżek) — nie czekaj w nieskończoność */
+      setTimeout(() => { if (!RUNNING && WIZ.open && WIZ.step === 6
+                           && !document.getElementById("wiz-done")) wizDone(false); }, 900);
+    };
+  } else if (WIZ.step === 6) {
+    st.innerHTML =
+      '<div class="wiz-prog">' +
+        '<div class="wiz-spinner" id="wiz-spin"></div>' +
+        '<div class="wiz-op" id="wiz-op">Rozpoczynam…</div>' +
+        '<div class="wiz-bar"><div class="wiz-fill" id="wiz-fill"></div></div>' +
+        '<div class="wiz-file" id="wiz-file"></div>' +
+      '</div>';
+    const dash = WIZ.home.querySelector("#dashboard");
+    if (dash) st.appendChild(dash.closest(".card"));
+    back.classList.add("hidden");
+    next.classList.add("hidden");
+  }
+
+  nav.appendChild(back);
+  nav.appendChild(next);
+  st.appendChild(nav);
+}
+
+/* koniec zadania w kroku postępu — ekran "Ukończono" */
+function wizDone(ok) {
+  if (!WIZ.open || WIZ.step !== 6) return;
+  const spin = document.getElementById("wiz-spin");
+  if (spin) {
+    spin.id = "wiz-done";
+    spin.className = "wiz-done" + (ok ? "" : " err");
+    spin.textContent = ok ? "✓" : "✗";
+  }
+  const op = document.getElementById("wiz-op");
+  if (op) op.textContent = ok
+    ? "Ukończono!"
+    : "Zadanie zakończone z błędem — szczegóły w dzienniku zdarzeń";
+  const fill = document.getElementById("wiz-fill");
+  if (fill && ok) fill.style.width = "100%";
+  const nav = document.querySelector("#wiz-body .wiz-nav");
+  if (nav) {
+    nav.querySelectorAll("button").forEach(b => b.remove());
+    const openBtn = el("button", "btn secondary", "Otwórz folder wyników");
+    openBtn.onclick = async () => { try { await api().open_last_output(); } catch (e) {} };
+    const closeBtn = el("button", "btn primary wiz-big", "Zamknij");
+    closeBtn.onclick = () => closeWizard();
+    nav.appendChild(openBtn);
+    nav.appendChild(closeBtn);
+  }
 }
 
 function el(tag, cls, html) {
@@ -995,6 +1234,8 @@ function handleEvent(ev) {
       $("#status-text").textContent = ev.text;
       LAST_STATUS_ERR = (ev.color === "#D83B01");
       $("#status-dot").className = LAST_STATUS_ERR ? "err" : "";
+      { const wo = document.getElementById("wiz-op");
+        if (wo) wo.textContent = ev.text; }
       break;
     case "progress": {
       const fill = $("#progress-fill");
@@ -1006,6 +1247,10 @@ function handleEvent(ev) {
       if (ev.file) t += (t ? " — " : "") + ev.file;
       if (ev.current != null && ev.total) t += ` (${ev.current}/${ev.total})`;
       fileEl.textContent = t;
+      const wf = document.getElementById("wiz-fill");
+      if (wf) wf.style.width = Math.max(0, Math.min(100, val * 100)) + "%";
+      const wfl = document.getElementById("wiz-file");
+      if (wfl) wfl.textContent = t;
       break;
     }
     case "dashboard": {
@@ -1077,8 +1322,8 @@ function setRunning(running) {
   const dot = $("#status-dot");
   if (running) { dot.className = "busy"; startTimer(); }
   else { dot.className = ""; if (was) stopTimerKeep(); }
-  /* koniec zadania → powiadomienie + dźwięk */
-  if (was && !running) notifyTaskEnd();
+  /* koniec zadania → ekran „Ukończono" w kreatorze + powiadomienie */
+  if (was && !running) { wizDone(!LAST_STATUS_ERR); notifyTaskEnd(); }
 }
 
 /* ------------------------------------------------ powiadomienie o zakończeniu */

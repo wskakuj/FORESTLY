@@ -858,3 +858,83 @@ details.margins-details[open] > summary {
 }
 .gdos-pager .btn { min-width: 110px; justify-content: center; }
 .gdos-page-info { font-size: 12.5px; color: var(--text-dim); white-space: nowrap; }
+
+/* ===================== Kreator Pełnego Automatu (1-Click) ===================== */
+#wizard {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(4, 8, 12, 0.62);
+  display: flex; align-items: center; justify-content: center;
+}
+.wiz-box {
+  width: min(800px, 94vw); max-height: 92vh;
+  display: flex; flex-direction: column;
+  background: var(--panel-solid);
+  border: 1px solid var(--border-strong);
+  border-radius: 16px; box-shadow: var(--shadow);
+}
+.wiz-head {
+  display: flex; align-items: center; gap: 16px;
+  padding: 16px 22px; border-bottom: 1px solid var(--border);
+}
+.wiz-title { font-size: 16px; font-weight: 700; color: var(--text); }
+.wiz-dots { display: flex; gap: 8px; flex: 1; justify-content: center; }
+.wiz-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--border-strong); }
+.wiz-dot.done { background: var(--accent); opacity: 0.45; }
+.wiz-dot.on { background: var(--accent); }
+.wiz-close {
+  background: none; border: none; color: var(--text-dim);
+  font-size: 26px; cursor: pointer; line-height: 1; padding: 0 4px;
+}
+.wiz-close:hover { color: var(--text); }
+.wiz-body { padding: 26px 30px 24px; overflow-y: auto; }
+.wiz-step { animation: wizFade .22s ease; }
+@keyframes wizFade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.wiz-step h2 { margin: 0 0 8px 0; font-size: 19px; color: var(--text); }
+.wiz-sub { color: var(--text-dim); font-size: 13px; margin-bottom: 18px; line-height: 1.55; }
+.wiz-nav { display: flex; justify-content: space-between; align-items: center; margin-top: 24px; gap: 12px; }
+.wiz-big { min-width: 200px; justify-content: center; font-size: 14.5px; padding: 11px 22px; }
+.wiz-run { min-width: 260px; font-size: 15px; padding: 13px 26px; }
+/* ekran powitalny */
+.wiz-hero { text-align: center; padding: 26px 6px 8px; }
+.wh-ic {
+  width: 74px; height: 74px; margin: 0 auto 18px; border-radius: 20px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(45, 212, 167, 0.10); color: var(--accent); font-size: 34px;
+}
+.wiz-hero h2 { font-size: 22px; }
+.wiz-hero .wiz-sub { max-width: 480px; margin: 10px auto 22px; }
+/* duży przełącznik nazwisk */
+.wiz-check-big {
+  border: 1px solid var(--border-strong); border-radius: 12px;
+  padding: 18px 20px 22px; background: rgba(127, 140, 160, 0.04);
+}
+.wiz-check-big .field label { font-size: 16px; }
+.wiz-check-big .field .check-label, .wiz-check-big label { font-size: 15px !important; }
+/* podsumowanie przed startem */
+.wiz-summary { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.wiz-row { display: flex; gap: 14px; padding: 9px 16px; font-size: 13px; }
+.wiz-row:nth-child(odd) { background: rgba(127, 140, 160, 0.05); }
+.wiz-row-k { flex: 0 0 220px; color: var(--text-dim); }
+.wiz-row-v { color: var(--text); word-break: break-all; }
+/* ekran postępu */
+.wiz-prog { text-align: center; padding: 14px 0 4px; }
+.wiz-spinner {
+  width: 52px; height: 52px; margin: 0 auto 16px; border-radius: 50%;
+  border: 3px solid var(--border-strong); border-top-color: var(--accent);
+  animation: wizSpin 1s linear infinite;
+}
+@keyframes wizSpin { to { transform: rotate(360deg); } }
+.wiz-op { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 14px; min-height: 22px; }
+.wiz-bar {
+  height: 8px; border-radius: 6px; overflow: hidden;
+  background: rgba(127, 140, 160, 0.15); max-width: 520px; margin: 0 auto;
+}
+.wiz-fill { height: 100%; width: 0%; background: var(--accent); border-radius: 6px; transition: width .3s ease; }
+.wiz-file { font-size: 12.5px; color: var(--text-dim); margin-top: 10px; min-height: 18px; }
+.wiz-done {
+  width: 52px; height: 52px; margin: 0 auto 16px; border-radius: 50%;
+  background: rgba(52, 211, 153, 0.14); color: var(--green);
+  font-size: 30px; line-height: 52px; animation: wizPop .35s ease;
+}
+.wiz-done.err { background: rgba(251, 113, 133, 0.14); color: var(--red); }
+@keyframes wizPop { 0% { transform: scale(0.4); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }

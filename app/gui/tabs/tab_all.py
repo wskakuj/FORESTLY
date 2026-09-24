@@ -33,12 +33,236 @@ class TabAllMixin:
     pass
 
     def _setup_all_extras(self, card_frame, row_idx):
+        """Zakładka 1-Click: klasyczny formularz chowam — steruje kreator
+        otwierany w osobnym oknie (spójnie z webowym GUI)."""
+        scroll = card_frame.master
+        card_frame.grid_remove()          # formularz (źródło/cel, przyciski) ukryty
+        # dashboard i przyciski powstają DOPIERO PO extra_ui_setup — chowam
+        # je odrobinę później (całość poza kartą startową)
+        self.after(80, self._hide_all_tab_behind_launcher)
+
+        box = ctk.CTkFrame(scroll, fg_color="#252526", corner_radius=8,
+                           border_width=1, border_color="#333333")
+        box.grid(row=0, column=0, padx=10, pady=(10, 8), sticky="new")
+        self._all_launcher_box = box
+        box.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(
+            box, text="Pełny Automat (1-Click)",
+            font=ctk.CTkFont(family="Segoe UI", size=18, weight="bold"),
+            text_color="#E0E0E0",
+        ).grid(row=0, column=0, padx=20, pady=(18, 4), sticky="w")
+        ctk.CTkLabel(
+            box,
+            text=("Halizny → TXT z DBF → pliki Word (ze stronami tytułowymi i opisami ogólnymi)\n"
+                  "→ PDF → scalenie w jeden dokument.\n"
+                  "Kreator przeprowadzi Cię przez cztery krótkie kroki — potem zrobi wszystko sam."),
+            font=ctk.CTkFont(family="Segoe UI", size=12),
+            text_color="#888888", justify="left",
+        ).grid(row=1, column=0, padx=20, sticky="w")
+        ctk.CTkButton(
+            box, text="Zaczynamy — otwórz kreatora", height=46,
+            font=ctk.CTkFont(family="Segoe UI", size=14, weight="bold"),
+            command=self._open_all_wizard,
+        ).grid(row=2, column=0, padx=20, pady=(10, 18), sticky="w")
+
+    # ================== KREATOR 1-CLICK (osobne okno) ==================
+    # Wejście w zakładkę (albo kliknięcie „Otwórz kreatora") otwiera okno:
+    # opis → lokalizacje → strona tytułowa i daty → marginesy → nazwiska →
+    # podsumowanie z „Generuj dokumenty" → postęp i „Ukończono!".
+    # Kontrolki tworzone są RAZ (przy pierwszym otwarciu) i żyją w ukrytym
+    # oknie — zamknięcie okna nie traci wpisanych danych.
+
+    def _open_all_wizard(self):
+        w = getattr(self, "_all_wiz", None)
+        if w is not None:
+            try:
+                w.deiconify()
+                w.lift()
+                return
+            except Exception:
+                pass
+        wiz = ctk.CTkToplevel(self)
+        wiz.title("Pełny Automat (1-Click) — kreator")
+        WW, WH = 900, 680
+        try:
+            self.update_idletasks()
+            mx, my = self.winfo_rootx(), self.winfo_rooty()
+            mw, mh = self.winfo_width(), self.winfo_height()
+            x = mx + max(0, (mw - WW) // 2)
+            y = max(0, my + max(0, (mh - WH) // 4))
+        except Exception:
+            x, y = 100, 100
+        wiz.geometry(f"{WW}x{WH}+{x}+{y}")
+        wiz.configure(fg_color="#1E1E1E")
+        wiz.grid_columnconfigure(0, weight=1)
+        wiz.grid_rowconfigure(1, weight=1)
+        wiz.protocol("WM_DELETE_WINDOW", self._all_wiz_close)
+        self._all_wiz = wiz
+        self._all_wiz_step = 0
+        self._all_wiz_started = False
+        self._all_wiz_was_running = False
+        self._all_wiz_dots_n = 0
+
+        head = ctk.CTkFrame(wiz, fg_color="transparent")
+        head.grid(row=0, column=0, sticky="ew", padx=18, pady=(14, 2))
+        ctk.CTkLabel(
+            head, text="Pełny Automat (1-Click)",
+            font=ctk.CTkFont(family="Segoe UI", size=16, weight="bold"),
+            text_color="#E0E0E0",
+        ).pack(side="left")
+        dots = ctk.CTkFrame(head, fg_color="transparent")
+        dots.pack(side="left", expand=True)
+        self._all_wiz_dots = []
+        for _ in range(5):
+            d = ctk.CTkLabel(dots, text="●", width=20,
+                             font=ctk.CTkFont(family="Segoe UI", size=11),
+                             text_color="#555555")
+            d.pack(side="left")
+            self._all_wiz_dots.append(d)
+        ctk.CTkButton(head, text="✕", width=38, height=30,
+                      fg_color="transparent", hover_color="#333333",
+                      font=ctk.CTkFont(size=15),
+                      command=self._all_wiz_close).pack(side="right")
+
+        body = ctk.CTkFrame(wiz, fg_color="transparent")
+        body.grid(row=1, column=0, sticky="nsew", padx=18, pady=6)
+        body.grid_columnconfigure(0, weight=1)
+        body.grid_rowconfigure(0, weight=1)
+
+        nav = ctk.CTkFrame(wiz, fg_color="transparent")
+        nav.grid(row=2, column=0, sticky="ew", padx=18, pady=(2, 14))
+        self._all_wiz_back = ctk.CTkButton(
+            nav, text="‹  Wstecz", width=110, height=38, fg_color="#333333",
+            hover_color="#444444", command=self._all_wiz_prev)
+        self._all_wiz_back.pack(side="left")
+        self._all_wiz_next = ctk.CTkButton(
+            nav, text="Zaczynamy  ›", width=210, height=42,
+            font=ctk.CTkFont(family="Segoe UI", size=14, weight="bold"),
+            command=self._all_wiz_next_step)
+        self._all_wiz_next.pack(side="right")
+
+        self._all_wiz_build_steps(body)
+        self._all_wiz_show(0)
+
+    def _all_wiz_close(self):
+        """Chowam okno kreatora — bez utraty wpisanych danych."""
+        w = getattr(self, "_all_wiz", None)
+        if w is not None:
+            try:
+                w.withdraw()
+            except Exception:
+                pass
+
+    def _all_wiz_prev(self):
+        if getattr(self, "_all_wiz_step", 0) > 0 and not getattr(self, "_all_wiz_started", False):
+            self._all_wiz_show(self._all_wiz_step - 1)
+
+    def _all_wiz_next_step(self):
+        krok = getattr(self, "_all_wiz_step", 0)
+        if krok < 5:
+            self._all_wiz_show(krok + 1)
+
+    def _all_wiz_show(self, step):
+        self._all_wiz_step = step
+        for i, f in enumerate(self._all_wiz_steps):
+            if i == step:
+                f.grid()
+            else:
+                f.grid_remove()
+        for i, d in enumerate(self._all_wiz_dots):
+            d.configure(text_color="#2dd4a7" if i == step
+                        else ("#3a7a68" if i < step else "#555555"))
+        if step == 0:
+            self._all_wiz_back.grid_remove()
+            self._all_wiz_next.grid()
+            self._all_wiz_next.configure(text="Zaczynamy  ›")
+        elif step < 5:
+            self._all_wiz_back.grid()
+            self._all_wiz_next.grid()
+            self._all_wiz_next.configure(text="Dalej  ›")
+        elif step == 5:
+            self._all_wiz_back.grid()
+            self._all_wiz_next.grid_remove()
+            self._all_wiz_refresh_summary()
+        else:  # postęp
+            self._all_wiz_back.grid_remove()
+            self._all_wiz_next.grid_remove()
+
+    def _all_wiz_build_steps(self, body):
         from app.config import TERRITORY_DATA
         font_label = ctk.CTkFont(family="Segoe UI", size=13, weight="bold")
+        font_norm = ctk.CTkFont(family="Segoe UI", size=12)
+        S = []
 
-        # --- KREATOR STRONY TYTUŁOWEJ (rozwijany) — strona tytułowa i daty ---
-        # Strona tytułowa ZAWSZE generowana z tych ustawień (jak w zakładce
-        # „Kreator Stron tytułowych", ale bez wsi konkretnej i wiersza powierzchni).
+        # ---------- krok 0: ekran powitalny ----------
+        f0 = ctk.CTkFrame(body, fg_color="transparent")
+        f0.grid(row=0, column=0, sticky="nsew")
+        f0.grid_columnconfigure(0, weight=1)
+        powitalny = ctk.CTkFrame(f0, fg_color="transparent")
+        powitalny.place(relx=0.5, rely=0.42, anchor="center")
+        ctk.CTkLabel(
+            powitalny, text="Cały proces jednym kliknięciem",
+            font=ctk.CTkFont(family="Segoe UI", size=22, weight="bold"),
+            text_color="#E0E0E0").pack(pady=(0, 10))
+        ctk.CTkLabel(
+            powitalny,
+            text=("Halizny → TXT z DBF → pliki Word (ze stronami tytułowymi i opisami ogólnymi)\n"
+                  "→ PDF → scalenie w jeden dokument.\n\n"
+                  "Przeprowadzę Cię przez cztery krótkie kroki — potem zrobię wszystko sam."),
+            font=font_norm, text_color="#888888", justify="center").pack()
+        S.append(f0)
+
+        # ---------- krok 1: lokalizacje ----------
+        f1 = ctk.CTkFrame(body, fg_color="transparent")
+        f1.grid(row=0, column=0, sticky="nsew")
+        f1.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(
+            f1, text="Gdzie są mietki i gdzie zapisać wyniki?",
+            font=ctk.CTkFont(family="Segoe UI", size=17, weight="bold"),
+            text_color="#E0E0E0",
+        ).grid(row=0, column=0, columnspan=3, padx=5, pady=(4, 14), sticky="w")
+        ctk.CTkLabel(
+            f1, text="Wskaż folder z danymi źródłowymi (obręby z plikami DBF)\noraz folder docelowy, w którym powstanie cała dokumentacja.",
+            font=font_norm, text_color="#888888", justify="left",
+        ).grid(row=1, column=0, columnspan=3, padx=5, pady=(0, 12), sticky="w")
+        e_src = ctk.CTkEntry(f1, placeholder_text="Wskaż folder...", height=34)
+        ctk.CTkLabel(f1, text="Folder źródłowy (MIETEK):", font=font_label,
+                     text_color="#E0E0E0").grid(row=2, column=0, padx=(5, 10), pady=6, sticky="w")
+        e_src.grid(row=2, column=1, padx=5, pady=6, sticky="ew")
+        ctk.CTkButton(f1, text="Wybierz", width=90, height=34, fg_color="#333333",
+                      hover_color="#444444",
+                      command=lambda: self.select_dir(e_src)).grid(row=2, column=2, padx=(5, 5), pady=6)
+        e_dst = ctk.CTkEntry(f1, placeholder_text="Wskaż folder...", height=34)
+        ctk.CTkLabel(f1, text="Folder docelowy (wyniki):", font=font_label,
+                     text_color="#E0E0E0").grid(row=3, column=0, padx=(5, 10), pady=6, sticky="w")
+        e_dst.grid(row=3, column=1, padx=5, pady=6, sticky="ew")
+        ctk.CTkButton(f1, text="Wybierz", width=90, height=34, fg_color="#333333",
+                      hover_color="#444444",
+                      command=lambda: self.select_dir(e_dst)).grid(row=3, column=2, padx=(5, 5), pady=6)
+        # wpisy 1-Click wskazują teraz na pola kreatora („btn" zostaje — używa go UI)
+        self.entries["ALL"]["src"] = e_src
+        self.entries["ALL"]["dst"] = e_dst
+        S.append(f1)
+
+        # ---------- krok 2: strona tytułowa i daty ----------
+        f2 = ctk.CTkScrollableFrame(body, fg_color="transparent")
+        f2.grid(row=0, column=0, sticky="nsew")
+        f2.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(
+            f2, text="Strona tytułowa i daty",
+            font=ctk.CTkFont(family="Segoe UI", size=17, weight="bold"),
+            text_color="#E0E0E0",
+        ).grid(row=0, column=0, padx=5, pady=(4, 4), sticky="w")
+        ctk.CTkLabel(
+            f2, text="Z tych danych powstanie strona tytułowa każdej wsi. „Stan na” zastępuje daty\nwe wszystkich dokumentach Word, a pola 10-lecia — okres w WSK_ZB.",
+            font=font_norm, text_color="#888888", justify="left",
+        ).grid(row=1, column=0, padx=5, pady=(0, 10), sticky="w")
+
+        body2 = ctk.CTkFrame(f2, fg_color="#1E1E1E",
+                             border_width=1, border_color="#333333")
+        body2.grid(row=2, column=0, padx=5, pady=(0, 10), sticky="ew")
+        body2.grid_columnconfigure(1, weight=1)
+
         woj_list = sorted(TERRITORY_DATA.keys()) if TERRITORY_DATA else ["BRAK DANYCH"]
         default_woj = ("KUJAWSKO-POMORSKIE" if "KUJAWSKO-POMORSKIE" in TERRITORY_DATA
                        else (woj_list[0] if woj_list else ""))
@@ -47,66 +271,46 @@ class TabAllMixin:
                           else (powiat_list[0] if powiat_list else ""))
         gmina_list = list(TERRITORY_DATA.get(default_woj, {}).get(default_powiat, []))
         default_gmina = ("LUBIEWO" if "LUBIEWO" in gmina_list
-                        else (gmina_list[0] if gmina_list else ""))
-
-        tpl_frame = ctk.CTkFrame(card_frame, fg_color="#1E1E1E",
-                                border_width=1, border_color="#333333")
-        tpl_frame.grid(row=row_idx, column=0, columnspan=3, padx=15,
-                       pady=(0, 10), sticky="ew")
-        tpl_frame.grid_columnconfigure(0, weight=1)
-
-        self.all_tpl_open = False
-        self.all_tpl_header = ctk.CTkButton(
-            tpl_frame, text="▸  Kreator strony tytułowej (strona tytułowa i daty)",
-            fg_color="transparent", anchor="w", height=34,
-            font=ctk.CTkFont(family="Segoe UI", size=13, weight="bold"),
-            text_color="#E0E0E0", hover_color="#252526",
-            command=self._toggle_all_tpl_ui)
-        self.all_tpl_header.grid(row=0, column=0, padx=5, pady=3, sticky="ew")
-
-        body = ctk.CTkFrame(tpl_frame, fg_color="transparent")
-        body.grid(row=1, column=0, padx=5, pady=(0, 5), sticky="ew")
-        body.grid_columnconfigure(1, weight=1)
-        self.all_tpl_body = body
+                         else (gmina_list[0] if gmina_list else ""))
 
         def _row(r, label, widget):
-            ctk.CTkLabel(body, text=label, font=font_label,
+            ctk.CTkLabel(body2, text=label, font=font_label,
                          text_color="#E0E0E0").grid(
                 row=r, column=0, padx=(10, 10), pady=4, sticky="w")
             widget.grid(row=r, column=1, padx=(0, 10), pady=4, sticky="ew")
 
         self.all_tpl_doc_var = ctk.StringVar(value="UPUL")
         _row(0, "Typ dokumentu:", ctk.CTkOptionMenu(
-            body, values=["UPUL", "ISL"], variable=self.all_tpl_doc_var, height=30))
+            body2, values=["UPUL", "ISL"], variable=self.all_tpl_doc_var, height=30))
         self.all_tpl_prefix_var = ctk.StringVar(value="położonych na terenie obrębu")
         _row(1, "Prefiks obrębu:", ctk.CTkOptionMenu(
-            body, values=["położonych na terenie obrębu", "Obręb:"],
+            body2, values=["położonych na terenie obrębu", "Obręb:"],
             variable=self.all_tpl_prefix_var, height=30))
         self.all_tpl_woj_var = ctk.StringVar(value=default_woj)
         self.all_tpl_woj_box = ctk.CTkComboBox(
-            body, values=woj_list, variable=self.all_tpl_woj_var, height=30,
+            body2, values=woj_list, variable=self.all_tpl_woj_var, height=30,
             command=lambda _v: self._all_tpl_refresh_powiat())
         _row(2, "Województwo (można wpisać własne):", self.all_tpl_woj_box)
         self.all_tpl_powiat_var = ctk.StringVar(value=default_powiat)
         self.all_tpl_powiat_box = ctk.CTkComboBox(
-            body, values=powiat_list, variable=self.all_tpl_powiat_var,
+            body2, values=powiat_list, variable=self.all_tpl_powiat_var,
             height=30, command=lambda _v: self._all_tpl_refresh_gmina())
         _row(3, "Powiat (można wpisać własny):", self.all_tpl_powiat_box)
         self.all_tpl_gmina_var = ctk.StringVar(value=default_gmina)
         self.all_tpl_gmina_box = ctk.CTkComboBox(
-            body, values=gmina_list, variable=self.all_tpl_gmina_var, height=30)
+            body2, values=gmina_list, variable=self.all_tpl_gmina_var, height=30)
         _row(4, "Gmina (można wpisać własną):", self.all_tpl_gmina_box)
 
-        self.all_tpl_stan_na_entry = ctk.CTkEntry(body, height=30)
+        self.all_tpl_stan_na_entry = ctk.CTkEntry(body2, height=30)
         self.all_tpl_stan_na_entry.insert(0, "30.06.2026 r.")
         _row(5, "Stan na (także data we wszystkich Wordach):",
              self.all_tpl_stan_na_entry)
-        self.all_tpl_okres_entry = ctk.CTkEntry(body, height=30)
+        self.all_tpl_okres_entry = ctk.CTkEntry(body2, height=30)
         self.all_tpl_okres_entry.insert(0, "01.01.2027 – 31.12.2036 r.")
         _row(6, "Na okres (strona tytułowa):", self.all_tpl_okres_entry)
 
-        daty_frame = ctk.CTkFrame(body, fg_color="#252526", corner_radius=6)
-        daty_frame.grid(row=7, column=0, columnspan=2, padx=10, pady=(4, 2), sticky="ew")
+        daty_frame = ctk.CTkFrame(body2, fg_color="#252526", corner_radius=6)
+        daty_frame.grid(row=7, column=0, columnspan=2, padx=10, pady=(4, 8), sticky="ew")
         daty_frame.grid_columnconfigure((1, 3), weight=1)
         ctk.CTkLabel(daty_frame, text="WSK_ZB — 10-lecie:", font=font_label,
                      text_color="#888888").grid(row=0, column=0, padx=(10, 6),
@@ -120,21 +324,19 @@ class TabAllMixin:
         self.all_wsk_do_entry.insert(0, "31-12-2036")
         self.all_wsk_do_entry.grid(row=0, column=3, padx=(4, 10), pady=6, sticky="ew")
 
-        # --- SKRÓTY (własny plik, opcjonalnie) ---
+        # --- skróty i symbole (własny plik, opcjonalnie) ---
         self.all_custom_skroty_var = ctk.BooleanVar(value=False)
         cb_skroty = ctk.CTkCheckBox(
-            card_frame,
+            f2,
             text="Użyj własnego pliku 'Skróty i symbole' (zamiast domyślnego z programu)",
             variable=self.all_custom_skroty_var,
             font=ctk.CTkFont(family="Segoe UI", size=12),
             command=self._toggle_all_skroty_ui,
         )
-        cb_skroty.grid(row=row_idx + 1, column=0, columnspan=3, padx=15,
-                       pady=(5, 5), sticky="w")
+        cb_skroty.grid(row=3, column=0, padx=5, pady=(2, 2), sticky="w")
         self.all_skroty_frame = ctk.CTkFrame(
-            card_frame, fg_color="#1E1E1E", border_width=1, border_color="#333333")
-        self.all_skroty_frame.grid(row=row_idx + 2, column=0, columnspan=3,
-                                    padx=15, pady=(0, 10), sticky="ew")
+            f2, fg_color="#1E1E1E", border_width=1, border_color="#333333")
+        self.all_skroty_frame.grid(row=4, column=0, padx=5, pady=(0, 10), sticky="ew")
         self.all_skroty_frame.grid_columnconfigure(1, weight=1)
         ctk.CTkLabel(self.all_skroty_frame, text="Własny plik:", font=font_label,
                      text_color="#E0E0E0").grid(row=0, column=0, padx=(10, 10),
@@ -152,21 +354,19 @@ class TabAllMixin:
             width=90, height=32, fg_color="#333333", hover_color="#444444",
         ).grid(row=0, column=2, padx=(5, 10), pady=8)
 
-        # --- OPISY OGÓLNE (zawsze z gotowych WSK_ZB.doc z pipeline) ---
+        # --- opisy ogólne (zawsze z gotowych WSK_ZB.doc z pipeline) ---
         self.all_gen_opis_og_var = ctk.BooleanVar(value=True)
         cb_opis = ctk.CTkCheckBox(
-            card_frame,
+            f2,
             text="Generuj opisy ogólne (opis og_<wieś>.docx) po plikach Word",
             variable=self.all_gen_opis_og_var,
             font=ctk.CTkFont(family="Segoe UI", size=12),
             command=self._toggle_all_gdos_ui,
         )
-        cb_opis.grid(row=row_idx + 3, column=0, columnspan=3, padx=15,
-                     pady=(5, 5), sticky="w")
+        cb_opis.grid(row=5, column=0, padx=5, pady=(2, 2), sticky="w")
         self.all_gdos_frame = ctk.CTkFrame(
-            card_frame, fg_color="#1E1E1E", border_width=1, border_color="#333333")
-        self.all_gdos_frame.grid(row=row_idx + 4, column=0, columnspan=3,
-                                padx=15, pady=(0, 10), sticky="ew")
+            f2, fg_color="#1E1E1E", border_width=1, border_color="#333333")
+        self.all_gdos_frame.grid(row=6, column=0, padx=5, pady=(0, 10), sticky="ew")
         self.all_gdos_frame.grid_columnconfigure(1, weight=1)
         ctk.CTkLabel(self.all_gdos_frame,
                      text="Folder z wynikami GDOŚ (opcjonalny):", font=font_label,
@@ -185,10 +385,217 @@ class TabAllMixin:
 
         self._toggle_all_skroty_ui()
         self._toggle_all_gdos_ui()
-        self._toggle_all_tpl_ui()
+        S.append(f2)
 
-        # --- TABELA MARGINESÓW (zwijana) ---
-        self._build_margins_ui(card_frame, row_idx + 5, "ALL")
+        # ---------- krok 3: marginesy ----------
+        f3 = ctk.CTkFrame(body, fg_color="transparent")
+        f3.grid(row=0, column=0, sticky="nsew")
+        f3.grid_columnconfigure(0, weight=1)
+        self._build_margins_ui(f3, 0, "ALL", start_open=True)
+        S.append(f3)
+
+        # ---------- krok 4: nazwiska ----------
+        f4 = ctk.CTkFrame(body, fg_color="transparent")
+        f4.grid(row=0, column=0, sticky="nsew")
+        f4.grid_columnconfigure(0, weight=1)
+        karta = ctk.CTkFrame(f4, fg_color="#252526", corner_radius=10,
+                             border_width=1, border_color="#333333")
+        karta.grid(row=0, column=0, padx=10, pady=(6, 0), sticky="ew")
+        karta.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(
+            karta, text="Nazwiska w REJESTRZE",
+            font=ctk.CTkFont(family="Segoe UI", size=17, weight="bold"),
+            text_color="#E0E0E0",
+        ).grid(row=0, column=0, padx=18, pady=(14, 4), sticky="w")
+        ctk.CTkLabel(
+            karta, text="Włącz, jeśli z wydruków REJESTR (oraz z 1. strony)\nmają zniknąć nazwiska właścicieli.",
+            font=font_norm, text_color="#888888", justify="left",
+        ).grid(row=1, column=0, padx=18, sticky="w")
+        ctk.CTkCheckBox(
+            karta, text="Usuwaj nazwiska z REJESTRU (oraz 1. stronę)",
+            variable=self.remove_names_var,
+            font=ctk.CTkFont(family="Segoe UI", size=15, weight="bold"),
+            checkbox_height=24, checkbox_width=24,
+        ).grid(row=2, column=0, padx=18, pady=(10, 18), sticky="w")
+        S.append(f4)
+
+        # ---------- krok 5: podsumowanie i start ----------
+        f5 = ctk.CTkFrame(body, fg_color="transparent")
+        f5.grid(row=0, column=0, sticky="nsew")
+        f5.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(
+            f5, text="Wszystko gotowe!",
+            font=ctk.CTkFont(family="Segoe UI", size=17, weight="bold"),
+            text_color="#E0E0E0",
+        ).grid(row=0, column=0, padx=5, pady=(4, 4), sticky="w")
+        ctk.CTkLabel(
+            f5, text="Tak uruchomię proces — jeszcze możesz coś zmienić, wracając do poprzednich kroków.",
+            font=font_norm, text_color="#888888",
+        ).grid(row=1, column=0, padx=5, pady=(0, 10), sticky="w")
+        self._all_wiz_sum = ctk.CTkFrame(f5, fg_color="transparent")
+        self._all_wiz_sum.grid(row=2, column=0, padx=5, sticky="ew")
+        self._all_wiz_sum.grid_columnconfigure(1, weight=1)
+        ctk.CTkButton(
+            f5, text="▶   Generuj dokumenty", height=52,
+            font=ctk.CTkFont(family="Segoe UI", size=16, weight="bold"),
+            command=self._all_wiz_run,
+        ).grid(row=3, column=0, padx=5, pady=(16, 4), sticky="ew")
+        ctk.CTkButton(
+            f5, text="Skonfiguruj układ PDF…", height=36, fg_color="transparent",
+            border_width=1, border_color="#555555", hover_color="#333333",
+            command=lambda: self.open_mode_order_window(
+                "ALL", self.entries["ALL"]["dst"]),
+        ).grid(row=4, column=0, padx=5, pady=(2, 4), sticky="ew")
+        S.append(f5)
+
+        # ---------- krok 6: postęp ----------
+        f6 = ctk.CTkFrame(body, fg_color="transparent")
+        f6.grid(row=0, column=0, sticky="nsew")
+        f6.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(f6, text="", height=40).grid(row=0, column=0)
+        self._all_wiz_status = ctk.CTkLabel(
+            f6, text="Rozpoczynam…",
+            font=ctk.CTkFont(family="Segoe UI", size=17, weight="bold"),
+            text_color="#E0E0E0")
+        self._all_wiz_status.grid(row=1, column=0, pady=(10, 8))
+        self._all_wiz_bar = ctk.CTkProgressBar(
+            f6, mode="indeterminate", height=14, corner_radius=7)
+        self._all_wiz_bar.grid(row=2, column=0, padx=80, pady=(0, 10), sticky="ew")
+        self._all_wiz_file = ctk.CTkLabel(
+            f6, text="", font=font_norm, text_color="#888888")
+        self._all_wiz_file.grid(row=3, column=0, pady=(0, 4))
+        self._all_wiz_done_lbl = ctk.CTkLabel(
+            f6, text="", font=ctk.CTkFont(family="Segoe UI", size=20, weight="bold"))
+        self._all_wiz_actions = ctk.CTkFrame(f6, fg_color="transparent")
+        self._all_wiz_actions.grid_columnconfigure((0, 1), weight=1)
+        ctk.CTkButton(
+            self._all_wiz_actions, text="Otwórz folder wyników", height=40,
+            fg_color="#333333", hover_color="#444444",
+            command=self.open_last_output_dir,
+        ).grid(row=0, column=0, padx=6, sticky="ew")
+        ctk.CTkButton(
+            self._all_wiz_actions, text="Zamknij", height=40,
+            command=self._all_wiz_close,
+        ).grid(row=0, column=1, padx=6, sticky="ew")
+        S.append(f6)
+
+        self._all_wiz_steps = S
+
+    def _all_wiz_refresh_summary(self):
+        """Odświeża listę podsumowania przed uruchomieniem."""
+        w = self._all_wiz_sum
+        for child in w.winfo_children():
+            child.destroy()
+        font_k = ctk.CTkFont(family="Segoe UI", size=12)
+        font_v = ctk.CTkFont(family="Segoe UI", size=12, weight="bold")
+
+        def _v(attr, domyslne=""):
+            e = getattr(self, attr, None)
+            if e is not None and hasattr(e, "get"):
+                return e.get().strip() or domyslne
+            return domyslne
+
+        skroty = (self.all_custom_skroty_var.get()
+                  if hasattr(self, "all_custom_skroty_var") else False)
+        opis_og = (self.all_gen_opis_og_var.get()
+                   if hasattr(self, "all_gen_opis_og_var") else False)
+        wiersze = [
+            ("Mietki (źródło)", self.entries["ALL"]["src"].get().strip() or "— nie wskazano —"),
+            ("Folder wyników", self.entries["ALL"]["dst"].get().strip() or "— nie wskazano —"),
+            ("Obszar", " / ".join(x for x in [
+                _v("all_tpl_gmina_var"), _v("all_tpl_powiat_var"), _v("all_tpl_woj_var")] if x) or "—"),
+            ("Stan na", _v("all_tpl_stan_na_entry") or "—"),
+            ("Nazwiska w REJESTRZE", "usuwane" if self.remove_names_var.get() else "zostają"),
+            ("Własne skróty i symbole",
+             (self.all_skroty_entry.get().strip() or "(nie wskazano pliku)") if skroty
+             else "domyślne z programu"),
+            ("Opisy ogólne",
+             ("z folderem GDOŚ" if self.all_gdos_entry.get().strip() else "bez GDOŚ")
+             if opis_og else "pomijane"),
+        ]
+        for i, (k, val) in enumerate(wiersze):
+            ctk.CTkLabel(w, text=k, font=font_k, text_color="#888888", anchor="w"
+                         ).grid(row=i, column=0, padx=(10, 10), pady=3, sticky="w")
+            ctk.CTkLabel(w, text=val, font=font_v, text_color="#E0E0E0", anchor="w"
+                         ).grid(row=i, column=1, padx=(10, 10), pady=3, sticky="ew")
+
+    def _hide_all_tab_behind_launcher(self):
+        """Chowa na zakładce 1-Click wszystko poza kartą startową kreatora
+        (dashboard powstaje po extra_ui_setup, więc dopiero tutaj)."""
+        box = getattr(self, "_all_launcher_box", None)
+        if box is None or not box.winfo_exists():
+            return
+        try:
+            for child in box.master.winfo_children():
+                if child is not box:
+                    child.grid_remove()
+        except Exception:
+            pass
+
+    def _all_wiz_run(self):
+        if self.running:
+            self._all_wiz_started = True
+            self._all_wiz_show(6)
+            self._all_wiz_set_done(
+                False, "Zadanie już trwa — poczekaj na jego zakończenie.")
+            return
+        self._all_wiz_started = True
+        self._all_wiz_was_running = False
+        self._all_wiz_status.configure(text="Rozpoczynam…")
+        self._all_wiz_done_lbl.grid_remove()
+        self._all_wiz_actions.grid_remove()
+        try:
+            self._all_wiz_bar.configure(mode="indeterminate")
+            self._all_wiz_bar.start()
+        except Exception:
+            pass
+        self._all_wiz_show(6)
+        self.start_pipeline("ALL")
+        if not self.running:
+            # walidacja odrzuciła zadanie (np. brak ścieżek) — nie czekamy
+            self._all_wiz_set_done(False, "Nie udało się uruchomić — sprawdź ścieżki w kroku 1.")
+        else:
+            self._all_wiz_poll()
+
+    def _all_wiz_poll(self):
+        wiz = getattr(self, "_all_wiz", None)
+        if wiz is None or not getattr(self, "_all_wiz_started", False):
+            return
+        if not wiz.winfo_exists() or getattr(self, "_all_wiz_step", -1) != 6:
+            return
+        txt = (getattr(self, "status_base_text", "") or "Przetwarzam…").strip()
+        self._all_wiz_dots_n = (getattr(self, "_all_wiz_dots_n", 0) + 1) % 4
+        self._all_wiz_status.configure(text=txt + "." * self._all_wiz_dots_n)
+        czesci = []
+        if getattr(self, "progress_current_file", ""):
+            czesci.append(str(self.progress_current_file))
+        if getattr(self, "progress_total", 0):
+            czesci.append("({}/{})".format(
+                getattr(self, "progress_current", 0), self.progress_total))
+        self._all_wiz_file.configure(text="  ".join(czesci))
+        if self._all_wiz_was_running and not self.running:
+            ok = getattr(self, "status_color", "#0078D7") != "#D83B01"
+            self._all_wiz_set_done(ok)
+            return
+        self._all_wiz_was_running = self.running
+        wiz.after(350, self._all_wiz_poll)
+
+    def _all_wiz_set_done(self, ok, text=None):
+        try:
+            self._all_wiz_bar.stop()
+            self._all_wiz_bar.configure(mode="determinate")
+            self._all_wiz_bar.set(1.0 if ok else 0.0)
+        except Exception:
+            pass
+        self._all_wiz_done_lbl.configure(
+            text=text if text else ("✓  Ukończono!" if ok
+                                    else "✗  Zakończono z błędem — szczegóły w dzienniku"),
+            text_color="#34d399" if ok else "#fb7185")
+        self._all_wiz_done_lbl.grid(row=4, column=0, pady=(14, 4))
+        self._all_wiz_actions.grid(row=5, column=0, padx=80, pady=(2, 10), sticky="ew")
+        if not ok:
+            self._all_wiz_started = False   # można wrócić (Wstecz) i poprawić
+            self._all_wiz_back.grid()
 
     def _toggle_all_tpl_ui(self):
         self.all_tpl_open = not getattr(self, "all_tpl_open", False)
