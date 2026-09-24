@@ -376,10 +376,20 @@ class WebBackend(
     def set_values(self, values):
         """Przyjmuje słownik {id_kontrolki: wartość} z frontendu."""
         controls = {}
-        for tab in self.schema["tabs"]:
-            for c in tab["controls"]:
-                if c.get("id"):
+
+        def _index(ctrls):
+            # schodzimy też do grup (zwijane sekcje schematu) — kontrolki
+            # w nich (daty kreatora 1-Click, woj./pow./gmina itd.) muszą
+            # być indeksowane jak każde inne; wcześniej lądowały po cichu
+            # w koszu i backend pracował na wartościach DOMYŚLNYCH
+            for c in ctrls:
+                if c.get("kind") == "group":
+                    _index(c.get("controls") or [])
+                elif c.get("id"):
                     controls[c["id"]] = c
+
+        for tab in self.schema["tabs"]:
+            _index(tab["controls"])
         for cid, val in (values or {}).items():
             c = controls.get(cid)
             if not c:
@@ -843,8 +853,20 @@ class WebBackend(
     def get_config(self):
         """Pełna konfiguracja startowa dla frontendu."""
         values = {}
+
+        def _flat(ctrls):
+            # wraz z grupami (zwijane sekcje) — inaczej wartości pól
+            # zagnieżdżonych nigdy nie trafiały do frontendu
+            out = []
+            for c in ctrls:
+                if c.get("kind") == "group":
+                    out.extend(_flat(c.get("controls") or []))
+                elif c.get("id"):
+                    out.append(c)
+            return out
+
         for tab in self.schema["tabs"]:
-            for c in tab["controls"]:
+            for c in _flat(tab["controls"]):
                 cid = c.get("id")
                 if not cid:
                     continue

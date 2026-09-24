@@ -112,6 +112,7 @@ class TabAllMixin:
         ).pack(side="left")
         dots = ctk.CTkFrame(head, fg_color="transparent")
         dots.pack(side="left", expand=True)
+        self._all_wiz_dots_frame = dots  # chowamy na czas procesu
         self._all_wiz_dots = []
         for _ in range(5):
             d = ctk.CTkLabel(dots, text="●", width=20,
@@ -179,6 +180,13 @@ class TabAllMixin:
         for i, d in enumerate(self._all_wiz_dots):
             d.configure(text_color="#2dd4a7" if i == step
                         else ("#3a7a68" if i < step else "#555555"))
+        # kroki (kółka) chowamy na czas trwania całego procesu
+        _df = getattr(self, "_all_wiz_dots_frame", None)
+        if _df is not None:
+            if step == 6:
+                _df.pack_forget()
+            else:
+                _df.pack(side="left", expand=True)
         # przyciski nawigacji są w nav zarządzane przez pack — używamy
         # pack/pack_forget (grid na packowanym widżetie rzuca TclError)
         if step == 0:
@@ -1141,6 +1149,13 @@ class TabAllMixin:
                         "(O*.DBF itd.), albo odznaczono 'Generuj pliki TXT z DBF mietka'.")
                     self.update_status("Błąd — brak plików TXT", "#D83B01", animate=False)
                     return
+
+                # === DATY Z KREATORA: "Stan na" we wszystkich plikach
+                #    + okres 10-lecia w WSK_ZB (przed konwersją na Word,
+                #    żeby trafiły też do PDF) ===
+                self.update_status("Nadpisywanie dat z kreatora...", "#0078D7")
+                self.check_stop()
+                self._zamien_daty_txt(dir_01)
 
                 self.update_status("Generowanie plików Word...", "#0078D7")
                 self.update_dashboard(2, "running", "Kompilacja...")

@@ -391,6 +391,9 @@ function renderWizStep() {
     d.title = n;
     dots.appendChild(d);
   });
+  /* kroki (kółka) chowamy na czas trwania całego procesu — nie mają
+     sensu, gdy trwa generowanie (ekran postępu) */
+  dots.classList.toggle("hidden", WIZ.step === 6);
   body.innerHTML = "";
   const st = document.createElement("div");
   st.className = "wiz-step";
