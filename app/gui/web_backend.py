@@ -321,10 +321,12 @@ class WebBackend(
             for b in tab["buttons"]:
                 pass  # przyciski istnieją tylko w frontendcie
 
-        # remove_names_var potrzebny dla ALL/WORD
-        if not hasattr(self, "remove_names_var"):
-            self.remove_names_var = FakeVar(
-                bool(self.get_setting("web.remove_names", True)))
+        # remove_names_var potrzebny dla ALL/WORD — JEDNA wspólna wartość.
+        # Uwaga: zakładka Word ma własny checkbox na tej samej zmiennej
+        # (word_remove_names) i wcześniej NADPISYWAŁ ją swoim domyślnym
+        # False — dlatego zawsze przywracamy stan z ustawienia 1-Click.
+        self.remove_names_var = FakeVar(
+            bool(self.get_setting("web.remove_names", True)))
 
 
     def _fakes_for_controls(self, controls):

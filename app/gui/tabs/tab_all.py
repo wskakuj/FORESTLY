@@ -823,7 +823,9 @@ class TabAllMixin:
         if _zap is not None:
             _zap(self.last_output_dir)
         self._disable_ui_for_process()
-        self.log(f"[{mode}] URUCHOMIENIE ZADANIA\nZ: {src_path}\nDo: {dst_path}")
+        self.log(f"[{mode}] URUCHOMIENIE ZADANIA\nZ: {src_path}\nDo: {dst_path}\n"
+                 f"Nazwiska w REJESTRZE: "
+                 f"{'USUWANE' if remove_names_flag else 'zostają'}.")
         self.set_progress(0)
 
         # Pobieranie i zapis marginesów

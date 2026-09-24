@@ -681,6 +681,14 @@ function renderCheck(c) {
   input.type = "checkbox"; input.dataset.cid = c.id; input.dataset.kind = "check";
   input.dataset.attr = c.attr || c.id;
   input.checked = !!VALUES[c.id];
+  /* jeśli to już DRUGA kontrolka na tej samej zmiennej (np. word_remove_names
+     na remove_names_var) — przejmij stan pierwszej, żeby na starcie i przy
+     każdej akcji obie trzymały tę samą wartość */
+  {
+    const inne = $$('input[type="checkbox"][data-attr="' + input.dataset.attr + '"]')
+      .filter(o => o !== input);
+    if (inne.length) input.checked = inne[0].checked;
+  }
   input.onchange = () => {
     /* ta sama wartość może być współdzielona przez kilka kontrolek
        (np. remove_names_var w 1-Click oraz w zakładce Word) — bez tej

@@ -353,19 +353,16 @@ select option {
 .wiz-check-big .check-row input[type="checkbox"]:checked::after {
   transform: translateX(24px);
 }
-.wiz-stop {
+/* Przerwij — w całości czerwony jak „Zatrzymaj” w pasku programu.
+   Selektor z #wizard, żeby wygrać z tłem .btn/.btn.secondary. */
+#wizard .wiz-stop {
   display: block; margin: 20px auto 0;
-  min-width: 180px; height: 40px; padding: 0 28px;
-  background: linear-gradient(180deg, #c0392b, #96281b);
-  color: #fff; border: none; border-radius: 999px;
+  min-width: 190px; height: 42px; padding: 0 30px;
+  background: var(--red); color: #fff; border: none; border-radius: 999px;
   font-weight: 700; letter-spacing: .3px;
-  box-shadow: 0 2px 8px rgba(150, 40, 27, .35);
 }
-.wiz-stop:hover {
-  background: linear-gradient(180deg, #d44636, #a93226);
-  box-shadow: 0 3px 12px rgba(150, 40, 27, .5);
-}
-.wiz-stop:disabled { opacity: .5; cursor: default; box-shadow: none; }
+#wizard .wiz-stop:hover { background: var(--red); filter: brightness(1.12); }
+#wizard .wiz-stop:disabled { opacity: .5; cursor: default; filter: none; }
 .wiz-switch-cap {
   margin-top: 12px; font-size: 14px; line-height: 1.5;
   color: var(--muted, #8b97a5);
