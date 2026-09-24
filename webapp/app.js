@@ -679,8 +679,20 @@ function renderCheck(c) {
   const row = el("label", "check-row");
   const input = el("input");
   input.type = "checkbox"; input.dataset.cid = c.id; input.dataset.kind = "check";
+  input.dataset.attr = c.attr || c.id;
   input.checked = !!VALUES[c.id];
-  input.onchange = () => { applyDeps(); scheduleSetValues(); };
+  input.onchange = () => {
+    /* ta sama wartość może być współdzielona przez kilka kontrolek
+       (np. remove_names_var w 1-Click oraz w zakładce Word) — bez tej
+       synchronizacji przestarzała kopia z drugiej zakładki nadpisywała
+       wybór i nazwiska zostawały w REJESTRZE */
+    if (input.dataset.attr) {
+      $$('input[type="checkbox"][data-attr="' + input.dataset.attr + '"]')
+        .forEach(o => { if (o !== input) o.checked = input.checked; });
+    }
+    applyDeps();
+    scheduleSetValues();
+  };
   row.appendChild(input);
   const span = el("span", null, escapeHtml(c.label) +
     (c.tooltip ? ` <span class="hint" title="${escapeHtml(c.tooltip)}">ⓘ</span>` : ""));

@@ -22,7 +22,7 @@
   "web.all_template": "",
   "web.all_custom_skroty": false,
   "web.all_skroty": "",
-  "web.remove_names": true,
+  "web.remove_names": false,
   "web.wydruki_src": "D:\\download\\gówno\\Nowy folder (16)\\Nowy folder (4)",
   "web.word_src": "D:\\download\\gówno\\Nowy folder (16)\\Nowy folder (4)",
   "web.word_dst": "D:\\download\\gówno\\Nowy folder (16)\\Nowy folder (4)",
