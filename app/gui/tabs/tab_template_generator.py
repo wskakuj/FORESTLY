@@ -231,6 +231,69 @@ class TabTemplateGeneratorMixin:
         self._toggle_single_village(mode_key)
         self._sync_area_row_state(mode_key)
 
+    def _build_str_tyt_doc(self, doc_type, prefix, woj, powiat, gmina,
+                           stan_na, okres, out_path,
+                           village="NAZWA WSI", keep_area=False, area_text=""):
+        """Buduje bazowy szablon STR_TYT z wbudowanego wzorca i zapisuje do out_path.
+
+        Wspólny rdzeń dla Kreatora (zakładka) i Pełnego Automatu (1-Click).
+        Zwraca out_path; rzuca wyjątkiem przy błędzie."""
+        out_path = str(out_path)
+        sample_path = get_resource_path("STR_TYT.docx")
+        if not sample_path.exists():
+            raise FileNotFoundError(
+                f"Nie znaleziono wbudowanego pliku wzorcowego: {sample_path}")
+        doc = Document(sample_path)
+        replacements = {
+            "LUBIEWO": gmina,
+            "TUCHOLSKI": powiat,
+            "KUJAWSKO-POMORSKIE": woj,
+            "30.06.2026 r.": stan_na,
+            "01.01.2027 – 31.12.2036 r.": okres,
+            "NAZWA WSI": village,
+        }
+        if doc_type == "ISL":
+            replacements["UPROSZCZONY PLAN URZĄDZANIA LASÓW"] = (
+                "INWENTARYZACJA STANU LASU"
+            )
+            replacements["nie stanowiących własności Skarbu Państwa"] = (
+                "dla lasów niestanowiących własności Skarbu Państwa"
+            )
+        if prefix == "Obręb:":
+            replacements["położonych na terenie"] = ""
+            replacements["obrębu"] = "Obręb:"
+        for paragraph in doc.paragraphs:
+            replace_text_preserve_runs(paragraph, replacements)
+        replace_text_in_tables(doc.tables, replacements)
+        # wiersz powierzchni: usuwany, chyba że jawnie zamówiony
+        self._apply_area_row(doc, keep_area, area_text)
+        doc.save(out_path)
+        return out_path
+
+    def _apply_area_row(self, doc, keep_area, area_text):
+        """Dodaje/usuwa wiersz powierzchni w szablonie STR_TYT."""
+        keywords = ["ogólna opracowania"]
+        if keep_area:
+            if not area_text:
+                return
+            for p in doc.paragraphs:
+                self.replace_in_paragraph(p, "powierzchnia", area_text)
+            for table in doc.tables:
+                for row in table.rows:
+                    for cell in row.cells:
+                        for p in cell.paragraphs:
+                            self.replace_in_paragraph(p, "powierzchnia", area_text)
+        else:
+            for p in list(doc.paragraphs):
+                if any(kw.lower() in p.text.lower() for kw in keywords):
+                    p._element.getparent().remove(p._element)
+            for table in doc.tables:
+                for row in list(table.rows):
+                    row_text = " ".join(c.text for c in row.cells).lower()
+                    if any(kw.lower() in row_text for kw in keywords):
+                        tr = row._tr
+                        tr.getparent().remove(tr)
+
     def generate_template_now(self, mode_key):
         vars_dict = self.tpl_data[mode_key]
         doc_type = vars_dict["doc_type_var"].get()
@@ -276,44 +339,12 @@ class TabTemplateGeneratorMixin:
         out_path = str(out_path_obj.with_name(file_name))
         vars_dict["output_entry"].delete(0, "end")
         vars_dict["output_entry"].insert(0, out_path)
-        sample_name = "STR_TYT.docx"  # Zmienione na Twoją nową nazwę pliku bazowego
-        sample_path = get_resource_path(sample_name)
-        if not sample_path.exists():
-            messagebox.showerror(
-                "Brak wzorca",
-                f"Nie znaleziono wbudowanego pliku wzorcowego: {sample_name}",
-            )
-            return
         try:
-            doc = Document(sample_path)
-            replacements = {
-                "LUBIEWO": gmina,
-                "TUCHOLSKI": powiat,
-                "KUJAWSKO-POMORSKIE": woj,
-                "30.06.2026 r.": stan_na,
-                "01.01.2027 – 31.12.2036 r.": okres,
-                "NAZWA WSI": village,
-            }
-            if doc_type == "ISL":
-                replacements["UPROSZCZONY PLAN URZĄDZANIA LASÓW"] = (
-                    "INWENTARYZACJA STANU LASU"
-                )
-                replacements["nie stanowiących własności Skarbu Państwa"] = (
-                    "dla lasów niestanowiących własności Skarbu Państwa"
-                )
-            if prefix == "Obręb:":
-                replacements["położonych na terenie"] = ""
-                replacements["obrębu"] = "Obręb:"
-            for paragraph in doc.paragraphs:
-                replace_text_preserve_runs(paragraph, replacements)
-            replace_text_in_tables(doc.tables, replacements)
-            try:
-                self._apply_area_toggle_to_doc(doc, mode_key)
-            except Exception as e:
-                self.log(
-                    f"Ostrzeżenie: Błąd podczas formatowania pola powierzchni: {e}"
-                )
-            doc.save(out_path)
+            self._build_str_tyt_doc(
+                doc_type, prefix, woj, powiat, gmina, stan_na, okres, out_path,
+                village=village, keep_area=bool(vars_dict["area_var"].get()),
+                area_text=area_text,
+            )
             self.last_output_dir = Path(out_path).parent
             # przycisk istnieje tylko w GUI CustomTkinter (web: brak widgetu)
             if getattr(self, "open_dir_btn", None) is not None:
@@ -331,52 +362,11 @@ class TabTemplateGeneratorMixin:
 
     def _apply_area_toggle_to_doc(self, doc, mode_key):
         vars_dict = self.tpl_data[mode_key]
-        keep_area = bool(vars_dict["area_var"].get())
-        area_text = (
-            vars_dict["area_entry"].get().strip() if "area_entry" in vars_dict else ""
+        self._apply_area_row(
+            doc,
+            bool(vars_dict["area_var"].get()),
+            vars_dict["area_entry"].get().strip() if "area_entry" in vars_dict else "",
         )
-        keywords = ["ogólna opracowania"]
-        if keep_area:
-            if not area_text:
-                return
-            for p in doc.paragraphs:
-                self.replace_in_paragraph(p, "powierzchnia", area_text)
-            for table in doc.tables:
-                for row in table.rows:
-                    for cell in row.cells:
-                        for p in cell.paragraphs:
-                            self.replace_in_paragraph(p, "powierzchnia", area_text)
-        else:
-            for p in list(doc.paragraphs):
-                if any(kw.lower() in p.text.lower() for kw in keywords):
-                    p._element.getparent().remove(p._element)
-            for table in doc.tables:
-                for row in list(table.rows):
-                    row_text = " ".join(c.text for c in row.cells).lower()
-                    if any(kw.lower() in row_text for kw in keywords):
-                        tr = row._tr
-                        tr.getparent().remove(tr)
-        if keep_area:
-            if not area_text:
-                return
-            replacements = {"Powierzchnia": area_text, "powierzchnia": area_text}
-            for p in doc.paragraphs:
-                replace_text_preserve_runs(p, replacements)
-            for table in doc.tables:
-                for row in table.rows:
-                    for cell in row.cells:
-                        for p in cell.paragraphs:
-                            replace_text_preserve_runs(p, replacements)
-        else:
-            for p in list(doc.paragraphs):
-                if any(kw in p.text for kw in keywords):
-                    p._element.getparent().remove(p._element)
-            for table in doc.tables:
-                for row in list(table.rows):
-                    row_text = " ".join(c.text for c in row.cells)
-                    if any(kw in row_text for kw in keywords):
-                        tr = row._tr
-                        tr.getparent().remove(tr)
 
     def _toggle_single_village(self, mode_key):
         vars_dict = self.tpl_data[mode_key]

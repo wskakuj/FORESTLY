@@ -222,15 +222,27 @@ class TabOpisOgMixin:
         threading.Thread(target=_run, daemon=True).start()
 
     def _opis_og_run(self):
-        from app.core.word_worker import get_resource_path
-
+        """Wariant z zakładki 'Opisy ogólne': folder i GDOŚ czyta z pól GUI."""
         entry = getattr(self, "opis_og_root_entry", None)
         raw = entry.get().strip() if entry else ""
         if not raw:
             self.log("[OPIS OG] Wskaż najpierw folder (główny z folderami wsi albo pojedynczą wieś).")
             self.update_status("Brak folderu", "#D83B01", animate=False)
             return
-        root = Path(raw)
+        gdos_entry = getattr(self, "opis_og_gdos_entry", None)
+        gdos_raw = gdos_entry.get().strip() if gdos_entry is not None else ""
+        self._opis_og_generuj(Path(raw), Path(gdos_raw) if gdos_raw else None)
+
+    def _opis_og_generuj(self, root, gdos_folder=None, tylko_istniejace=False):
+        """Generuje 'opis og_<wieś>.docx' we wszystkich wsiach pod 'root'.
+
+        root — folder główny z folderami wsi (albo pojedyncza wieś z WSK_ZB.doc);
+        gdos_folder — opcjonalny folder z wynikami GDOŚ (formy ochrony przyrody);
+        tylko_istniejace — bez tworzenia tymczasowych Wordów z DBF (Pełny
+        Automat: korzystamy wyłącznie z WSK_ZB.doc utworzonych przez pipeline)."""
+        from app.core.word_worker import get_resource_path
+
+        root = Path(root)
         self.last_output_dir = root
         if not root.exists():
             self.log(f"[OPIS OG] Folder nie istnieje: {root}")
@@ -248,13 +260,20 @@ class TabOpisOgMixin:
             )
         # 2) wsie z danymi MIETEKA (O*.DBF) — dla nich robimy tymczasowo
         #    MIETEK -> TXT -> Word i czytamy WSK_ZB z folderu tymczasowego
-        mietek_sources = [(v, dbf) for v, dbf in self._find_mietek_sources(root)
-                          if v not in word_villages]
-        mietek_todo = [v for v, _dbf in mietek_sources]
+        #    (w Pełnym Automacie wyłączone — WSK_ZB.doc już istnieją z pipeline)
+        if tylko_istniejace:
+            mietek_sources = []
+            mietek_todo = []
+        else:
+            mietek_sources = [(v, dbf) for v, dbf in self._find_mietek_sources(root)
+                              if v not in word_villages]
+            mietek_todo = [v for v, _dbf in mietek_sources]
 
         if not word_villages and not mietek_todo:
-            self.log("[OPIS OG] Nie znaleziono żadnego folderu wsi z plikiem WSK_ZB.doc "
-                     f"ani z danymi MIETEKA (O*.DBF) w: {root}")
+            self.log("[OPIS OG] Nie znaleziono folderów wsi z plikiem WSK_ZB.doc"
+                     + ("" if tylko_istniejace else
+                        " ani z danymi MIETEKA (O*.DBF)")
+                     + f" w: {root}")
             self.update_status("Brak wsi", "#D83B01", animate=False)
             return
 
@@ -265,17 +284,15 @@ class TabOpisOgMixin:
             return
 
         # opcjonalny folder z wynikami GDOŚ -> automatyczne formy ochrony przyrody
-        gdos_entry = getattr(self, "opis_og_gdos_entry", None)
-        gdos_raw = gdos_entry.get().strip() if gdos_entry is not None else ""
         gdos_map = {}
-        if gdos_raw:
-            if Path(gdos_raw).exists():
-                gdos_map = self._gdos_files_map(gdos_raw)
+        if gdos_folder is not None:
+            if Path(gdos_folder).exists():
+                gdos_map = self._gdos_files_map(gdos_folder)
                 if gdos_map:
                     self.log(f"[OPIS OG] Wyniki GDOŚ: {len(gdos_map)} plik(ów) — formy "
                              "ochrony przyrody zostaną wstawione automatycznie.")
             else:
-                self.log(f"[OPIS OG] Folder GDOŚ nie istnieje: {gdos_raw} — pomijam.")
+                self.log(f"[OPIS OG] Folder GDOŚ nie istnieje: {gdos_folder} — pomijam.")
 
         temp_dir = None
         try:

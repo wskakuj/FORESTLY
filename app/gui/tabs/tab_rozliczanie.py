@@ -728,59 +728,75 @@ class TabRozliczanieMixin:
             self.after(0, self.restore_all_buttons)
 
     def _build_margins_ui(self, parent_frame, row_idx, mode_key):
+        """Tabela marginesów jako zwijana lista (domyślnie zwinęta)."""
         if not hasattr(self, "margin_vars"):
             self.margin_vars = {}
+        if not hasattr(self, "_margins_open"):
+            self._margins_open = {}
         self.margin_vars[mode_key] = {}
 
         font_label = ctk.CTkFont(family="Segoe UI", size=12, weight="bold")
         font_entry = ctk.CTkFont(family="Segoe UI", size=11)
 
-        margin_frame = ctk.CTkFrame(parent_frame, fg_color="#1E1E1E", border_width=1, border_color="#333333")
-        margin_frame.grid(row=row_idx, column=0, columnspan=3, padx=15, pady=(5, 15), sticky="ew")
+        margin_frame = ctk.CTkFrame(parent_frame, fg_color="#1E1E1E", border_width=1,
+                                     border_color="#333333")
+        margin_frame.grid(row=row_idx, column=0, columnspan=3, padx=15, pady=(5, 15),
+                          sticky="ew")
+        margin_frame.grid_columnconfigure(0, weight=1)
 
-        ctk.CTkLabel(margin_frame, text="Ustawienia marginesów (w cm):", font=font_label, text_color="#A0A0A0").grid(
-            row=0, column=0, columnspan=5, pady=(5, 5), sticky="w", padx=10)
+        def _toggle():
+            self._margins_open[mode_key] = not self._margins_open.get(mode_key, False)
+            if self._margins_open[mode_key]:
+                body.grid()
+                hdr.configure(text="▾  Ustawienia marginesów (w cm)")
+            else:
+                body.grid_remove()
+                hdr.configure(text="▸  Ustawienia marginesów (w cm)")
+
+        hdr = ctk.CTkButton(
+            margin_frame, text="▸  Ustawienia marginesów (w cm)",
+            fg_color="transparent", anchor="w", height=30,
+            font=ctk.CTkFont(family="Segoe UI", size=13, weight="bold"),
+            text_color="#A0A0A0", hover_color="#252526", command=_toggle)
+        hdr.grid(row=0, column=0, padx=5, pady=3, sticky="ew")
+
+        body = ctk.CTkFrame(margin_frame, fg_color="transparent")
+        body.grid(row=1, column=0, padx=5, pady=(0, 6), sticky="ew")
+        body.grid_columnconfigure((1, 2, 3, 4), weight=0)
+        body.grid_remove()  # domyślnie zwinięte
 
         headers = ["Typ pliku", "Góra", "Dół", "Lewo", "Prawo"]
         for c, h in enumerate(headers):
-            ctk.CTkLabel(margin_frame, text=h, font=font_label, text_color="#0078D7").grid(row=1, column=c, padx=5,
-                                                                                           pady=(0, 5))
+            ctk.CTkLabel(body, text=h, font=font_label, text_color="#0078D7").grid(
+                row=1, column=c, padx=5, pady=(0, 5))
 
-        file_types = ["REJESTR1", "OPTAX", "TAB_KLW3", "WSKAZ1", "HALIZNY", "WYK_NEG", "OPIS", "ZEST1", "WK_ZM1"]
-
-        # --- ZMIANA: Pobranie zapisanych marginesów z pliku ---
+        file_types = ["REJESTR1", "OPTAX", "TAB_KLW3", "WSKAZ1", "HALIZNY",
+                      "WYK_NEG", "OPIS", "ZEST1", "WK_ZM1"]
         saved_config = load_margins()
         mode_saved = saved_config.get(mode_key, {})
 
         for r, ftype in enumerate(file_types, start=2):
-            ctk.CTkLabel(margin_frame, text=ftype, font=font_entry).grid(row=r, column=0, padx=10, pady=2, sticky="w")
-
-            # Pobieramy konkretne wartości dla pliku, jeśli brak to stosujemy twarde domyślne
+            ctk.CTkLabel(body, text=ftype, font=font_entry).grid(
+                row=r, column=0, padx=10, pady=2, sticky="w")
             file_saved = mode_saved.get(ftype, {})
             t_val = str(file_saved.get("T", "1.5"))
             b_val = str(file_saved.get("B", "1.5"))
             l_val = str(file_saved.get("L", "2.5"))
             r_val = str(file_saved.get("R", "1.5"))
-
-            eT = ctk.CTkEntry(margin_frame, width=45, height=24, font=font_entry)
+            eT = ctk.CTkEntry(body, width=45, height=24, font=font_entry)
             eT.insert(0, t_val)
             eT.grid(row=r, column=1, padx=5, pady=2)
-
-            eB = ctk.CTkEntry(margin_frame, width=45, height=24, font=font_entry)
+            eB = ctk.CTkEntry(body, width=45, height=24, font=font_entry)
             eB.insert(0, b_val)
             eB.grid(row=r, column=2, padx=5, pady=2)
-
-            eL = ctk.CTkEntry(margin_frame, width=45, height=24, font=font_entry)
+            eL = ctk.CTkEntry(body, width=45, height=24, font=font_entry)
             eL.insert(0, l_val)
             eL.grid(row=r, column=3, padx=5, pady=2)
-
-            eR = ctk.CTkEntry(margin_frame, width=45, height=24, font=font_entry)
+            eR = ctk.CTkEntry(body, width=45, height=24, font=font_entry)
             eR.insert(0, r_val)
             eR.grid(row=r, column=4, padx=5, pady=2)
-
             self.margin_vars[mode_key][ftype] = {"T": eT, "B": eB, "L": eL, "R": eR}
 
-    # NOWA METODA: Konfiguracja UI dla Pełny Automat (STR_TYT + SKROTY)
     def start_remove_columns_pipeline(self):
         folder = self.excel_folder_entry.get().strip() if self.excel_folder_entry else ""
         output_folder = self.excel_output_entry.get().strip() if self.excel_output_entry else ""

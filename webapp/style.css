@@ -764,3 +764,73 @@ button.order-toggle.off:hover {
   white-space: nowrap;
 }
 .toast-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* zwijane grupy kontrolek (kreator w 1-Click) i zwijane marginesy */
+details.group-details,
+details.margins-details {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  padding: 0 14px;
+  margin: 10px 0;
+}
+details.group-details > summary,
+details.margins-details > summary {
+  cursor: pointer;
+  padding: 11px 0;
+  font-weight: 600;
+  color: var(--text);
+  user-select: none;
+  list-style: none;
+}
+details.group-details > summary::before,
+details.margins-details > summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 14px;
+  color: var(--text-dim);
+}
+details[open].group-details > summary::before,
+details[open].margins-details > summary::before {
+  content: "▾";
+}
+details.group-details[open] > summary,
+details.margins-details[open] > summary {
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 6px;
+}
+.group-body { padding: 2px 0 8px 0; }
+
+/* --- rozwijana lista edytowalna (woj./powiat/gmina) ---
+   wygląd spójny z select, ale z możliwością wpisania własnej wartości */
+.combo { position: relative; flex: 1; min-width: 0; }
+.combo > input { width: 100%; padding-right: 36px; cursor: pointer; }
+.combo > input:focus { cursor: text; }
+.combo-btn {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  display: flex; align-items: center; color: var(--text-dim);
+  cursor: pointer; padding: 5px; border-radius: 6px;
+  transition: color .15s ease;
+}
+.combo-btn:hover { color: var(--text); }
+.combo-list {
+  display: none; position: absolute; top: calc(100% + 6px); left: 0; right: 0;
+  max-height: 264px; overflow-y: auto; overflow-x: hidden;
+  background: var(--panel-solid); border: 1px solid var(--border-strong);
+  border-radius: 10px; padding: 6px; z-index: 90;
+  box-shadow: var(--shadow);
+}
+.combo.open .combo-list { display: block; }
+.combo-opt {
+  padding: 8px 12px; border-radius: 7px; font-size: 13px;
+  color: var(--text); cursor: pointer; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+  transition: background .1s ease;
+}
+.combo-opt:hover, .combo-opt.hl { background: rgba(45, 212, 167, 0.14); }
+.combo-opt.sel { font-weight: 600; }
+.combo-opt.sel::after {
+  content: "✓"; float: right; margin-left: 10px; color: var(--accent);
+  font-size: 12px; font-weight: 700;
+}
+.combo-empty { padding: 9px 12px; color: var(--text-dim); font-size: 12.5px; }

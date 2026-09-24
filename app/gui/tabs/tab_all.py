@@ -33,75 +33,94 @@ class TabAllMixin:
     pass
 
     def _setup_all_extras(self, card_frame, row_idx):
+        from app.config import TERRITORY_DATA
         font_label = ctk.CTkFont(family="Segoe UI", size=13, weight="bold")
 
-        # 0. GENEROWANIE TXT Z DBF MIETEKA (pierwszy etap procesu)
-        self.all_gen_txt_var = ctk.BooleanVar(value=True)
-        cb_gen_txt = ctk.CTkCheckBox(
-            card_frame,
-            text="Generuj pliki TXT z DBF mietka (na starcie)",
-            variable=self.all_gen_txt_var,
-            font=ctk.CTkFont(family="Segoe UI", size=12),
-        )
-        cb_gen_txt.grid(
-            row=row_idx, column=0, columnspan=3, padx=15, pady=(0, 5), sticky="w"
-        )
-        add_tooltip(
-            cb_gen_txt,
-            "Pierwszy etap procesu, dla każdego obrębu źródłowego:\n"
-            "  1. generuje HALIZNY.TXT (zestawienie pow. niezalesionych),\n"
-            "  2. przenosi halizny w D*.DBF (jak przycisk w zakładce 'Halizny'),\n"
-            "  3. generuje OPTAX, TAB_KLW3, ZEST1, REJESTR1, WSKAZ1, WYK_NEG\n"
-            "     i WSK_ZB bezpośrednio z DBF (w miejscu, obok plików DBF).\n"
-            "Powtórne uruchomienie jest bezpieczne (przeniesione halizny są pomijane).",
-        )
+        # --- KREATOR STRONY TYTUŁOWEJ (rozwijany) — strona tytułowa i daty ---
+        # Strona tytułowa ZAWSZE generowana z tych ustawień (jak w zakładce
+        # „Kreator Stron tytułowych", ale bez wsi konkretnej i wiersza powierzchni).
+        woj_list = sorted(TERRITORY_DATA.keys()) if TERRITORY_DATA else ["BRAK DANYCH"]
+        default_woj = ("KUJAWSKO-POMORSKIE" if "KUJAWSKO-POMORSKIE" in TERRITORY_DATA
+                       else (woj_list[0] if woj_list else ""))
+        powiat_list = sorted(TERRITORY_DATA.get(default_woj, {}).keys()) or ["BRAK DANYCH"]
+        default_powiat = ("TUCHOLSKI" if "TUCHOLSKI" in TERRITORY_DATA.get(default_woj, {})
+                          else (powiat_list[0] if powiat_list else ""))
+        gmina_list = list(TERRITORY_DATA.get(default_woj, {}).get(default_powiat, []))
+        default_gmina = ("LUBIEWO" if "LUBIEWO" in gmina_list
+                        else (gmina_list[0] if gmina_list else ""))
 
-        # 1. STR_TYT Checkbox
-        self.all_gen_str_tyt_var = ctk.BooleanVar(value=False)
-        cb_str = ctk.CTkCheckBox(
-            card_frame,
-            text="Generuj strony tytułowe (STR_TYT) na podstawie OPTAX",
-            variable=self.all_gen_str_tyt_var,
-            font=ctk.CTkFont(family="Segoe UI", size=12),
-            command=self._toggle_all_template_ui,
-        )
-        cb_str.grid(
-            row=row_idx + 1, column=0, columnspan=3, padx=15, pady=(0, 5), sticky="w"
-        )
+        tpl_frame = ctk.CTkFrame(card_frame, fg_color="#1E1E1E",
+                                border_width=1, border_color="#333333")
+        tpl_frame.grid(row=row_idx, column=0, columnspan=3, padx=15,
+                       pady=(0, 10), sticky="ew")
+        tpl_frame.grid_columnconfigure(0, weight=1)
 
-        self.all_template_frame = ctk.CTkFrame(
-            card_frame, fg_color="#1E1E1E", border_width=1, border_color="#333333"
-        )
-        self.all_template_frame.grid(
-            row=row_idx + 2, column=0, columnspan=3, padx=15, pady=(0, 10), sticky="ew"
-        )
-        self.all_template_frame.grid_columnconfigure(1, weight=1)
+        self.all_tpl_open = False
+        self.all_tpl_header = ctk.CTkButton(
+            tpl_frame, text="▸  Kreator strony tytułowej (strona tytułowa i daty)",
+            fg_color="transparent", anchor="w", height=34,
+            font=ctk.CTkFont(family="Segoe UI", size=13, weight="bold"),
+            text_color="#E0E0E0", hover_color="#252526",
+            command=self._toggle_all_tpl_ui)
+        self.all_tpl_header.grid(row=0, column=0, padx=5, pady=3, sticky="ew")
 
-        ctk.CTkLabel(
-            self.all_template_frame,
-            text="Plik szablonu (.docx):",
-            font=font_label,
-            text_color="#E0E0E0",
-        ).grid(row=0, column=0, padx=(10, 10), pady=5, sticky="w")
-        self.all_template_entry = ctk.CTkEntry(
-            self.all_template_frame,
-            placeholder_text="Wskaż plik bazowy STR_TYT...",
-            height=32,
-        )
-        self.all_template_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
-        ctk.CTkButton(
-            self.all_template_frame,
-            text="Wybierz",
-            command=lambda: self.select_file(
-                self.all_template_entry, [("Word", "*.docx")]
-            ),
-            width=90,
-            height=32,
-            fg_color="#333333",
-            hover_color="#444444",
-        ).grid(row=0, column=2, padx=(5, 10), pady=5)
+        body = ctk.CTkFrame(tpl_frame, fg_color="transparent")
+        body.grid(row=1, column=0, padx=5, pady=(0, 5), sticky="ew")
+        body.grid_columnconfigure(1, weight=1)
+        self.all_tpl_body = body
 
-        # 2. SKROTY - Zawsze włączone, opcjonalnie z własnego pliku
+        def _row(r, label, widget):
+            ctk.CTkLabel(body, text=label, font=font_label,
+                         text_color="#E0E0E0").grid(
+                row=r, column=0, padx=(10, 10), pady=4, sticky="w")
+            widget.grid(row=r, column=1, padx=(0, 10), pady=4, sticky="ew")
+
+        self.all_tpl_doc_var = ctk.StringVar(value="UPUL")
+        _row(0, "Typ dokumentu:", ctk.CTkOptionMenu(
+            body, values=["UPUL", "ISL"], variable=self.all_tpl_doc_var, height=30))
+        self.all_tpl_prefix_var = ctk.StringVar(value="położonych na terenie obrębu")
+        _row(1, "Prefiks obrębu:", ctk.CTkOptionMenu(
+            body, values=["położonych na terenie obrębu", "Obręb:"],
+            variable=self.all_tpl_prefix_var, height=30))
+        self.all_tpl_woj_var = ctk.StringVar(value=default_woj)
+        self.all_tpl_woj_box = ctk.CTkComboBox(
+            body, values=woj_list, variable=self.all_tpl_woj_var, height=30,
+            command=lambda _v: self._all_tpl_refresh_powiat())
+        _row(2, "Województwo (można wpisać własne):", self.all_tpl_woj_box)
+        self.all_tpl_powiat_var = ctk.StringVar(value=default_powiat)
+        self.all_tpl_powiat_box = ctk.CTkComboBox(
+            body, values=powiat_list, variable=self.all_tpl_powiat_var,
+            height=30, command=lambda _v: self._all_tpl_refresh_gmina())
+        _row(3, "Powiat (można wpisać własny):", self.all_tpl_powiat_box)
+        self.all_tpl_gmina_var = ctk.StringVar(value=default_gmina)
+        self.all_tpl_gmina_box = ctk.CTkComboBox(
+            body, values=gmina_list, variable=self.all_tpl_gmina_var, height=30)
+        _row(4, "Gmina (można wpisać własną):", self.all_tpl_gmina_box)
+
+        self.all_tpl_stan_na_entry = ctk.CTkEntry(body, height=30)
+        self.all_tpl_stan_na_entry.insert(0, "30.06.2026 r.")
+        _row(5, "Stan na (także data we wszystkich Wordach):",
+             self.all_tpl_stan_na_entry)
+        self.all_tpl_okres_entry = ctk.CTkEntry(body, height=30)
+        self.all_tpl_okres_entry.insert(0, "01.01.2027 – 31.12.2036 r.")
+        _row(6, "Na okres (strona tytułowa):", self.all_tpl_okres_entry)
+
+        daty_frame = ctk.CTkFrame(body, fg_color="#252526", corner_radius=6)
+        daty_frame.grid(row=7, column=0, columnspan=2, padx=10, pady=(4, 2), sticky="ew")
+        daty_frame.grid_columnconfigure((1, 3), weight=1)
+        ctk.CTkLabel(daty_frame, text="WSK_ZB — 10-lecie:", font=font_label,
+                     text_color="#888888").grid(row=0, column=0, padx=(10, 6),
+                                                pady=6, sticky="w")
+        self.all_wsk_od_entry = ctk.CTkEntry(daty_frame, height=28)
+        self.all_wsk_od_entry.insert(0, "01-01-2027")
+        self.all_wsk_od_entry.grid(row=0, column=1, padx=4, pady=6, sticky="ew")
+        ctk.CTkLabel(daty_frame, text="do:", font=font_label,
+                     text_color="#888888").grid(row=0, column=2, padx=4, sticky="w")
+        self.all_wsk_do_entry = ctk.CTkEntry(daty_frame, height=28)
+        self.all_wsk_do_entry.insert(0, "31-12-2036")
+        self.all_wsk_do_entry.grid(row=0, column=3, padx=(4, 10), pady=6, sticky="ew")
+
+        # --- SKRÓTY (własny plik, opcjonalnie) ---
         self.all_custom_skroty_var = ctk.BooleanVar(value=False)
         cb_skroty = ctk.CTkCheckBox(
             card_frame,
@@ -110,70 +129,168 @@ class TabAllMixin:
             font=ctk.CTkFont(family="Segoe UI", size=12),
             command=self._toggle_all_skroty_ui,
         )
-        cb_skroty.grid(
-            row=row_idx + 3, column=0, columnspan=3, padx=15, pady=(5, 5), sticky="w"
-        )
-
+        cb_skroty.grid(row=row_idx + 1, column=0, columnspan=3, padx=15,
+                       pady=(5, 5), sticky="w")
         self.all_skroty_frame = ctk.CTkFrame(
-            card_frame, fg_color="#1E1E1E", border_width=1, border_color="#333333"
-        )
-        self.all_skroty_frame.grid(
-            row=row_idx + 4, column=0, columnspan=3, padx=15, pady=(0, 15), sticky="ew"
-        )
+            card_frame, fg_color="#1E1E1E", border_width=1, border_color="#333333")
+        self.all_skroty_frame.grid(row=row_idx + 2, column=0, columnspan=3,
+                                    padx=15, pady=(0, 10), sticky="ew")
         self.all_skroty_frame.grid_columnconfigure(1, weight=1)
-
-        ctk.CTkLabel(
-            self.all_skroty_frame,
-            text="Własny plik:",
-            font=font_label,
-            text_color="#E0E0E0",
-        ).grid(row=0, column=0, padx=(10, 10), pady=8, sticky="w")
-
+        ctk.CTkLabel(self.all_skroty_frame, text="Własny plik:", font=font_label,
+                     text_color="#E0E0E0").grid(row=0, column=0, padx=(10, 10),
+                                                pady=8, sticky="w")
         self.all_skroty_entry = ctk.CTkEntry(
-            self.all_skroty_frame,
-            placeholder_text="Wskaż własny plik ze skrótami...",
-            height=32,
-        )
+            self.all_skroty_frame, placeholder_text="Wskaż własny plik ze skrótami...",
+            height=32)
         self.all_skroty_entry.grid(row=0, column=1, padx=5, pady=8, sticky="ew")
-
         ctk.CTkButton(
-            self.all_skroty_frame,
-            text="Wybierz",
+            self.all_skroty_frame, text="Wybierz",
             command=lambda: self.select_file(
                 self.all_skroty_entry,
                 [("Word/PDF", "*.docx *.doc *.pdf"), ("Wszystkie pliki", "*.*")],
             ),
-            width=90,
-            height=32,
-            fg_color="#333333",
-            hover_color="#444444",
+            width=90, height=32, fg_color="#333333", hover_color="#444444",
         ).grid(row=0, column=2, padx=(5, 10), pady=8)
 
-        self._toggle_all_template_ui()
-        self._toggle_all_skroty_ui()
+        # --- OPISY OGÓLNE (zawsze z gotowych WSK_ZB.doc z pipeline) ---
+        self.all_gen_opis_og_var = ctk.BooleanVar(value=True)
+        cb_opis = ctk.CTkCheckBox(
+            card_frame,
+            text="Generuj opisy ogólne (opis og_<wieś>.docx) po plikach Word",
+            variable=self.all_gen_opis_og_var,
+            font=ctk.CTkFont(family="Segoe UI", size=12),
+            command=self._toggle_all_gdos_ui,
+        )
+        cb_opis.grid(row=row_idx + 3, column=0, columnspan=3, padx=15,
+                     pady=(5, 5), sticky="w")
+        self.all_gdos_frame = ctk.CTkFrame(
+            card_frame, fg_color="#1E1E1E", border_width=1, border_color="#333333")
+        self.all_gdos_frame.grid(row=row_idx + 4, column=0, columnspan=3,
+                                padx=15, pady=(0, 10), sticky="ew")
+        self.all_gdos_frame.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(self.all_gdos_frame,
+                     text="Folder z wynikami GDOŚ (opcjonalny):", font=font_label,
+                     text_color="#E0E0E0").grid(row=0, column=0, padx=(10, 10),
+                                                pady=5, sticky="w")
+        self.all_gdos_entry = ctk.CTkEntry(
+            self.all_gdos_frame,
+            placeholder_text="Formy ochrony przyrody (NN_WIEŚ_wynik.xlsx) — puste = bez GDOŚ",
+            height=32)
+        self.all_gdos_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+        ctk.CTkButton(
+            self.all_gdos_frame, text="Wybierz",
+            command=lambda: self.select_dir(self.all_gdos_entry),
+            width=90, height=32, fg_color="#333333", hover_color="#444444",
+        ).grid(row=0, column=2, padx=(5, 10), pady=5)
 
-        # --- DODANA TABELA MARGINESÓW ---
+        self._toggle_all_skroty_ui()
+        self._toggle_all_gdos_ui()
+        self._toggle_all_tpl_ui()
+
+        # --- TABELA MARGINESÓW (zwijana) ---
         self._build_margins_ui(card_frame, row_idx + 5, "ALL")
 
-    def _toggle_all_template_ui(self):
-        state = (
-            "normal"
-            if getattr(self, "all_gen_str_tyt_var", None)
-               and self.all_gen_str_tyt_var.get()
-            else "disabled"
-        )
-        if hasattr(self, "all_template_frame"):
-            for child in self.all_template_frame.winfo_children():
+    def _toggle_all_tpl_ui(self):
+        self.all_tpl_open = not getattr(self, "all_tpl_open", False)
+        if self.all_tpl_open:
+            self.all_tpl_body.grid()
+            self.all_tpl_header.configure(
+                text="▾  Kreator strony tytułowej (strona tytułowa i daty)")
+        else:
+            self.all_tpl_body.grid_remove()
+            self.all_tpl_header.configure(
+                text="▸  Kreator strony tytułowej (strona tytułowa i daty)")
+
+    def _all_tpl_refresh_powiat(self):
+        from app.config import TERRITORY_DATA
+        lista = sorted(TERRITORY_DATA.get(self.all_tpl_woj_var.get(), {}).keys()) \
+            or ["BRAK DANYCH"]
+        self.all_tpl_powiat_box.configure(values=lista)
+        if self.all_tpl_powiat_var.get() not in lista:
+            self.all_tpl_powiat_var.set(lista[0])
+        self._all_tpl_refresh_gmina()
+
+    def _all_tpl_refresh_gmina(self):
+        from app.config import TERRITORY_DATA
+        lista = list(TERRITORY_DATA.get(self.all_tpl_woj_var.get(), {})
+                     .get(self.all_tpl_powiat_var.get(), [])) or ["BRAK DANYCH"]
+        self.all_tpl_gmina_box.configure(values=lista)
+        if self.all_tpl_gmina_var.get() not in lista:
+            self.all_tpl_gmina_var.set(lista[0])
+
+    def _zbuduj_szablon_str_tyt_dla_all(self):
+        """Buduje tymczasowy szablon STR_TYT z ustawień kreatora w 1-Click."""
+        def _v(attr, default=""):
+            e = getattr(self, attr, None)
+            return e.get().strip() if e is not None else default
+        try:
+            fd, tmp = tempfile.mkstemp(suffix=".docx", prefix="STR_TYT_ALL_")
+            os.close(fd)
+            out = self._build_str_tyt_doc(
+                _v("all_tpl_doc_var", "UPUL") or "UPUL",
+                _v("all_tpl_prefix_var") or "położonych na terenie obrębu",
+                _v("all_tpl_woj_var").upper(),
+                _v("all_tpl_powiat_var").upper(),
+                _v("all_tpl_gmina_var").upper(),
+                _v("all_tpl_stan_na_entry"),
+                _v("all_tpl_okres_entry"),
+                tmp, village="NAZWA WSI", keep_area=False)
+            self.log("[STR_TYT] Zbudowano szablon bazowy z ustawień kreatora (1-Click).")
+            return out
+        except Exception:
+            self.log("[STR_TYT] Nie udało się zbudować szablonu strony tytułowej:\n"
+                     + traceback.format_exc())
+            return None
+
+    def _zamien_daty_txt(self, txt_dir):
+        """Zamienia daty w wyczyszczonych TXT (przed konwersją na Word).
+
+        'Stan na: <data>' — we wszystkich plikach (pole kreatora „Stan na");
+        'w 10-leciu od <data> do <data>' — w plikach WSK_ZB (pola od/do)."""
+        def _v(attr):
+            e = getattr(self, attr, None)
+            return e.get().strip() if e is not None else ""
+        stan_na, wsk_od, wsk_do = (_v("all_tpl_stan_na_entry"),
+                                   _v("all_wsk_od_entry"), _v("all_wsk_do_entry"))
+        if not stan_na and not (wsk_od and wsk_do):
+            return
+        n_stan = n_wsk = 0
+        for f in Path(txt_dir).rglob("*"):
+            if not f.is_file() or f.suffix.lower() != ".txt":
+                continue
+            try:
+                raw = f.read_bytes()
+            except OSError:
+                continue
+            nowy = raw
+            if stan_na:
+                val = stan_na.encode("cp852", errors="replace")
+                nowy, k = re.subn(
+                    rb"(Stan\s+na:?\s*)[0-9]{2}[-./][0-9]{2}[-./][0-9]{4}(\s*r\.?)?",
+                    lambda m, v=val: m.group(1) + v, nowy, flags=re.IGNORECASE)
+                n_stan += k
+            if wsk_od and wsk_do and f.stem.upper().startswith("WSK_ZB"):
+                od = wsk_od.encode("cp852", errors="replace")
+                do = wsk_do.encode("cp852", errors="replace")
+                nowy, k = re.subn(
+                    rb"(w\s+10-leciu\s+od\s+)[0-9][0-9.\-]*[0-9](\s+do\s+)[0-9][0-9.\-]*[0-9]",
+                    lambda m, o=od, d=do: m.group(1) + o + m.group(2) + d, nowy)
+                n_wsk += k
+            if nowy != raw:
                 try:
-                    child.configure(state=state)
-                except:
+                    f.write_bytes(nowy)
+                except OSError:
                     pass
-                if hasattr(child, "winfo_children"):
-                    for subchild in child.winfo_children():
-                        try:
-                            subchild.configure(state=state)
-                        except:
-                            pass
+        if n_stan or n_wsk:
+            self.log(f"[DATY] Zamieniono \"Stan na\" {n_stan}×, "
+                     f"okres 10-lecia WSK_ZB {n_wsk}×.")
+
+    def _toggle_all_gdos_ui(self):
+        wlasny = bool(self.all_gen_opis_og_var.get())
+        if wlasny:
+            self.all_gdos_frame.grid()
+        else:
+            self.all_gdos_frame.grid_remove()
 
     def _toggle_all_skroty_ui(self):
         if getattr(self, "all_custom_skroty_var", None) and getattr(self, "all_skroty_frame", None):
@@ -538,24 +655,42 @@ class TabAllMixin:
                 self.update_dashboard(2, "done", "Gotowe")
                 self.set_progress(0.30)
 
-                # === GENEROWANIE STR_TYT ===
-                if (
-                        getattr(self, "all_gen_str_tyt_var", None)
-                        and self.all_gen_str_tyt_var.get()
-                ):
-                    self.update_status(
-                        "Generowanie stron tytułowych (STR_TYT)...", "#0078D7"
-                    )
-                    template_path = self.all_template_entry.get().strip()
-                    v_ph = "NAZWA WSI"
-                    a_ph = "wielkość"
-                    if template_path and Path(template_path).exists():
-                        self.task_generate_str_tyt(dir_02, template_path, v_ph, a_ph)
-                    else:
-                        self.log(
-                            "[UWAGA] Zaznaczono generowanie STR_TYT, ale nie podano prawidłowego szablonu. Pomijam."
-                        )
+                # === GENEROWANIE STR_TYT (zawsze — z kreatora w 1-Click) ===
+                self.update_status(
+                    "Generowanie stron tytułowych (STR_TYT)...", "#0078D7"
+                )
+                tpl_tmp = self._zbuduj_szablon_str_tyt_dla_all()
+                if tpl_tmp:
+                    try:
+                        self.task_generate_str_tyt(dir_02, tpl_tmp,
+                                                   "NAZWA WSI", "wielkość")
+                    finally:
+                        try:
+                            Path(tpl_tmp).unlink()
+                        except OSError:
+                            pass
                 self.set_progress(0.45)
+
+                # === OPISY OGÓLNE (po plikach Word, przed konwersją do PDF) ===
+                if (getattr(self, "all_gen_opis_og_var", None) is None
+                        or self.all_gen_opis_og_var.get()):
+                    self.update_status(
+                        "Generowanie opisów ogólnych (opis og_<wieś>.docx)...",
+                        "#0078D7",
+                    )
+                    self.check_stop()
+                    gdos_raw = ""
+                    ent = getattr(self, "all_gdos_entry", None)
+                    if ent is not None:
+                        gdos_raw = ent.get().strip()
+                    try:
+                        self._opis_og_generuj(
+                            dir_02, Path(gdos_raw) if gdos_raw else None,
+                            tylko_istniejace=True,
+                        )
+                    except Exception:
+                        self.log("[OPIS OG] Błąd generowania opisów ogólnych:\n"
+                                 + traceback.format_exc())
 
                 self.update_dashboard(3, "running", "Konwersja...")
                 self.check_stop()

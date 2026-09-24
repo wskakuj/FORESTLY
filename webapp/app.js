@@ -12,7 +12,6 @@ let setValuesTimer = null;
 
 /* Pokazywanie kontrolki warunkowej: id kontrolki -> id checkboxa */
 const DEPENDS = {
-  all_template: "all_str_tyt",
   all_skroty: "all_custom_skroty",
   xl_global_size: "xl_global_font",
   tpl_MIETEK_village: "tpl_MIETEK_single",
@@ -102,6 +101,7 @@ function renderAll(cfg) {
   buildStartView(nav, content);
   showTab(START_KEY);
   applyDeps();
+  wireTerritory();
 }
 
 /* ------------------------------------------- nawigacja: Start, grupy, szukajka */
@@ -237,20 +237,45 @@ function showTab(key) {
   }
 }
 
+function renderOneControl(c) {
+  switch (c.kind) {
+    case "path": return renderPath(c);
+    case "text": return renderText(c);
+    case "check": return renderCheck(c);
+    case "checks": return renderChecks(c);
+    case "select": return renderSelect(c);
+    case "margins": return renderMargins(c);
+    case "fonts": return renderFonts(c);
+    case "dashboard": return renderDashboard(c);
+    case "info": return renderInfo(c);
+    case "gdos_table": return renderGdos(c);
+    case "group": return renderGroup(c);
+  }
+  return null;
+}
+
+function renderGroup(c) {
+  /* zwijana grupa kontrolek (np. kreator strony tytułowej w 1-Click) */
+  const wrap = el("div", null);
+  const det = el("details", "group-details");
+  if (c.collapsed === false) det.open = true;
+  const sum = el("summary", null, escapeHtml(c.label));
+  if (c.tooltip) sum.title = c.tooltip;
+  det.appendChild(sum);
+  const inner = el("div", "group-body");
+  for (const sub of (c.controls || [])) {
+    const node = renderOneControl(sub);
+    if (node) inner.appendChild(node);
+  }
+  det.appendChild(inner);
+  wrap.appendChild(det);
+  return wrap;
+}
+
 function renderControls(view, tab) {
   for (const c of tab.controls) {
-    switch (c.kind) {
-      case "path": view.appendChild(renderPath(c)); break;
-      case "text": view.appendChild(renderText(c)); break;
-      case "check": view.appendChild(renderCheck(c)); break;
-      case "checks": view.appendChild(renderChecks(c)); break;
-      case "select": view.appendChild(renderSelect(c)); break;
-      case "margins": view.appendChild(renderMargins(c)); break;
-      case "fonts": view.appendChild(renderFonts(c)); break;
-      case "dashboard": view.appendChild(renderDashboard(c)); break;
-      case "info": view.appendChild(renderInfo(c)); break;
-      case "gdos_table": view.appendChild(renderGdos(c)); break;
-    }
+    const node = renderOneControl(c);
+    if (node) view.appendChild(node);
   }
   const actions = document.createElement("div");
   actions.className = "actions";
@@ -433,26 +458,155 @@ function applyGroupStates(c, grid) {
 }
 
 /* kontrolka: select */
+/* rozwijana lista z możliwością wpisania własnej wartości (woj./powiat/gmina).
+   dlId — id ukrytego <datalist> jako źródła opcji (aktualizowanego przez wireTerritory) */
+function buildCombo(dlId, current) {
+  const box = el("div", "combo");
+  const inp = el("input");
+  inp.type = "text";
+  inp.value = current || "";
+  inp.placeholder = "wybierz z listy lub wpisz własne";
+  const btn = el("div", "combo-btn",
+    '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" ' +
+    'stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
+    '<polyline points="6 9 12 15 18 9"/></svg>');
+  const list = el("div", "combo-list");
+  box.appendChild(inp);
+  box.appendChild(btn);
+  box.appendChild(list);
+
+  const options = () => {
+    const dl = document.getElementById(dlId);
+    return dl ? [...dl.options].map(o => o.value) : [];
+  };
+  const isOpen = () => box.classList.contains("open");
+  const close = () => box.classList.remove("open");
+
+  const buildList = (filter) => {
+    list.innerHTML = "";
+    const f = (filter || "").trim().toUpperCase();
+    const opts = options().filter(v => !f || v.toUpperCase().includes(f));
+    if (!opts.length) {
+      list.appendChild(el("div", "combo-empty",
+        "brak pozycji — wpisz własną wartość"));
+      return;
+    }
+    opts.forEach(v => {
+      const it = el("div", "combo-opt" + (v === inp.value ? " sel" : ""),
+                    escapeHtml(v));
+      it.onmousedown = e => e.preventDefault();
+      it.onclick = () => {
+        inp.value = v;
+        close();
+        inp.dispatchEvent(new Event("change", { bubbles: true }));
+      };
+      list.appendChild(it);
+    });
+  };
+  const open = () => { buildList(""); box.classList.add("open"); };
+
+  btn.onclick = () => { isOpen() ? close() : (open(), inp.focus()); };
+  inp.onclick = () => { if (!isOpen()) open(); };
+  inp.onfocus = () => { if (!isOpen()) open(); };
+  inp.onblur = () => setTimeout(() => {
+    if (!box.contains(document.activeElement)) close();
+  }, 140);
+  inp.onkeydown = e => {
+    if (e.key === "Escape") { close(); return; }
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (!isOpen()) { open(); return; }
+      const items = [...list.querySelectorAll(".combo-opt")];
+      if (!items.length) return;
+      let i = items.findIndex(x => x.classList.contains("hl"));
+      if (i >= 0) items[i].classList.remove("hl");
+      i = e.key === "ArrowDown"
+        ? (i + 1) % items.length
+        : (i - 1 + items.length) % items.length;
+      items[i].classList.add("hl");
+      items[i].scrollIntoView({ block: "nearest" });
+    } else if (e.key === "Enter" && isOpen()) {
+      e.preventDefault();
+      const hl = list.querySelector(".combo-opt.hl")
+              || list.querySelector(".combo-opt.sel");
+      if (hl) hl.click(); else close();
+    }
+  };
+  inp.oninput = () => { if (isOpen()) buildList(inp.value); scheduleSetValues(); };
+  inp.onchange = () => scheduleSetValues();
+  return { box, inp };
+}
+
 function renderSelect(c) {
   const row = el("div", "field");
   row.innerHTML = `<label>${escapeHtml(c.label)}</label>`;
-  const sel = el("select");
-  sel.dataset.cid = c.id; sel.dataset.kind = "select";
   const current = VALUES[c.id] !== undefined ? VALUES[c.id] : c.default;
-  for (const v of (c.values || [])) {
-    const o = el("option", null, escapeHtml(v));
-    o.value = v;
-    if (v === current) o.selected = true;
-    sel.appendChild(o);
+  let sel;
+  if (c.free) {
+    /* edytowalna lista rozwijana: wygląd i zachowanie jak select
+       (klik rozwija pełną listę), ale można też wpisać własną wartość */
+    const dlId = "dl-" + c.id;
+    const dl = el("datalist");
+    dl.id = dlId;
+    for (const v of (c.values || [])) {
+      const o = el("option"); o.value = v; dl.appendChild(o);
+    }
+    row.appendChild(dl);
+    const combo = buildCombo(dlId, current);
+    sel = combo.inp;
+    row.appendChild(combo.box);
+  } else {
+    sel = el("select");
+    for (const v of (c.values || [])) {
+      const o = el("option", null, escapeHtml(v));
+      o.value = v;
+      if (v === current) o.selected = true;
+      sel.appendChild(o);
+    }
+    sel.onchange = scheduleSetValues;
   }
-  if (c.free && current && !(c.values || []).includes(current)) {
-    const o = el("option", null, escapeHtml(current));
-    o.value = current; o.selected = true;
-    sel.appendChild(o);
-  }
-  sel.onchange = scheduleSetValues;
-  row.appendChild(sel);
+  sel.dataset.cid = c.id; sel.dataset.kind = "select";
+  /* dla comboboxa input jest już wewnątrz .combo — nie przenosimy go */
+  if (!row.contains(sel)) row.appendChild(sel);
   return row;
+}
+
+/* województwo -> powiat -> gmina: odświeża podpowiedzi po zmianie,
+   żeby listy nie były zamarznięte na domyślnym województwie */
+function wireTerritory() {
+  const T = SCHEMA.tpl_territory || {};
+  const prefixes = new Set();
+  $$("[data-cid]").forEach(n => {
+    const m = String(n.dataset.cid || "").match(/^(\w+?)_(woj|powiat|gmina)$/);
+    if (m) prefixes.add(m[1]);
+  });
+  for (const pref of prefixes) {
+    const woj = document.querySelector(`[data-cid="${pref}_woj"]`);
+    const pow = document.querySelector(`[data-cid="${pref}_powiat"]`);
+    const gm  = document.querySelector(`[data-cid="${pref}_gmina"]`);
+    if (!woj || !pow || !gm) continue;
+    const setDl = (cid, lista) => {
+      const dl = document.getElementById("dl-" + cid);
+      if (!dl) return;
+      dl.innerHTML = "";
+      for (const v of (lista || [])) {
+        const o = el("option"); o.value = v; dl.appendChild(o);
+      }
+    };
+    const fillPowiat = () => {
+      const w = String(woj.value || "").trim().toUpperCase();
+      setDl(`${pref}_powiat`, Object.keys(T[w] || {}));
+    };
+    const fillGmina = () => {
+      const w = String(woj.value || "").trim().toUpperCase();
+      const p = String(pow.value || "").trim().toUpperCase();
+      setDl(`${pref}_gmina`, (T[w] || {})[p] || []);
+    };
+    woj.addEventListener("change", () => { fillPowiat(); fillGmina(); });
+    pow.addEventListener("change", fillGmina);
+    fillPowiat();
+    fillGmina();
+  }
 }
 
 /* kontrolka: marginesy */
@@ -461,7 +615,10 @@ const MARGIN_SIDES = ["T", "B", "L", "R"];
 
 function renderMargins(c) {
   const wrap = el("div", null);
-  wrap.innerHTML = `<div class="subtitle">${escapeHtml(c.label)}</div>`;
+  const det = el("details", "margins-details");
+  const sum = el("summary", null,
+    escapeHtml((c.label || "Ustawienia marginesów") + " (zwiń / rozwiń)"));
+  det.appendChild(sum);
   const table = el("table", "margins-table");
   table.dataset.cid = c.id; table.dataset.kind = "margins";
   const head = el("tr", null, "<th>Typ pliku</th><th>Góra</th><th>Dół</th><th>Lewo</th><th>Prawo</th>");
@@ -483,7 +640,8 @@ function renderMargins(c) {
     }
     table.appendChild(tr);
   }
-  wrap.appendChild(table);
+  det.appendChild(table);
+  wrap.appendChild(det);
   return wrap;
 }
 

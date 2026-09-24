@@ -45,6 +45,11 @@ def _checks(cid, base, label, choices, tooltip=""):
             "choices": choices, "tooltip": tooltip}
 
 
+def _group(label, controls, tooltip="", collapsed=True):
+    return {"kind": "group", "label": label, "controls": controls,
+            "tooltip": tooltip, "collapsed": collapsed}
+
+
 def _select(cid, attr, label, values, default, free=False):
     return {"id": cid, "kind": "select", "attr": attr, "label": label,
             "values": values, "default": default, "free": free}
@@ -95,18 +100,44 @@ def build_schema():
             "controls": [
                 _path("all_src", "entries.ALL.src", "Folder źródłowy:", "Wskaż folder..."),
                 _path("all_dst", "entries.ALL.dst", "Folder docelowy:", "Wskaż lokalizację..."),
-                _check("all_gen_txt", "all_gen_txt_var",
-                       "Generuj pliki TXT z DBF mietka (na starcie)", True,
-                       "Pierwszy etap procesu, dla każdego obrębu źródłowego:\n"
-                       "  1. generuje HALIZNY.TXT (zestawienie pow. niezalesionych),\n"
-                       "  2. przenosi halizny w D*.DBF (jak przycisk w zakładce 'Halizny'),\n"
-                       "  3. generuje OPTAX, TAB_KLW3, ZEST1, REJESTR1, WSKAZ1, WYK_NEG\n"
-                       "     i WSK_ZB bezpośrednio z DBF.\n"
-                       "Powtórne uruchomienie jest bezpieczne."),
-                _check("all_str_tyt", "all_gen_str_tyt_var",
-                       "Generuj strony tytułowe (STR_TYT) na podstawie OPTAX", False),
-                _path("all_template", "all_template_entry", "Plik szablonu (.docx):",
-                      "Wskaż plik bazowy STR_TYT...", kind="file"),
+                _group(
+                    "Kreator strony tytułowej (strona tytułowa i daty)",
+                    [
+                        _select("all_tpl_doc", "all_tpl_doc_var", "Typ dokumentu:",
+                                ["UPUL", "ISL"], "UPUL"),
+                        _select("all_tpl_prefix", "all_tpl_prefix_var", "Prefiks obrębu:",
+                                ["położonych na terenie obrębu", "Obręb:"],
+                                "położonych na terenie obrębu"),
+                        _select("all_tpl_woj", "all_tpl_woj_var", "Województwo:",
+                                woj_list, default_woj, free=True),
+                        _select("all_tpl_powiat", "all_tpl_powiat_var", "Powiat (można wpisać własny):",
+                                powiat_list, default_powiat, free=True),
+                        _select("all_tpl_gmina", "all_tpl_gmina_var", "Gmina (można wpisać własną):",
+                                gmina_list, gmina_list[0] if gmina_list else "", free=True),
+                        _text("all_tpl_stan", "all_tpl_stan_na_entry",
+                              "Stan na (także data we wszystkich Wordach):",
+                              "30.06.2026 r.", "np. 30.06.2026 r."),
+                        _text("all_tpl_okres", "all_tpl_okres_entry",
+                              "Na okres (strona tytułowa):",
+                              "01.01.2027 – 31.12.2036 r.", "np. 01.01.2027 – 31.12.2036 r."),
+                        _text("all_wsk_od", "all_wsk_od_entry",
+                              "WSK_ZB — 10-lecie od:", "01-01-2027", "np. 01-01-2027"),
+                        _text("all_wsk_do", "all_wsk_do_entry",
+                              "WSK_ZB — 10-lecie do:", "31-12-2036", "np. 31-12-2036"),
+                    ],
+                    tooltip=('Strona tytułowa zawsze powstaje z tych ustawień '
+                             '(jak w zakładce „Kreator Stron tytułowych\u201d, bez wsi '
+                             'konkretnej i wiersza powierzchni).\n'
+                             '„Stan na\u201d zastępuje daty we wszystkich generowanych '
+                             'dokumentach Word, a pola 10-lecia — okres w WSK_ZB.'), collapsed=False),
+                _check("all_gen_opis_og", "all_gen_opis_og_var",
+                       "Generuj opisy ogólne (opis og_<wieś>.docx) po plikach Word", True,
+                       "Po utworzeniu plików Word generuje dla każdej wsi opis ogólny "
+                       "i dołącza go do zestawienia (w PDF zaraz za stroną tytułową).\n"
+                       "Dane liczbowe pochodzą z WSK_ZB.doc wsi."),
+                _path("all_gdos", "all_gdos_entry",
+                      "Folder z wynikami GDOŚ (opcjonalny):",
+                      "Formy ochrony przyrody (np. NN_WIEŚ_wynik.xlsx) do opisów ogólnych"),
                 _check("all_custom_skroty", "all_custom_skroty_var",
                        "Użyj własnego pliku 'Skróty i symbole' (zamiast domyślnego z programu)", False),
                 _path("all_skroty", "all_skroty_entry", "Własny plik:",
@@ -496,9 +527,9 @@ def build_schema():
         "pdf_order_templates": [
             {"key": t["key"], "label": t["label"], "aliases": t["aliases"]}
             for t in PDF_ORDER_TEMPLATES],
-        "tpl_territory": {
-            "woj": woj_list, "powiat": powiat_list, "gmina": gmina_list,
-        },
+        # pełna mapa terytorium: {WOJEWÓDZTWO: {POWIAT: [gminy]}} — frontend
+        # odświeża listy powiatów/gmin po zmianie województwa/powiatu
+        "tpl_territory": dict(TERRITORY_DATA) if TERRITORY_DATA else {},
         "tabs": tabs,
     }
 
@@ -516,7 +547,8 @@ def _tpl_controls(mode):
         _select(f"tpl_{mode}_doc", b + "doc_type_var", "Typ dokumentu:", ["UPUL", "ISL"], "UPUL"),
         _select(f"tpl_{mode}_prefix", b + "prefix_var", "Prefiks obrębu:",
                 ["położonych na terenie obrębu", "Obręb:"], "położonych na terenie obrębu"),
-        _select(f"tpl_{mode}_woj", b + "woj_var", "Województwo:", woj_list, default_woj),
+        _select(f"tpl_{mode}_woj", b + "woj_var", "Województwo:", woj_list, default_woj,
+                free=True),
         _select(f"tpl_{mode}_powiat", b + "powiat_var", "Powiat:", powiat_list, default_powiat, free=True),
         _select(f"tpl_{mode}_gmina", b + "gmina_var", "Gmina:", gmina_list,
                 gmina_list[0] if gmina_list else "", free=True),

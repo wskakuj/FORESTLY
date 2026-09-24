@@ -179,14 +179,9 @@ class ModernApp(
         self.excel_z_mdb_out_entry = None
         self.excel_z_mdb_start_btn = None
 
-        # Zmienne dla Pełny Automat - STR_TYT i SKROTY
-        self.all_gen_str_tyt_var = None
-        self.all_template_entry = None
-        self.all_village_ph_entry = None
-        self.all_area_ph_entry = None
-        self.all_template_frame = None
-
+        # Zmienne dla Pełny Automat - SKROTY (STR_TYT powstaje z kreatora)
         self.all_gen_skroty_var = None
+
         self.all_skroty_entry = None
         self.all_skroty_frame = None
 

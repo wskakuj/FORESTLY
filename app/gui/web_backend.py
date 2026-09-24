@@ -146,7 +146,10 @@ class WebBackend(
         self._dialog_waits = {}   # id -> (Event, result)
 
         # widgety (przypisujemy None jak ModernApp, potem fakes ze schematu)
-        for attr in ("all_template_entry", "all_skroty_entry",
+        for attr in ("all_skroty_entry", "all_gdos_entry", "all_tpl_doc_var",
+                     "all_tpl_prefix_var", "all_tpl_woj_var", "all_tpl_powiat_var",
+                     "all_tpl_gmina_var", "all_tpl_stan_na_entry", "all_tpl_okres_entry",
+                     "all_wsk_od_entry", "all_wsk_do_entry",
                      "excel_folder_entry", "excel_output_entry",
                      "excel_start_btn", "title_template_entry", "title_excel_entry",
                      "title_output_entry", "title_village_placeholder_entry",
@@ -291,40 +294,7 @@ class WebBackend(
     def _build_fakes_from_schema(self):
         self.schema = build_schema()
         for tab in self.schema["tabs"]:
-            for c in tab["controls"]:
-                kind = c["kind"]
-                if kind in ("path", "text"):
-                    val = self.get_setting(f"web.{c['id']}", c.get("default", "") or "")
-                    self._set_fake(c["attr"], FakeEntry(val))
-                elif kind == "check":
-                    val = self.get_setting(f"web.{c['id']}", c.get("default", False))
-                    self._set_fake(c["attr"], FakeVar(bool(val)))
-                elif kind == "checks":
-                    base = c["attr_base"]
-                    for choice in c["choices"]:
-                        var = FakeVar(choice == "Wszystkie")
-                        self._set_fake(f"{base}.{choice}", var)
-                elif kind == "select":
-                    self._set_fake(c["attr"], FakeVar(c.get("default", "")))
-                elif kind == "margins":
-                    mode = c["mode"]
-                    saved = load_margins().get(mode, {})
-                    for ftype in MARGIN_FILE_TYPES:
-                        fsaved = saved.get(ftype, {})
-                        for side, dflt in (("T", "1.5"), ("B", "1.5"),
-                                           ("L", "2.5"), ("R", "1.5")):
-                            self._set_fake(
-                                f"margin_vars.{mode}.{ftype}.{side}",
-                                FakeEntry(str(fsaved.get(side, dflt))))
-                elif kind == "fonts":
-                    for f in c["fonts"]:
-                        self.excel_font_entries[f["sheet"]] = {
-                            "entry": FakeEntry(str(self.get_setting(
-                                f"web.font.{f['sheet']}", f["default"]))),
-                            "start_row": f["start_row"],
-                        }
-                    self.global_font_entry = FakeEntry(
-                        self.get_setting("web.xl_global_size", "10"))
+            self._fakes_for_controls(tab["controls"])
         # kompatybilność: pola WSIE.DBF czytane też z klasycznych kluczy
         for pref, key in (("wsie_wojew", "wsie_wojew"), ("wsie_powiat", "wsie_powiat"),
                           ("wsie_stan", "wsie_stan"), ("wsie_obod", "wsie_obod"),
@@ -347,6 +317,49 @@ class WebBackend(
         if not hasattr(self, "remove_names_var"):
             self.remove_names_var = FakeVar(
                 bool(self.get_setting("web.remove_names", True)))
+
+
+    def _fakes_for_controls(self, controls):
+        """Tworzy atrapy widgetów dla kontrolek schematu (wraz z grupami)."""
+        for c in controls:
+            kind = c["kind"]
+            if kind == "group":
+                self._fakes_for_controls(c.get("controls") or [])
+                continue
+            if kind in ("path", "text"):
+                val = self.get_setting(f"web.{c['id']}", c.get("default", "") or "")
+                self._set_fake(c["attr"], FakeEntry(val))
+            elif kind == "check":
+                val = self.get_setting(f"web.{c['id']}", c.get("default", False))
+                self._set_fake(c["attr"], FakeVar(bool(val)))
+            elif kind == "checks":
+                base = c["attr_base"]
+                for choice in c["choices"]:
+                    var = FakeVar(choice == "Wszystkie")
+                    self._set_fake(f"{base}.{choice}", var)
+            elif kind == "select":
+                self._set_fake(c["attr"], FakeVar(c.get("default", "")))
+            elif kind == "margins":
+                mode = c["mode"]
+                saved = load_margins().get(mode, {})
+                for ftype in MARGIN_FILE_TYPES:
+                    fsaved = saved.get(ftype, {})
+                    for side, dflt in (("T", "1.5"), ("B", "1.5"),
+                                       ("L", "2.5"), ("R", "1.5")):
+                        self._set_fake(
+                            f"margin_vars.{mode}.{ftype}.{side}",
+                            FakeEntry(str(fsaved.get(side, dflt))))
+            elif kind == "fonts":
+                for f in c["fonts"]:
+                    self.excel_font_entries[f["sheet"]] = {
+                        "entry": FakeEntry(str(self.get_setting(
+                            f"web.font.{f['sheet']}", f["default"]))),
+                        "start_row": f["start_row"],
+                    }
+                self.global_font_entry = FakeEntry(
+                    self.get_setting("web.xl_global_size", "10"))
+
+
 
     # ------------------------------------------------ wartości z frontendu
 
@@ -809,6 +822,14 @@ class WebBackend(
         config_folder.mkdir(parents=True, exist_ok=True)
         order = get_saved_template_order(config_folder, mode)
         excluded = get_saved_excluded_templates(config_folder, mode)
+        # od v2.0.32: 'Opis ogólny' jest stałą częścią zestawienia (1-Click go
+        # generuje) — gdyby był wykluczony, przywracamy go na pozycję za stroną tytułową
+        if "OPIS" in excluded:
+            excluded = [k for k in excluded if k != "OPIS"]
+            self.log("[UKŁAD] 'Opis ogólny' był wykluczony — przywrócono go "
+                     "do scalania (zaraz za stroną tytułową).")
+            set_saved_excluded_templates(config_folder, mode, excluded)
+            set_saved_template_order(config_folder, mode, order)
         return {"ok": True, "order": order, "excluded": excluded,
                 "dst": str(config_folder)}
 

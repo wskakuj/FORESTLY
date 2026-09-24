@@ -13,6 +13,7 @@ import win32com.client
 from app.config import (
     get_saved_excluded_templates,
     PDF_ORDER_TEMPLATES, build_ordered_pdfs_from_templates, get_saved_template_order, is_file_locked, template_matches,
+    set_saved_template_order, set_saved_excluded_templates,
 )
 
 class TabPdfMixin:
@@ -184,6 +185,14 @@ class TabPdfMixin:
         self.start_progress_tracking(total_dirs, "Scalanie PDF")
         template_keys = get_saved_template_order(in_dir, mode_key)
         excluded_keys = get_saved_excluded_templates(in_dir, mode_key)
+        # od v2.0.32: 'Opis ogólny' to stała część zestawienia (generuje go
+        # Pełny Automat) — nie scalamy bez niego
+        if "OPIS" in excluded_keys:
+            excluded_keys = [k for k in excluded_keys if k != "OPIS"]
+            set_saved_excluded_templates(in_dir, mode_key, excluded_keys)
+            set_saved_template_order(in_dir, mode_key, template_keys)
+            self.log("[UKŁAD] 'Opis ogólny' był wykluczony — przywrócono go "
+                     "do scalania (zaraz za stroną tytułową).")
         if excluded_keys:
             _lbl = ", ".join(
                 t["label"] for t in PDF_ORDER_TEMPLATES if t["key"] in excluded_keys)
