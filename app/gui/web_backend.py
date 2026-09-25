@@ -1306,9 +1306,20 @@ class WebBackend(
         return {"ok": True, "html": html, "poziom": typ in szablony.POZIOMO,
                 "zrodlo": zrodlo or ""}
 
-    def _pv_win_zamkniete(self):
+    def _pv_win_zamkniete(self, *args, **kwargs):
         """Zamknięto okno podglądu — zapomnij referencję (patrz open_preview_window)."""
         self._pv_win = None
+
+    def close_preview_window(self):
+        """Zamyka osobne okno podglądu (wywoływane przy zamykaniu kreatora)."""
+        win = getattr(self, "_pv_win", None)
+        if win is not None:
+            try:
+                win.destroy()
+            except Exception:
+                pass
+            self._pv_win = None
+        return {"ok": True}
 
     def open_preview_window(self, mode="ALL"):
         """Podgląd marginesów/czcionek w OSOBNYM oknie systemowym.
@@ -1328,10 +1339,13 @@ class WebBackend(
             win = getattr(self, "_pv_win", None)
             if win is not None:
                 try:
+                    win.show()   # daj okno na wierzch (mogło zejść za program)
                     win.evaluate_js("odswiezNatychmiast && odswiezNatychmiast()")
+                    return {"ok": True, "istniejace": True}
                 except Exception:
-                    pass
-                return {"ok": True, "istniejace": True}
+                    # okno zostało zamknięte krzyżykiem (zdarzenie closed mogło
+                    # nie zdążyć wyczyścić referencji) — poniżej otwieramy nowe
+                    self._pv_win = None
             self._pv_win = webview.create_window(
                 "Podgląd marginesów i czcionek", html=_PV_OKNO_HTML,
                 width=880, height=980, background_color="#23262d",
@@ -1354,7 +1368,11 @@ class WebBackend(
         from app.config import load_margins
         mode = getattr(self, "_pv_mode", "ALL")
         m = (load_margins() or {}).get(mode) or {}
-        cz = ((self.load_settings() or {}).get("web.czcionki") or {}).get(mode)
+        # czcionki trzymane są pod płaskim kluczem "web.czcionki.ALL"/".NS"
+        # (zapisuje je kreator/zakładka Nowe Szablony przez set_values)
+        cz = self.get_setting(f"web.czcionki.{mode}", None)
+        if not cz and mode == "NS":
+            cz = self.get_setting("web.czcionki.ALL", None)
         r = self.get_margins_preview(typ, m, cz)
         if r.get("ok"):
             try:
@@ -1388,7 +1406,29 @@ class WebBackend(
             folder = Path(tempfile.gettempdir()) / "forestly_mapy"
             folder.mkdir(parents=True, exist_ok=True)
             cel = folder / nazwa
-            cel.write_bytes(base64.b64decode(b64))
+            try:
+                dane = base64.b64decode(b64, validate=True)
+            except Exception:
+                return {"ok": False,
+                        "error": "Plik nie przetrwał przeciągania (uszkodzone "
+                                 "dane). Użyj przycisku 'Wybierz' obok pola "
+                                 "ścieżki."}
+            cel.write_bytes(dane)
+            # szybki test spójności — duże pliki potrafią się uciąć w moście
+            try:
+                from PIL import Image
+                with Image.open(cel) as im:
+                    im.verify()
+            except Exception:
+                try:
+                    cel.unlink()
+                except OSError:
+                    pass
+                return {"ok": False,
+                        "error": "Plik wygląda na uszkodzony po przeciągnięciu "
+                                 "(mógł się nie zmieścić w całości). Wskaż go "
+                                 "przyciskiem 'Wybierz' — wtedy czytam go "
+                                 "bezpośrednio z dysku."}
             return {"ok": True, "path": str(cel)}
         except Exception as e:
             return {"ok": False, "error": str(e)}

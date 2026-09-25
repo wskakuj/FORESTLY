@@ -910,23 +910,28 @@ class TabAllMixin:
             dst_root = Path(dst_path)
 
             def _dwa_przebiegi():
-                self.log("[OBIE WERSJE] Przebieg 1/2: REJESTR z pełnymi "
-                         "nazwiskami → 'Z nazwiskami'.")
-                self.run_logic_thread(src_path, str(dst_root / "Z nazwiskami"),
-                                      mode, False, margins_dict,
-                                      nowe_szablony_flag)
+                self._dwie_wersje_aktywne = True
                 try:
-                    self.check_stop()
-                except Exception:
-                    self.log("[OBIE WERSJE] Przerwano — drugi przebieg "
-                             " ('Bez nazwisk') już się nie wykona.")
-                    return
-                self.running = True   # ciasne okno między przebiegami
-                self.log("[OBIE WERSJE] Przebieg 2/2: REJESTR bez nazwisk "
-                         "→ 'Bez nazwisk'.")
-                self.run_logic_thread(src_path, str(dst_root / "Bez nazwisk"),
-                                      mode, True, margins_dict,
-                                      nowe_szablony_flag)
+                    self.log("[OBIE WERSJE] Przebieg 1/2: REJESTR z pełnymi "
+                             "nazwiskami → 'Z nazwiskami'.")
+                    self.run_logic_thread(src_path, str(dst_root / "Z nazwiskami"),
+                                          mode, False, margins_dict,
+                                          nowe_szablony_flag)
+                    try:
+                        self.check_stop()
+                    except Exception:
+                        self.log("[OBIE WERSJE] Przerwano — drugi przebieg "
+                                 " ('Bez nazwisk') już się nie wykona.")
+                        return
+                    self.log("[OBIE WERSJE] Przebieg 2/2: REJESTR bez nazwisk "
+                             "→ 'Bez nazwisk'.")
+                    self.run_logic_thread(src_path, str(dst_root / "Bez nazwisk"),
+                                          mode, True, margins_dict,
+                                          nowe_szablony_flag)
+                finally:
+                    self._dwie_wersje_aktywne = False
+                    self.running = False
+                    self.after(0, self.restore_all_buttons)
 
             threading.Thread(target=_dwa_przebiegi, daemon=True).start()
             return
@@ -1165,8 +1170,8 @@ class TabAllMixin:
         except Exception:
             return False
 
-    def _mapa_na_pdf(self, img_path, pdf_out):
-        """Obraz mapy (jpg/png/tiff, także wielostronicowy TIFF) → PDF."""
+    def _mapa_na_pdf_pil(self, img_path, pdf_out):
+        """Obraz mapy (jpg/png/tiff, także wielostronicowy TIFF) → PDF (Pillow)."""
         from PIL import Image, ImageSequence
         strony = []
         for ramka in ImageSequence.Iterator(Image.open(str(img_path))):
@@ -1182,6 +1187,82 @@ class TabAllMixin:
                           append_images=reszta)
         else:
             pierwsza.save(str(pdf_out), "PDF")
+
+    def _mapa_przez_gdiplus(self, img_path, tmp_dir):
+        """Ratunek dla TIFF-ów, których Pillow nie dekoduje (np. skompresowane
+        GeoTIFF): konwersja przez windowsowy składnik GDI+ (System.Drawing,
+        obsługuje większość wariantów TIFF). Zwraca listę plików PNG
+        (kolejne strony) albo pustą listę."""
+        import subprocess
+        img_path = Path(img_path)
+        png_wzor = Path(tmp_dir) / "gdi_strona.png"
+        ps = (
+            "Add-Type -AssemblyName System.Drawing;"
+            "$src = [System.Drawing.Image]::FromFile('" +
+            str(img_path.resolve()).replace("'", "''") + "');"
+            "try {"
+            "  $fdGuid = [System.Drawing.Imaging.FrameDimension]::Page;"
+            "  $fd = New-Object System.Drawing.Imaging.FrameDimension("
+            "$src.FrameDimensionsList[[int][System.Drawing.Imaging.FrameDimension]::Page]);"
+            "  $n = $src.GetFrameCount($fd);"
+            "  for ($i = 0; $i -lt $n; $i++) {"
+            "    $src.SelectActiveFrame($fd, $i) | Out-Null;"
+            "    $bmp = New-Object System.Drawing.Bitmap($src);"
+            "    $bmp.Save(('" + str(png_wzor.resolve()).replace("'", "''") +
+            "' -replace 'strona', ('{0:d3}' -f $i)),"
+            "      [System.Drawing.Imaging.ImageFormat]::Png);"
+            "    $bmp.Dispose();"
+            "  }"
+            "} finally { $src.Dispose() }"
+        )
+        try:
+            subprocess.run(
+                ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+                 "-Command", ps],
+                capture_output=True, timeout=180, check=True)
+        except Exception as e:
+            return []
+        return sorted(Path(tmp_dir).glob("gdi_*.png"))
+
+    def _mapa_na_pdf(self, img_path, pdf_out):
+        """Obraz mapy (jpg/png/tiff) → PDF.
+
+        Najpierw Pillow; gdy TIFF-a nie da się zdekodować (np. rzadkie
+        kompresje / kafelkowe GeoTIFF), próbujemy jeszcze przez GDI+ (Windows)
+        — tak duża mapa jak każdy inny plik trafia do PDF-a.
+        """
+        from PIL import Image
+        try:
+            self._mapa_na_pdf_pil(img_path, pdf_out)
+            return
+        except Exception as e:
+            wyj = Path(img_path).suffix.lower()
+            if wyj not in (".tif", ".tiff"):
+                raise           # dla jpg/png nie ma fallbacku — to błąd pliku
+            self.log(f"[MAPA] Pillow nie czyta tego TIFF-a ({e}) — "
+                     "próbuję przez składnik Windows (GDI+)...")
+        import tempfile
+        with tempfile.TemporaryDirectory(prefix="forestly_gdi_") as tmp:
+            pngi = self._mapa_przez_gdiplus(img_path, tmp)
+            if not pngi:
+                raise RuntimeError(
+                    "Nie udało się przekonwertować TIFF-a (ani Pillow, ani "
+                    "GDI+). Zapisz mapę jako PNG/JPG albo zwykły TIFF i "
+                    "spróbuj ponownie.")
+            self.log(f"[MAPA] GDI+ rozszyfrował TIFF-a: {len(pngi)} stron.")
+            from PIL import Image
+            strony = []
+            for png in pngi:
+                im = Image.open(png)
+                if im.mode not in ("RGB", "L"):
+                    im = im.convert("RGB")
+                strony.append(im.copy())
+            if len(strony) > 1:
+                strony[0].save(str(pdf_out), "PDF", save_all=True,
+                               append_images=strony[1:])
+            else:
+                strony[0].save(str(pdf_out), "PDF")
+        return
 
     def _inject_mapa_step(self, pdf_dir, mapa_path):
         """Mapa (jpg/png/tiff) → 'mapa.pdf' w każdym folderzu z PDF-ami wsi.
@@ -1547,6 +1628,15 @@ class TabAllMixin:
                                  "przemianowano na 'PDF polaczone'.")
                 except Exception as e:
                     self.log(f"[PORZĄDKI] Nie udało się zmienić nazwy folderu: {e}")
+                # przy "Obu wersjach" finalny wynik to same scalone
+                # pakiety — pośredni folder 'PDF' (niepołączone pliki wsi)
+                # jest zbędny
+                if getattr(self, "_dwie_wersje_aktywne", False) and dir_03 and dir_03.exists():
+                    try:
+                        shutil.rmtree(dir_03)
+                        self.log("[PORZĄDKI] Usunięto folder pośredni 'PDF'.")
+                    except Exception as e:
+                        self.log(f"[PORZĄDKI] Nie udało się usunąć 'PDF': {e}")
                 # folder 'Word' — przy nowych szablonach to tylko pliki
                 # przejściowe (STR_TYT i opisy ogólne), finalny jest PDF
                 if nowe_szablony and dir_02 and dir_02.exists():
@@ -1655,6 +1745,11 @@ class TabAllMixin:
             self.update_status("Błąd", "#D83B01", animate=False)
         finally:
             pythoncom.CoUninitialize()
-            self.running = False
-            self.after(0, self.restore_all_buttons)
+            if getattr(self, "_dwie_wersje_aktywne", False):
+                # trwa drugi przebieg "Obu wersji" — NIE sygnalizujemy końca
+                # zadania (drzewko/ptaszek mają poczekać na wersję drugą)
+                self.running = True
+            else:
+                self.running = False
+                self.after(0, self.restore_all_buttons)
 

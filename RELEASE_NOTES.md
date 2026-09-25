@@ -1,3 +1,3 @@
-# Co nowego w v2.0.66
-- dodatki
+# Co nowego w v2.0.67
+- poprawione błędy + dodano mapy do pdf
 

@@ -401,6 +401,9 @@ function openWizard() {
 function closeWizard() {
   const wz = document.getElementById("wizard");
   if (wz) wz.remove();
+  /* okno podglądu (systemowe) żyje własnym życiem — zamykamy je razem
+     z kreatorem, żeby nie zostało na ekranie samo */
+  try { api().close_preview_window(); } catch (e) { /* okno już zamknięte */ }
   /* kontrolki wracają na swoje miejsce (w oryginalnej kolejności) */
   if (WIZ.home) WIZ.children.forEach(n => WIZ.home.appendChild(n));
   WIZ.open = false;
