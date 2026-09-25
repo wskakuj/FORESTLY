@@ -133,6 +133,9 @@ def main():
         min_size=(1100, 720),
         text_select=True,
     )
+    # po załadowaniu okna włączamy natywne przeciąganie plików/folderów
+    # (prawdziwe ścieżki z Windows — patrz WebBackend.set_pv_window)
+    window.events.loaded += lambda *a: backend.set_pv_window(window)
     webview.start()
 
 

@@ -290,6 +290,7 @@ function renderOneControl(c) {
     case "margins": return renderMargins(c);
     case "czcionki": return renderCzcionki(c);
     case "fonts": return renderFonts(c);
+    case "dropfiles": return renderDropFiles(c);
     case "dashboard": return renderDashboard(c);
     case "info": return renderInfo(c);
     case "gdos_table": return renderGdos(c);
@@ -803,6 +804,107 @@ function ICON(name) {
 }
 
 /* kontrolka: ścieżka */
+/* ---- przeciąganie plików/folderów na pola ścieżek (natywne ścieżki
+   z Windows przez WebView2; w zwykłej przeglądarce uprzejmy komunikat) ---- */
+async function dropNativePaths(e, kind) {
+  try {
+    if (window.chrome && chrome.webview &&
+        chrome.webview.postMessageWithAdditionalObjects &&
+        e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length)
+      chrome.webview.postMessageWithAdditionalObjects("FilesDropped",
+                                                      e.dataTransfer.files);
+  } catch (err) { /* poza WebView2 — brak natywnych ścieżek */ }
+  try { return await api().drop_paths(kind || "file"); }
+  catch (err) { return { ok: false, error: "no_api" }; }
+}
+
+function dolaczDropSciezki(input, kind) {
+  input.addEventListener("dragover", e => {
+    e.preventDefault(); e.stopPropagation();
+    input.classList.add("drop-over");
+  });
+  input.addEventListener("dragleave", () => input.classList.remove("drop-over"));
+  input.addEventListener("drop", async e => {
+    e.preventDefault(); e.stopPropagation();
+    input.classList.remove("drop-over");
+    const r = await dropNativePaths(e, kind);
+    if (r && r.ok && r.path) {
+      input.value = r.path;
+      scheduleSetValues();
+      toast("Ustawiono: " + r.path, "ok");
+    } else if (r && r.error === "not_folder") {
+      toast("Przeciągnięto plik — to pole czeka na folder.", "warn");
+    } else if (r && r.error === "not_file") {
+      toast("Przeciągnięto folder — to pole czeka na plik.", "warn");
+    } else if (r && r.error === "empty") {
+      toast("Nie odczytano ścieżki — spróbuj przeciągnąć jeszcze raz.", "warn");
+    } else {
+      toast("Przeciąganie niedostępne — wskaż ścieżkę przyciskiem Przeglądaj.", "warn");
+    }
+  });
+}
+
+const DROPPED = {};                 /* pliki przeciągnięte do kontrolek dropfiles */
+const DROP_RENDERY = {};            /* id kontrolki -> odświeżenie listy */
+
+function renderDropFiles(c) {
+  const row = el("div", "field field-dropfiles");
+  row.innerHTML = "<label>" + escapeHtml(c.label || "Przeciągnij pliki:") + "</label>";
+  const zone = el("div", "drop-zone");
+  zone.innerHTML = "<b>Przeciągnij i upuść pliki tutaj</b>" +
+                   "<span>" + escapeHtml(c.ph || "") + "</span>";
+  const chips = el("div", "drop-chips");
+  const czysc = el("button", "btn ghost small", "Wyczyść listę");
+  czysc.type = "button";
+  czysc.onclick = async () => {
+    try { await api().pdfconv_drop_clear(); } catch (e) { /* noop */ }
+    DROPPED[c.id] = [];
+    render();
+  };
+  const render = () => {
+    chips.innerHTML = "";
+    const lista = DROPPED[c.id] || [];
+    for (const f of lista) {
+      const nazwa = f.split(/[\\/]/).pop();
+      const ch = el("span", "drop-chip", escapeHtml(nazwa));
+      ch.title = f;
+      chips.appendChild(ch);
+    }
+    czysc.style.display = lista.length ? "" : "none";
+  };
+  DROP_RENDERY[c.id] = render;
+  zone.addEventListener("dragover", e => {
+    e.preventDefault(); zone.classList.add("over");
+  });
+  zone.addEventListener("dragleave", () => zone.classList.remove("over"));
+  zone.addEventListener("drop", async e => {
+    e.preventDefault(); e.stopPropagation();
+    zone.classList.remove("over");
+    const r = await dropNativePaths(e, "file");
+    if (r && r.ok && r.paths && r.paths.length) {
+      const exts = c.exts || [];
+      const dobre = r.paths.filter(p => !exts.length ||
+          exts.some(x => p.toLowerCase().endsWith(x)));
+      const zle = r.paths.length - dobre.length;
+      if (zle) toast("Pominięto " + zle + " plik(ów) — nieobsługiwany typ.", "warn");
+      if (!dobre.length) return;
+      try {
+        const rr = await api().pdfconv_drop_add(dobre);
+        DROPPED[c.id] = (rr && rr.files) || dobre;
+      } catch (err) { DROPPED[c.id] = dobre; }
+      render();
+      toast("Dodano " + dobre.length + " plik(ów) do konwersji.", "ok");
+    } else {
+      toast("Nie udało się odczytać plików — użyj folderu źródłowego.", "warn");
+    }
+  });
+  row.appendChild(zone);
+  row.appendChild(chips);
+  row.appendChild(czysc);
+  render();
+  return row;
+}
+
 function renderPath(c) {
   const row = el("div", "field");
   row.innerHTML = `<label>${escapeHtml(c.label)}</label>`;
@@ -830,6 +932,9 @@ function renderPath(c) {
     showHistoryMenu(hist, r.history || [], input);
   };
   group.appendChild(hist);
+  /* przeciągnij plik albo folder prosto na pole ścieżki */
+  if ((c.browse || "folder") !== "save")
+    dolaczDropSciezki(input, c.browse || "folder");
   row.appendChild(group);
   return row;
 }
@@ -962,7 +1067,7 @@ function applyGroupStates(c, grid) {
 
 /* ---------------------------------------------- podgląd marginesów (na żywo) */
 const MP_TYPY = ["OPTAX", "REJESTR1", "TAB_KLW3", "WSKAZ1", "WSK_ZB",
-                 "ZEST1", "HALIZNY", "WYK_NEG"];
+                 "ZEST1", "HALIZNY", "WYK_NEG", "SKROTY"];
 /* typ raportu -> wiersz tabeli marginesów (WSK_ZB drukuje się na marginesach Opisu) */
 const MP_WIERSZ = { WSK_ZB: "OPIS" };
 let MP_CLEANUP = null;
@@ -1363,8 +1468,11 @@ function wireTerritory() {
 
 /* kontrolka: marginesy */
 const MARGIN_TYPES = ["REJESTR1", "OPTAX", "TAB_KLW3", "WSKAZ1", "HALIZNY", "WYK_NEG",
-                     "OPIS", "ZEST1", "WSK_ZB", "WK_ZM1"];
+                     "OPIS", "ZEST1", "WSK_ZB", "WK_ZM1", "SKROTY"];
 const MARGIN_SIDES = ["T", "B", "L", "R"];
+/* domyślne marginesy różnych od standardowych 1.5 (SKROTY — jak dotychczasowy
+   wygląd wykazu: góra 1.3, dół 1.5, lewo 1.1, prawo 1.1) */
+const MARGIN_DOMYSLNE = { SKROTY: { T: "1.3", B: "1.5", L: "1.1", R: "1.1" } };
 
 function renderMargins(c) {
   const wrap = el("div", null);
@@ -1386,7 +1494,10 @@ function renderMargins(c) {
       const inp = el("input");
       inp.type = "text";
       inp.dataset.side = side;
-      inp.value = (data[ftype] && data[ftype][side] !== undefined) ? data[ftype][side] : "1.5";
+      inp.value = (data[ftype] && data[ftype][side] !== undefined)
+        ? data[ftype][side]
+        : ((MARGIN_DOMYSLNE[ftype] || {})[side] !== undefined
+           ? MARGIN_DOMYSLNE[ftype][side] : "1.5");
       inp.oninput = scheduleSetValues;
       td.appendChild(inp);
       tr.appendChild(td);
@@ -1865,6 +1976,10 @@ function handleEvent(ev) {
       });
       break;
     case "dialog": showDialog(ev); break;
+      case "pdfconv_files":
+        DROPPED.pc_drop = ev.files || [];
+        if (DROP_RENDERY.pc_drop) DROP_RENDERY.pc_drop();
+        break;
     case "changelog": showChangelog(ev); break;
     case "state": setRunning(!!ev.running); break;
     case "toast": toast(ev.text, ev.kind); break;

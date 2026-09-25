@@ -1191,7 +1191,7 @@ class TabAllMixin:
         else:
             pierwsza.save(str(pdf_out), "PDF")
 
-    def _mapa_przez_gdiplus(self, img_path, tmp_dir):
+    def _mapa_przez_gdiplus(self, img_path, tmp_dir, etykieta="MAPA"):
         """Ratunek dla TIFF-ów, których Pillow nie dekoduje (np. skompresowane
         GeoTIFF): konwersja przez windowsowy składnik GDI+ (System.Drawing,
         obsługuje większość wariantów TIFF). Zwraca listę plików PNG
@@ -1228,11 +1228,11 @@ class TabAllMixin:
                 stderr = (e.stderr or b"").decode("utf-8", "replace")[:200]
             except Exception:
                 pass
-            self.log(f"[MAPA] GDI+ nie dał rady: {e} {stderr}")
+            self.log(f"[{etykieta}] GDI+ nie dał rady: {e} {stderr}")
             return []
         return sorted(out_dir.glob("gdi_*.png"))
 
-    def _mapa_przez_word(self, img_path, pdf_out):
+    def _mapa_przez_word(self, img_path, pdf_out, etykieta="MAPA"):
         """Ostateczny ratunek: wstawienie obrazu do dokumentu Worda i eksport
         PDF — Word ma własne dekodery i otwiera TIFF-y, na których zawiodły
         i Pillow, i GDI+. Strona dopasowuje rozmiar do obrazu (bez marginesów).
@@ -1275,7 +1275,7 @@ class TabAllMixin:
             doc.Close(False)
             return Path(pdf_out).exists() and Path(pdf_out).stat().st_size > 100
         except Exception as e:
-            self.log(f"[MAPA] Word nie dał rady z tym obrazem: {e}")
+            self.log(f"[{etykieta}] Word nie dał rady z tym obrazem: {e}")
             return False
         finally:
             if word_app is not None:
@@ -1289,7 +1289,7 @@ class TabAllMixin:
                     except Exception:
                         pass
 
-    def _mapa_na_pdf(self, img_path, pdf_out):
+    def _mapa_na_pdf(self, img_path, pdf_out, etykieta="MAPA"):
         """Obraz mapy (jpg/png/tiff) → PDF.
 
         Trzy drogi, aż któraś zadziała: (1) Pillow; (2) gdy TIFF-a nie da
@@ -1304,15 +1304,15 @@ class TabAllMixin:
         except Exception as e:
             if Path(img_path).suffix.lower() not in (".tif", ".tiff"):
                 raise
-            self.log("[MAPA] Pillow nie czyta tego TIFF-a — "
+            self.log(f"[{etykieta}] Pillow nie czyta tego TIFF-a — "
                      "próbuję przez składnik Windows (GDI+)...")
         import tempfile
         with tempfile.TemporaryDirectory(prefix="forestly_gdi_") as tmp:
-            pngi = self._mapa_przez_gdiplus(img_path, tmp)
+            pngi = self._mapa_przez_gdiplus(img_path, tmp, etykieta=etykieta)
             if not pngi and Path(img_path).suffix.lower() in (".tif", ".tiff"):
-                if self._mapa_przez_word(img_path, pdf_out):
-                    self.log("[MAPA] Obraz przekonwertował Word (na Pillow i GDI+ "
-                             "Pillow i GDI+ zawiodły).")
+                if self._mapa_przez_word(img_path, pdf_out, etykieta=etykieta):
+                    self.log(f"[{etykieta}] Obraz przekonwertował Word "
+                             "(Pillow i GDI+ zawiodły).")
                     return
                 raise RuntimeError(
                     "Nie udało się przekonwertować TIFF-a (Pillow i GDI+ i Word "
@@ -1321,7 +1321,7 @@ class TabAllMixin:
                 raise RuntimeError(
                     "Nie udało się przekonwertować obrazu (Pillow i GDI+ "
                     "odmówiły). Zapisz mapę jako PNG/JPG i spróbuj ponownie.")
-            self.log(f"[MAPA] GDI+ rozszyfrował TIFF-a: {len(pngi)} stron.")
+            self.log(f"[{etykieta}] GDI+ rozszyfrował TIFF-a: {len(pngi)} stron.")
             from PIL import Image as _Im
             strony = []
             for png in pngi:
@@ -1439,7 +1439,7 @@ class TabAllMixin:
             domyslne = get_resource_path("Skroty.docx")
         return str(domyslne) if domyslne.exists() else None
 
-    def _inject_skroty_step(self, pdf_dir, mode="ALL"):
+    def _inject_skroty_step(self, pdf_dir, mode="ALL", margins=None):
         """Dołącza 'Skróty i symbole' (skroty.pdf) do każdego folderu z PDF-ami."""
         skroty_path = self._resolve_skroty_path()
         if skroty_path and Path(skroty_path).exists():
@@ -1449,13 +1449,15 @@ class TabAllMixin:
             if not isinstance(_czc, dict):
                 _czc = self.get_setting("web.czcionki.ALL", None)
             _sk = _czc.get("SKROTY") if isinstance(_czc, dict) else None
-            c = self.task_inject_skroty(pdf_dir, skroty_path, czcionki=_sk)
+            c = self.task_inject_skroty(pdf_dir, skroty_path, czcionki=_sk,
+                                        margins=margins)
             self.log(f"[SKROTY] Dodano plik do {c} folderów wsi.")
             return c
         self.log("[UWAGA] Nie znaleziono pliku ze skrótami (ani domyślnego, ani własnego). Pomijam.")
         return 0
 
-    def task_inject_skroty(self, pdf_dir, skroty_source_path, czcionki=None):
+    def task_inject_skroty(self, pdf_dir, skroty_source_path, czcionki=None,
+                           margins=None):
         pdf_dir = Path(pdf_dir)
         skroty_source_path = Path(skroty_source_path)
 
@@ -1480,7 +1482,8 @@ class TabAllMixin:
                     _hp = Path(_tmp) / "skroty.html"
                     _hp.write_text(_sz.html_skroty(
                         skroty_source_path,
-                        czcionki=czcionki if isinstance(czcionki, dict) else None),
+                        czcionki=czcionki if isinstance(czcionki, dict) else None,
+                        marginesy=_sz._marginesy(margins, "SKROTY")),
                         encoding="utf-8")
                     temp_skroty_pdf = Path(tempfile.gettempdir()) / "skroty_temp.pdf"
                     _sz.html_na_pdf(_hp, temp_skroty_pdf)
@@ -1736,7 +1739,7 @@ class TabAllMixin:
 
                     # === WSTRZYKIWANIE SKROTÓW (ZAWSZE WŁĄCZONE) ===
                 self.update_status("Dołączanie 'Skrótów i symboli' do pakietów...", "#0078D7")
-                self._inject_skroty_step(dir_03, mode)
+                self._inject_skroty_step(dir_03, mode, margins_dict)
 
                 # === MAPY (opcjonalnie): folder/przeciągnięte, dopasowanie po nazwie wsi ===
                 _me = getattr(self, "all_mapa_entry", None)
@@ -1881,7 +1884,7 @@ class TabAllMixin:
                         self.update_status(
                             "ETAP 2/4: Dołączanie 'Skrótów i symboli'", "#0078D7"
                         )
-                        self._inject_skroty_step(dir_03, mode)
+                        self._inject_skroty_step(dir_03, mode, margins_dict)
                         self.set_progress(0.5)
                     self.check_stop()
                     self.update_status(

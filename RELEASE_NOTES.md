@@ -1,3 +1,3 @@
-# Co nowego w v2.0.70
-- nowe skróty
+# Co nowego w v2.0.71
+- dużo poprawek
 

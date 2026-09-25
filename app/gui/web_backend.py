@@ -67,7 +67,11 @@ BROWSE_FILTERS = {
     "zm_src": ("Baza Access", ("*.mdb",)),
 }
 MARGIN_FILE_TYPES = ["REJESTR1", "OPTAX", "TAB_KLW3", "WSKAZ1", "HALIZNY",
-                     "WYK_NEG", "OPIS", "ZEST1", "WK_ZM1"]
+                     "WYK_NEG", "OPIS", "ZEST1", "WK_ZM1", "SKROTY"]
+
+# domyślne marginesy różne od standardowych (1.5/1.5/2.5/1.5) — SKROTY
+# zachowuje dzisiejszy wygląd wykazu skrótów
+MARGIN_DOMYSLNE_TYPY = {"SKROTY": {"T": "1.3", "B": "1.5", "L": "1.1", "R": "1.1"}}
 
 
 # --------------------------------------------------------------- sztuczne widgety
@@ -104,7 +108,7 @@ _PV_OKNO_HTML = """<!DOCTYPE html>
 <script>
 (function () {
   const TYPY = ["OPTAX", "REJESTR1", "WSKAZ1", "TAB_KLW3", "WSK_ZB",
-                "ZEST1", "HALIZNY", "WYK_NEG", "WK_ZM1"];
+                "ZEST1", "HALIZNY", "WYK_NEG", "WK_ZM1", "SKROTY"];
   const MP_WIERSZ = { REJESTR1: "REJESTR1", TAB_KLW3: "TAB_KLW3" };
   let typ = "OPTAX", lastHtml = "", poziom = false;
   const sel = document.getElementById("typ");
@@ -280,6 +284,7 @@ class WebBackend(
         self._events = deque()
         self._ev_lock = threading.Lock()
         self._dialog_waits = {}   # id -> (Event, result)
+        self._pc_pliki = []       # pliki przeciągnięte do konwertera PDF
 
         # widgety (przypisujemy None jak ModernApp, potem fakes ze schematu)
         for attr in ("all_skroty_entry", "all_gdos_entry", "all_tpl_doc_var",
@@ -493,6 +498,7 @@ class WebBackend(
                     fsaved = saved.get(ftype, {})
                     for side, dflt in (("T", "1.5"), ("B", "1.5"),
                                        ("L", "2.5"), ("R", "1.5")):
+                        dflt = (MARGIN_DOMYSLNE_TYPY.get(ftype) or {}).get(side, dflt)
                         self._set_fake(
                             f"margin_vars.{mode}.{ftype}.{side}",
                             FakeEntry(str(fsaved.get(side, dflt))))
@@ -1011,6 +1017,60 @@ class WebBackend(
             self._emit({"type": "toast", "kind": "ok",
                         "text": "Program jest w najnowszej wersji (" + CURRENT_VERSION + ")"})
 
+    # --------------------------------------- przeciąganie plików (drag&drop)
+    def set_pv_window(self, window):
+        """Zapamiętuje okno pywebview i włącza natywne przeciąganie —
+        dzięki temu drop z Eksploratora daje PRAWDZIWE ścieżki (WebView2),
+        także folderów; pobiera je drop_paths()."""
+        self._pv_window = window
+        try:
+            window.dom.get_element("body").events.drop += self._natywny_drop
+        except Exception as e:
+            self.log(f"[DnD] Nie udało się włączyć przeciągania plików: {e}")
+
+    def _natywny_drop(self, *args, **kwargs):
+        pass    # ścieżki zbiera pywebview — pobiera je dopiero drop_paths()
+
+    def drop_paths(self, kind="file"):
+        """Ścieżki z ostatniego przeciągnięcia (pliki albo folder).
+        Frontend woła to zaraz po zdarzeniu drop."""
+        try:
+            from webview.dom import _dnd_state
+        except Exception:
+            return {"ok": False, "error": "no_dnd"}
+        paths = [pp[1] for pp in list(_dnd_state.get("paths", []))]
+        _dnd_state["paths"] = []
+        if not paths:
+            return {"ok": False, "error": "empty"}
+        if str(kind).lower() == "folder":
+            foldery = [pp for pp in paths if Path(pp).is_dir()]
+            if not foldery:
+                return {"ok": False, "error": "not_folder", "paths": paths}
+            return {"ok": True, "path": foldery[0], "paths": paths}
+        pliki = [pp for pp in paths if Path(pp).is_file()]
+        if not pliki:
+            return {"ok": False, "error": "not_file", "paths": paths}
+        return {"ok": True, "path": pliki[0], "paths": paths}
+
+    # --------------------------------------- konwerter PDF: pliki z drop
+    def pdfconv_drop_add(self, paths):
+        """Dopisuje przeciągnięte pliki do kolejki konwertera PDF."""
+        dodane = 0
+        for x in (paths or []):
+            try:
+                if Path(x).is_file() and x not in self._pc_pliki:
+                    self._pc_pliki.append(x)
+                    dodane += 1
+            except Exception:
+                pass
+        self._emit({"type": "pdfconv_files", "files": list(self._pc_pliki)})
+        return {"ok": True, "count": dodane, "files": list(self._pc_pliki)}
+
+    def pdfconv_drop_clear(self):
+        self._pc_pliki = []
+        self._emit({"type": "pdfconv_files", "files": []})
+        return {"ok": True}
+
     def check_update(self):
         threading.Thread(target=self.check_github_update, kwargs={"manual": True},
                          daemon=True).start()
@@ -1084,7 +1144,8 @@ class WebBackend(
                     if not saved and c["mode"] == "NS":
                         saved = load_margins().get("ALL", {})
                     values[cid] = {
-                        ftype: {s: str(saved.get(ftype, {}).get(s, d))
+                        ftype: {s: str(saved.get(ftype, {}).get(
+                                    s, (MARGIN_DOMYSLNE_TYPY.get(ftype) or {}).get(s, d)))
                                 for s, d in (("T", "1.5"), ("B", "1.5"),
                                              ("L", "2.5"), ("R", "1.5"))}
                         for ftype in MARGIN_FILE_TYPES}
@@ -1297,6 +1358,26 @@ class WebBackend(
         """
         from app.core import szablony
         typ = str(typ or "OPTAX").upper()
+        if typ == "SKROTY":
+            # wykaz skrótów i symboli — bez pliku TXT, z czcionkami z wiersza
+            # SKROTY (marginesy ma zawsze domyślne)
+            sk = None
+            try:
+                sk = self._resolve_skroty_path()
+            except Exception:
+                sk = None
+            if not sk or not Path(sk).exists():
+                return {"ok": False, "error":
+                        "Nie znalazłem pliku Skroty.docx "
+                        "(domyślnego ani własnego użytkownika)."}
+            cz = (czcionki or {}).get("SKROTY") if isinstance(czcionki, dict) else None
+            mg = szablony._marginesy(_marginesy_z_slownika(margins), "SKROTY")
+            try:
+                html = szablony.html_skroty(sk, czcionki=cz, marginesy=mg)
+            except Exception:
+                return {"ok": False, "error": traceback.format_exc(limit=1)}
+            return {"ok": True, "html": html, "poziom": False,
+                    "zrodlo": "Skroty.docx"}
         if typ not in szablony.RENDERERY:
             return {"ok": False, "error": f"Nieznany typ raportu: {typ}"}
         txt, zrodlo = self._find_preview_txt(typ)

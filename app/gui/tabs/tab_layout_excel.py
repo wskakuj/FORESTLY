@@ -479,36 +479,10 @@ class TabLayoutExcelMixin:
                 if wb is not None:
                     wb.Close(False)
         elif ext in image_exts:
-            img = Image.open(str(input_path))
-            frames = []
-            try:
-                n_frames = getattr(img, "n_frames", 1)
-                for i in range(n_frames):
-                    try:
-                        img.seek(i)
-                    except EOFError:
-                        break
-                    frames.append(img.convert("RGB"))
-                if not frames:
-                    frames = [img.convert("RGB")]
-                first_frame, rest_frames = frames[0], frames[1:]
-                first_frame.save(
-                    str(output_path),
-                    "PDF",
-                    resolution=100.0,
-                    save_all=True,
-                    append_images=rest_frames,
-                )
-                return output_path
-            finally:
-                try:
-                    img.close()
-                except:
-                    pass
-                for frame in frames:
-                    try:
-                        frame.close()
-                    except:
-                        pass
+            # obrazy (w tym trudne TIFF-y) lecą TYM SAMYM łańcuchem co mapy
+            # w pełnym automacie: Pillow → windowsowy GDI+ → Word —
+            # kończy się PDF-em zawsze, gdy któryś silnik da radę
+            self._mapa_na_pdf(input_path, output_path, etykieta="PDF")
+            return output_path
         return None
 

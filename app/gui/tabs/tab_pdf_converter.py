@@ -110,23 +110,34 @@ class TabPdfConverterMixin:
         output_folder = (
             self.pdfconv_output_entry.get().strip() if self.pdfconv_output_entry else ""
         )
-        if not source_folder or not Path(source_folder).exists():
+        pliki_drop = [x for x in (getattr(self, "_pc_pliki", None) or [])
+                      if Path(x).is_file()]
+        if not pliki_drop and (not source_folder or not Path(source_folder).exists()):
+            self.log("[KONWERTER PDF] Wskaż folder źródłowy albo przeciągnij pliki.")
+            self.update_status("Brak plików do konwersji", "#D83B01", animate=False)
             return
         if not output_folder:
+            self.log("[KONWERTER PDF] Wskaż folder docelowy PDF.")
+            self.update_status("Brak folderu docelowego", "#D83B01", animate=False)
             return
         if self.running:
             return
         self.last_output_dir = Path(output_folder)
         self._disable_ui_for_process()
-        self.log(f"[KONWERTER PDF] Źródło: {source_folder}")
+        if pliki_drop:
+            self.log(f"[KONWERTER PDF] Przeciągnięte pliki: {len(pliki_drop)}")
+        if source_folder and Path(source_folder).exists():
+            self.log(f"[KONWERTER PDF] Źródło: {source_folder}")
         self.set_progress(0)
         threading.Thread(
             target=self.run_pdf_converter_thread,
-            args=(source_folder, output_folder),
+            args=(source_folder if source_folder and Path(source_folder).exists() else None,
+                  output_folder, pliki_drop),
             daemon=True,
         ).start()
 
-    def run_pdf_converter_thread(self, source_folder_str, output_folder_str):
+    def run_pdf_converter_thread(self, source_folder_str, output_folder_str,
+                                 pliki_drop=None):
         pythoncom.CoInitialize()
         word, excel = None, None
         try:
@@ -152,10 +163,15 @@ class TabPdfConverterMixin:
             files = sorted(
                 [
                     p
-                    for p in source_folder.rglob("*")
+                    for p in (source_folder.rglob("*")
+                              if source_folder else [])
                     if p.is_file() and p.suffix.lower() in supported_exts
                 ]
-            )
+            ) if source_folder else []
+            for dp in (pliki_drop or []):
+                if dp not in files:
+                    files.append(dp)
+            files.sort()
             word = win32com.client.DispatchEx("Word.Application")
             word.Visible, word.DisplayAlerts = False, 0
             word.Application.ScreenUpdating = False
@@ -174,8 +190,11 @@ class TabPdfConverterMixin:
                     self.log(f"POMINIĘTO ZABLOKOWANY PLIK: {file_path.name}")
                     continue
                 try:
-                    rel_path = file_path.relative_to(source_folder)
-                    target_dir = output_folder / rel_path.parent
+                    if source_folder and file_path.is_relative_to(source_folder):
+                        rel_path = file_path.relative_to(source_folder)
+                        target_dir = output_folder / rel_path.parent
+                    else:
+                        target_dir = output_folder
                     target_dir.mkdir(parents=True, exist_ok=True)
                     pdf_path = target_dir / f"{file_path.stem}.pdf"
                     self.convert_office_to_pdf(file_path, pdf_path, word, excel)
@@ -183,6 +202,9 @@ class TabPdfConverterMixin:
                     self.log(f"Błąd konwersji {file_path.name}: {e}")
                 self.set_progress(idx / total)
             self.update_status("Zakończono pomyślnie.", "#27ae60", animate=False)
+            # pliki przeciągnięte obsługane — czyścimy kolejkę (i listę w GUI)
+            self._pc_pliki = []
+            self._emit({"type": "pdfconv_files", "files": []})
         except InterruptedError:
             self.update_status("Przerwano", "#D83B01", animate=False)
             self.log("\nZADANIE PRZERWANE PRZEZ UŻYTKOWNIKA.")
