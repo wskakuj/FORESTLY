@@ -950,10 +950,13 @@ class TabAllMixin:
                     self.log(f"[SZABLONY] Pomijam pusty plik: {txt.name}")
                     continue
                 pdf = out_dir / f"{typ}.pdf"
+                # czcionki raportów (tytuł/tabela) z kreatora 1-Click
+                _czc = self.get_setting("web.czcionki.ALL", None)
                 szablony.generuj_raport_pdf(
                     typ, txt, pdf,
                     bez_nazwisk=bool(remove_names and typ in szablony.USUWA_NAZWISKA),
-                    margins=margins_dict)
+                    margins=margins_dict,
+                    czcionki=_czc if isinstance(_czc, dict) else {})
                 n_plik += 1
 
             n_done += 1

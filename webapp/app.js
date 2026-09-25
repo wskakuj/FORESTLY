@@ -283,6 +283,7 @@ function renderOneControl(c) {
     case "checks": return renderChecks(c);
     case "select": return renderSelect(c);
     case "margins": return renderMargins(c);
+    case "czcionki": return renderCzcionki(c);
     case "fonts": return renderFonts(c);
     case "dashboard": return renderDashboard(c);
     case "info": return renderInfo(c);
@@ -493,6 +494,8 @@ function renderWizStep() {
       md.open = true;
       moveTo(md.parentElement);
     }
+    const cd = WIZ.home.querySelector("details.czcionki-details");
+    if (cd) moveTo(cd.parentElement);
     next.onclick = () => { WIZ.step = 4; renderWizStep(); };
   } else if (WIZ.step === 4) {
     const big = document.createElement("div");
@@ -874,6 +877,10 @@ async function openMarginsPreview(cid, mode) {
   }
   sel.onchange = () => { typ = sel.value; schedule(); };
   head.appendChild(sel);
+  const pelny = el("button", "btn secondary small", "⛶");
+  pelny.title = "Podgląd na cały ekran (ESC lub ⛶ wraca)";
+  pelny.onclick = () => ustawPelnyEkran(!dock.classList.contains("full"));
+  head.appendChild(pelny);
   const zamknij = el("button", "btn secondary small", "✕");
   zamknij.title = "Zamknij podgląd";
   zamknij.onclick = closeMarginsPreview;
@@ -897,15 +904,45 @@ async function openMarginsPreview(cid, mode) {
   const errMsg = el("div", "mp-error hidden");
   dock.appendChild(errMsg);
 
+  /* skalowanie arkusza A4 do szerokości panelu (także po pełnym ekranie) */
+  let mpSzer = 794, mpWys = 1123;
+  function ustawSkale() {
+    const dostepne = Math.max(200, wrap.clientWidth - 12);
+    const skala = Math.min(1, dostepne / mpSzer);
+    sheet.style.transform = "scale(" + skala + ")";
+    sheet.style.transformOrigin = "top left";
+    /* po przeskalowaniu arkusz nie rezerwuje pełnej wysokości w doku */
+    sheet.style.marginBottom = (mpWys * (skala - 1)) + "px";
+  }
+  const onResize = () => { if (document.getElementById("mp-dock")) ustawSkale(); };
+  window.addEventListener("resize", onResize);
+
+  function ustawPelnyEkran(on) {
+    dock.classList.toggle("full", on);
+    document.body.classList.toggle("mp-full-open", on);
+    ustawSkale();
+  }
+  const onKey = e => {
+    if (e.key === "Escape" && dock.classList.contains("full")) ustawPelnyEkran(false);
+  };
+  document.addEventListener("keydown", onKey);
+
   document.body.appendChild(dock);
   document.body.classList.add("mp-open");
 
   /* każde wpisanie w prawdziwej tabeli marginesów odświeża podgląd */
+  const czcCid = "czcionki_" + mode;
   const onInput = e => {
-    if (e.target.closest && e.target.closest(`[data-cid="${cid}"]`)) schedule();
+    if (e.target.closest && e.target.closest(
+        `[data-cid="${cid}"], [data-cid="${czcCid}"]`)) schedule();
   };
   document.addEventListener("input", onInput);
-  MP_CLEANUP = () => document.removeEventListener("input", onInput);
+  MP_CLEANUP = () => {
+    document.removeEventListener("input", onInput);
+    window.removeEventListener("resize", onResize);
+    document.removeEventListener("keydown", onKey);
+    document.body.classList.remove("mp-full-open");
+  };
 
   function schedule() {
     if (!document.getElementById("mp-dock")) { closeMarginsPreview(); return; }
@@ -915,7 +952,9 @@ async function openMarginsPreview(cid, mode) {
 
   async function refresh() {
     if (document.getElementById("mp-dock") !== dock) return;  /* zamknięto */
-    const data = collectValues()[cid] || {};
+    const allVals = collectValues();
+    const data = allVals[cid] || {};
+    const czc = allVals[czcCid] || {};
     const wiersz = MP_WIERSZ[typ] || typ;
     const T = (data[wiersz] || {}).T || "1.5", B = (data[wiersz] || {}).B || "1.5",
           L = (data[wiersz] || {}).L || "2.5", R = (data[wiersz] || {}).R || "1.5";
@@ -923,7 +962,7 @@ async function openMarginsPreview(cid, mode) {
     errMsg.classList.add("hidden");
     sheet.classList.add("loading");
     let r = null;
-    try { r = await api().get_margins_preview(typ, data); }
+    try { r = await api().get_margins_preview(typ, data, czc); }
     catch (e) { r = { ok: false, error: String(e) }; }
     if (moje !== gen) return;                 /* przyszła nieaktualna odpowiedź */
     if (!r.ok) {
@@ -940,26 +979,41 @@ async function openMarginsPreview(cid, mode) {
        widać jako białe pole wokół treści */
     const szer = r.poziom ? 1123 : 794;       /* A4 w px przy 96 dpi */
     const wys = r.poziom ? 794 : 1123;
+    mpSzer = szer; mpWys = wys;
     sheet.style.width = szer + "px";
     sheet.style.height = wys + "px";
     frame.style.width = szer + "px";
     frame.style.height = wys + "px";
+    /* Cała treść trafia do "okna" dokładnie wielkości POLA DRUKU
+       (strona minus marginesy) i jest przycinana po jego krawędziach —
+       dzięki temu KAŻDY margines (także dół i prawo) widać na podglądzie,
+       a zbyt szeroka tabela jest przycinana jak przy druku. */
     const css = `<style>
       html, body { background: #fff !important; max-width: none !important;
-                  margin: 0 !important; padding: 0 !important; }
-      body { box-sizing: border-box !important;
-             width: ${szer}px !important; height: ${wys}px !important;
-             overflow: hidden !important;
-             padding: ${T}cm ${R}cm ${B}cm ${L}cm !important; }
-    </style>`;
+                  margin: 0 !important; padding: 0 !important;
+                  overflow: hidden !important; }
+      #mp-page { position: relative; width: ${szer}px; height: ${wys}px; }
+      #mp-win { position: absolute; left: ${L}cm; top: ${T}cm;
+                right: ${R}cm; bottom: ${B}cm; overflow: hidden; }
+    </style>
+    <script>
+    (function () {
+      function mpWrap() {
+        if (document.getElementById("mp-win")) return;
+        var p = document.createElement("div"); p.id = "mp-page";
+        var w = document.createElement("div"); w.id = "mp-win";
+        p.appendChild(w);
+        while (document.body.firstChild) w.appendChild(document.body.firstChild);
+        document.body.appendChild(p);
+      }
+      if (document.readyState === "loading")
+        document.addEventListener("DOMContentLoaded", mpWrap);
+      else mpWrap();
+    })();
+    <\/script>`;
     frame.onload = () => sheet.classList.remove("loading");
     frame.srcdoc = (r.html || "") + css;
-    const dostepne = wrap.clientWidth - 12;
-    const skala = Math.min(1, dostepne / szer);
-    sheet.style.transform = "scale(" + skala + ")";
-    sheet.style.transformOrigin = "top left";
-    /* po przeskalowaniu arkusz nie rezerwuje pełnej wysokości w doku */
-    sheet.style.marginBottom = (wys * (skala - 1)) + "px";
+    ustawSkale();
   }
 
   refresh();
@@ -1159,6 +1213,60 @@ function renderMargins(c) {
     pv.onclick = () => openMarginsPreview(c.id, c.mode);
     wrap.appendChild(pv);
   }
+  return wrap;
+}
+
+/* kontrolka: czcionki raportów nowego wyglądu (tytuł / tabela) */
+function renderCzcionki(c) {
+  const fonts = c.fonts || [""];
+  const defPt = { tytul: "12", tabela: "8.6" };
+  const wrap = el("div", null);
+  const det = el("details", "czcionki-details");
+  const sum = el("summary", null, escapeHtml(c.label || "Ustawienia czcionek:"));
+  if (c.tooltip) sum.title = c.tooltip;
+  det.appendChild(sum);
+  const table = el("table", "czcionki-table");
+  table.dataset.cid = c.id; table.dataset.kind = "czcionki";
+  const head = el("tr", null, "<th>Raport</th>" +
+                  "<th>Tytuł — rozmiar [pt]</th><th>Tytuł — czcionka</th>" +
+                  "<th>Tabela — rozmiar [pt]</th><th>Tabela — czcionka</th>");
+  table.appendChild(head);
+  const data = VALUES[c.id] || {};
+  for (const typ of (c.types || [])) {
+    const tr = el("tr");
+    tr.dataset.ftype = typ;
+    tr.appendChild(el("td", null, typ));
+    for (const gdzie of ["tytul", "tabela"]) {
+      const vals = (data[typ] || {})[gdzie] || {};
+      const inp = el("input", "czc-pt");
+      inp.type = "text";
+      inp.dataset.gdzie = gdzie; inp.dataset.co = "pt";
+      inp.value = vals.pt !== undefined && vals.pt !== "" ? vals.pt : defPt[gdzie];
+      inp.oninput = scheduleSetValues;
+      const td1 = el("td", null, "");
+      td1.appendChild(inp);
+      tr.appendChild(td1);
+      const sel = el("select", "czc-font");
+      sel.dataset.gdzie = gdzie; sel.dataset.co = "font";
+      for (const f of fonts) {
+        const o = el("option", null, f === "" ? "(domyślna)" : f);
+        o.value = f;
+        if (f === (vals.font || "")) o.selected = true;
+        sel.appendChild(o);
+      }
+      sel.onchange = scheduleSetValues;
+      const td2 = el("td", null, "");
+      td2.appendChild(sel);
+      tr.appendChild(td2);
+    }
+    table.appendChild(tr);
+  }
+  det.appendChild(table);
+  const hint = el("div", "hint-row",
+    "Tytuł i tekst tabeli osobno dla każdego raportu. Obiekt, „Stan na” " +
+    "i AGENCJA zostają z oryginalną czcionką.");
+  det.appendChild(hint);
+  wrap.appendChild(det);
   return wrap;
 }
 
@@ -1451,6 +1559,17 @@ function collectValues() {
       $$("tr[data-ftype]", node).forEach(tr => {
         data[tr.dataset.ftype] = {};
         $$("input", tr).forEach(inp => { data[tr.dataset.ftype][inp.dataset.side] = inp.value; });
+      });
+      out[cid] = data;
+    } else if (kind === "czcionki") {
+      const data = {};
+      $$("tr[data-ftype]", node).forEach(tr => {
+        const t = {};
+        $$("[data-gdzie]", tr).forEach(el2 => {
+          t[el2.dataset.gdzie] = t[el2.dataset.gdzie] || {};
+          t[el2.dataset.gdzie][el2.dataset.co] = el2.value;
+        });
+        data[tr.dataset.ftype] = t;
       });
       out[cid] = data;
     } else if (kind === "fonts") {

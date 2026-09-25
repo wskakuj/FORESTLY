@@ -477,6 +477,26 @@ class WebBackend(
                     saved_config = load_margins()
                     saved_config[c["mode"]] = mode_cfg
                     save_margins(saved_config)
+            elif kind == "czcionki":
+                # czcionki raportów nowego wyglądu (tytuł / tabela) — zapis
+                # do settings.json, z walidacją rozmiarów w trakcie pisania
+                mode_cfg = {}
+                all_valid = True
+                for typ_, sekcje in (val or {}).items():
+                    mode_cfg[typ_] = {}
+                    for gdzie in ("tytul", "tabela"):
+                        c_ = (sekcje or {}).get(gdzie) or {}
+                        try:
+                            pt = float(str(c_.get("pt", "")).replace(",", "."))
+                        except (TypeError, ValueError):
+                            all_valid = False
+                            pt = None
+                        mode_cfg[typ_][gdzie] = {
+                            "pt": pt if pt is not None else
+                                  (12.0 if gdzie == "tytul" else 8.6),
+                            "font": str(c_.get("font") or "")[:40]}
+                if mode_cfg and all_valid:
+                    self.set_setting(f"web.czcionki.{c['mode']}", mode_cfg)
             elif kind == "fonts":
                 for sheet, v in (val or {}).items():
                     ent = self.excel_font_entries.get(sheet)
@@ -932,6 +952,20 @@ class WebBackend(
                                 for s, d in (("T", "1.5"), ("B", "1.5"),
                                              ("L", "2.5"), ("R", "1.5"))}
                         for ftype in MARGIN_FILE_TYPES}
+                elif kind == "czcionki":
+                    saved = self.get_setting(
+                        f"web.czcionki.{c['mode']}", None)
+                    if not isinstance(saved, dict) and c["mode"] == "NS":
+                        saved = self.get_setting("web.czcionki.ALL", None)
+                    if not isinstance(saved, dict):
+                        saved = {}
+                    defcz = {"tytul": {"pt": "12", "font": ""},
+                             "tabela": {"pt": "8.6", "font": ""}}
+                    values[cid] = {
+                        t: {g: dict(saved.get(t, {}).get(g)
+                                   or defcz[g])
+                            for g in ("tytul", "tabela")}
+                        for t in (c.get("types") or [])}
                 elif kind == "fonts":
                     values[cid] = {f["sheet"]: str(self.get_setting(
                         f"web.font.{f['sheet']}", f["default"])) for f in c["fonts"]}
@@ -986,6 +1020,12 @@ class WebBackend(
                 margins = _marginesy_z_slownika(load_margins().get(_tryb))
                 if margins:
                     break
+            # czcionki: własne dla zakładki, z fallbackiem na kreator
+            czc = self.get_setting("web.czcionki.NS", None)
+            if not isinstance(czc, dict) or not czc:
+                czc = self.get_setting("web.czcionki.ALL", None)
+            if not isinstance(czc, dict):
+                czc = {}
             self.start_progress_tracking(len(obraby), f"Nowe szablony: {typ}")
             ok, blad, pominiete = 0, 0, []
             for i, obr in enumerate(obraby, 1):
@@ -1014,7 +1054,7 @@ class WebBackend(
                         szablony.generuj_raport_pdf(
                             typ, txt, pdf,
                             bez_nazwisk=bool(bez_nazwisk and typ in szablony.USUWA_NAZWISKA),
-                            margins=margins)
+                            margins=margins, czcionki=czc)
                         ok += 1
                         self.log(f"  ✅ {obr.name}: {typ}.txt + PDF → {pdf}")
                 except Exception as e:
@@ -1112,8 +1152,9 @@ class WebBackend(
                     return cache[typ]
         return None, None
 
-    def get_margins_preview(self, typ, margins):
-        """HTML podglądu raportu nowym wyglądem z podanymi marginesami.
+    def get_margins_preview(self, typ, margins, czcionki=None):
+        """HTML podglądu raportu nowym wyglądem z podanymi marginesami
+        i czcionkami (tytuł / tabela).
 
         Frontend pokazuje go w <iframe> i odświeża po każdej zmianie
         marginesu — bez generowania PDF, bez Worda.
@@ -1131,6 +1172,7 @@ class WebBackend(
                     "a podgląd pokaże Twój dokument."}
         obiekt, stan, okres = szablony.meta_z_pliku(txt)
         mg = szablony._marginesy(_marginesy_z_slownika(margins), typ)
+        cz = (czcionki or {}).get(typ) if isinstance(czcionki, dict) else None
         bez = False
         if typ in szablony.USUWA_NAZWISKA:
             try:
@@ -1141,13 +1183,16 @@ class WebBackend(
         try:
             if typ == "WSKAZ1":
                 html = szablony.RENDERERY[typ](txt, obiekt, stan, okres=okres,
-                                               bez_nazwisk=bez, marginesy=mg)
+                                               bez_nazwisk=bez, marginesy=mg,
+                                               czcionki=cz)
             elif typ == "WSK_ZB":
                 html = szablony.RENDERERY[typ](txt, obiekt, okres or stan,
-                                              bez_nazwisk=bez, marginesy=mg)
+                                              bez_nazwisk=bez, marginesy=mg,
+                                              czcionki=cz)
             else:
                 html = szablony.RENDERERY[typ](txt, obiekt, stan,
-                                               bez_nazwisk=bez, marginesy=mg)
+                                               bez_nazwisk=bez, marginesy=mg,
+                                               czcionki=cz)
         except Exception:
             return {"ok": False, "error": traceback.format_exc(limit=1)}
         return {"ok": True, "html": html, "poziom": typ in szablony.POZIOMO,

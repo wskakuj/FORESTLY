@@ -413,8 +413,11 @@ CSS = """
   table { border-collapse: collapse; width: 100%; }
   thead { display: table-header-group; }
   th { font-weight: 600; font-size: 7.6pt; background: #f2f2f2; }
-  th.vert { writing-mode: vertical-rl; text-orientation: mixed;
-            transform: rotate(180deg); padding: 3px 1px; }
+  /* pionowy napis ("Ochr.") — transform na spanie, NIE na komórce:
+     transform bezpośrednio na th psuł obramowanie przy border-collapse */
+  th.vcol { padding: 2px 0; }
+  .vtxt { display: inline-block; writing-mode: vertical-rl;
+          text-orientation: mixed; transform: rotate(180deg); }
 
   th, td { border: 0.4pt solid #9a9a9a; padding: 2.4px 5px; vertical-align: top; }
   td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -436,15 +439,48 @@ CSS = """
 """
 
 
+def _as_float(v):
+    try:
+        return float(str(v).replace(",", "."))
+    except (TypeError, ValueError):
+        return None
+
+def _css_czcionek(cz):
+    """CSS z ustawień czcionek: {"tytul": {"pt": 12, "font": "Arial"},
+    "tabela": {...}}. Tytuł = nagłówek dokumentu (.hdr h1); tabela = cała
+    treść tabel. Obiekt, "Stan na" i AGENCJA zostają z oryginalną czcionką.
+    Wartości równe wbudowanym domyślnym (12 / 8.6 pt) nie wstrzykują stylu,
+    więc niezmienione ustawienia zachowują dzisiejszy wygląd 1:1."""
+    if not isinstance(cz, dict):
+        return ""
+    out = []
+    for sekcja, domysl, sel in (("tytul", 12.0, ".hdr h1"),
+                                ("tabela", 8.6, "table th, table td")):
+        c = cz.get(sekcja) or {}
+        if not isinstance(c, dict):
+            continue
+        pt = _as_float(c.get("pt"))
+        fam = str(c.get("font") or "").replace('"', "").strip()
+        dek = []
+        if pt is not None and (abs(pt - domysl) > 1e-9 or fam):
+            dek.append(f"font-size: {pt:g}pt")
+        if fam:
+            dek.append(f'font-family: "{fam}", Arial, sans-serif')
+        if dek:
+            out.append(f"{sel} {{ " + "; ".join(dek) + "; }")
+    return "\n".join(out)
+
 def _strona(tytul, obiekt, stan, tresc, extra_css="", poziom=False,
-            marginesy=None, agencja="AGENCJA „CEZAR”", tytul2=""):
+            marginesy=None, agencja="AGENCJA „CEZAR”", tytul2="",
+            czcionki=None):
     t, r, b, l = marginesy or _DOMYSLNE_MARGINESY
     orient = "@page { size: A4 landscape; }" if poziom else ""
     page = f"@page {{ size: A4; margin: {t}cm {r}cm {b}cm {l}cm; }}"
+    cz = _css_czcionek(czcionki)
     return f"""<!DOCTYPE html>
 <html lang="pl"><head><meta charset="utf-8">
 <title>{tytul} — {obiekt}</title>
-<style>{page}{orient}{CSS}{extra_css}</style></head>
+<style>{page}{orient}{CSS}{extra_css}{cz}</style></head>
 <body>
 <div class="hdr">
   <div class="agencja">{agencja}</div>
@@ -456,7 +492,7 @@ def _strona(tytul, obiekt, stan, tresc, extra_css="", poziom=False,
 
 # --------------------------------------------------------------- HTML: raporty
 
-def html_rejestr1(path, obiekt, stan, bez_nazwisk=False, marginesy=None):
+def html_rejestr1(path, obiekt, stan, bez_nazwisk=False, marginesy=None, czcionki=None):
     pozycje = parse_rejestr1(path)
     tr = []
     for p in pozycje:
@@ -529,7 +565,7 @@ def html_rejestr1(path, obiekt, stan, bez_nazwisk=False, marginesy=None):
 <th rowspan="3" style="width:4.5%">Oddz.<br>poddz.</th>
 <th colspan="8">Opis i powierzchnia lasów [ha]</th>
 <th rowspan="3" class="wz">Pow.<br>gruntów<br>do zal.</th>
-<th rowspan="3" class="vert">Ochr.</th>
+<th rowspan="3" class="vcol"><span class="vtxt">Ochr.</span></th>
 <th colspan="3">Wskazania gospodarcze</th>
 <th rowspan="3" style="width:5.5%">Wykon.</th></tr>
 <tr><th colspan="4">zalesiona</th><th colspan="2">nie zalesiona</th>
@@ -541,10 +577,11 @@ def html_rejestr1(path, obiekt, stan, bez_nazwisk=False, marginesy=None):
 <th>pozost.</th></tr></thead>"""
     tresc = ('<table>' + head + '<tbody>' + "".join(tr) + "</tbody></table>")
     return _strona("Rejestr działek leśnych i gruntów do zalesienia wg. właścicieli",
-                   obiekt, stan, tresc, poziom=True, marginesy=marginesy)
+                   obiekt, stan, tresc, poziom=True, marginesy=marginesy,
+                   czcionki=czcionki)
 
 
-def html_optax(path, obiekt, stan, bez_nazwisk=False, marginesy=None):
+def html_optax(path, obiekt, stan, bez_nazwisk=False, marginesy=None, czcionki=None):
     rek = parse_optax(path)
     tr = []
     for r in rek:
@@ -584,10 +621,11 @@ przeznaczonego do zalesienia</th>
 
 <tbody>""" + "".join(tr) + "</tbody></table>"
     return _strona("Opis lasów i gruntów przeznaczonych do zalesienia",
-                   obiekt, stan, tresc, poziom=True, marginesy=marginesy)
+                   obiekt, stan, tresc, poziom=True, marginesy=marginesy,
+                   czcionki=czcionki)
 
 
-def html_tabklw3(path, obiekt, stan, bez_nazwisk=False, marginesy=None):
+def html_tabklw3(path, obiekt, stan, bez_nazwisk=False, marginesy=None, czcionki=None):
     grupy = parse_tabklw3(path)
     KLASY = ["Ia", "Ib", "IIa", "IIb", "IIIa", "IIIb", "IVa", "IVb",
              "Va", "Vb", "VIa", "VIb", "VII+", "K.D.O.", "K.O.", "Razem", "Ogółem"]
@@ -609,10 +647,11 @@ def html_tabklw3(path, obiekt, stan, bez_nazwisk=False, marginesy=None):
              + "</tbody></table>")
     return _strona("Zestawienie powierzchni gruntów i miąższości drzewostanu "
                    "wg gatunków panujących (głównych) wg klas i podklas wieku",
-                   obiekt, stan, tresc, poziom=True, marginesy=marginesy)
+                   obiekt, stan, tresc, poziom=True, marginesy=marginesy,
+                   czcionki=czcionki)
 
 
-def html_wskaz1(path, obiekt, stan, okres="", bez_nazwisk=False, marginesy=None):
+def html_wskaz1(path, obiekt, stan, okres="", bez_nazwisk=False, marginesy=None, czcionki=None):
     dane = parse_wskaz1(path)
     czesci = []
     for w in dane:
@@ -658,10 +697,10 @@ def html_wskaz1(path, obiekt, stan, okres="", bez_nazwisk=False, marginesy=None)
              + "</h2>" + "".join(czesci))
     return _strona("Zadania w zakresie gospodarki leśnej",
                    obiekt, "", tresc, extra_css=extra, poziom=True,
-                   marginesy=marginesy)
+                   marginesy=marginesy, czcionki=czcionki)
 
 
-def html_wskzb(path, obiekt, stan, bez_nazwisk=False, marginesy=None):
+def html_wskzb(path, obiekt, stan, bez_nazwisk=False, marginesy=None, czcionki=None):
     sekcje = parse_wskzb(path)
     czesci = []
     for s in sekcje:
@@ -696,10 +735,10 @@ def html_wskzb(path, obiekt, stan, bez_nazwisk=False, marginesy=None):
     tytul2 = (f"w 10-leciu od {stan} wg. wskazań gospodarczych" if stan else "")
     return _strona("Zestawienie czynności gospodarczych projektowanych do wykonania",
                    obiekt, "", tresc, extra_css=extra, marginesy=marginesy,
-                   tytul2=tytul2)
+                   tytul2=tytul2, czcionki=czcionki)
 
 
-def html_zest1(path, obiekt, stan, bez_nazwisk=False, marginesy=None):
+def html_zest1(path, obiekt, stan, bez_nazwisk=False, marginesy=None, czcionki=None):
     tr = []
     for k in parse_zest1(path):
         tr.append(f'<tr><td>{k[0]}</td><td class="n">{k[1]}</td>'
@@ -709,10 +748,10 @@ def html_zest1(path, obiekt, stan, bez_nazwisk=False, marginesy=None):
              '<th style="width:12%">Oddz./poddz.</th>'
              '<th class="n" style="width:14%">Powierzchnia działki [ha]</th>'
              '</tr></thead><tbody>' + "".join(tr) + "</tbody></table>")
-    return _strona("Skorowidz działek", obiekt, stan, tresc, marginesy=marginesy)
+    return _strona("Skorowidz działek", obiekt, stan, tresc, marginesy=marginesy, czcionki=czcionki)
 
 
-def html_halizny(path, obiekt, stan, bez_nazwisk=False, marginesy=None):
+def html_halizny(path, obiekt, stan, bez_nazwisk=False, marginesy=None, czcionki=None):
     tr = []
     for k in parse_halizny(path):
         if k[0].startswith("R.oddz"):
@@ -730,10 +769,10 @@ def html_halizny(path, obiekt, stan, bez_nazwisk=False, marginesy=None):
              '<th>Rodzaj powierzchni</th></tr></thead><tbody>'
              + "".join(tr) + "</tbody></table>")
     return _strona("Zestawienie powierzchni leśnych niezalesionych",
-                   obiekt, stan, tresc, marginesy=marginesy)
+                   obiekt, stan, tresc, marginesy=marginesy, czcionki=czcionki)
 
 
-def html_wyk_neg(path, obiekt, stan, bez_nazwisk=False, marginesy=None):
+def html_wyk_neg(path, obiekt, stan, bez_nazwisk=False, marginesy=None, czcionki=None):
     tytul, wiersze, razem = parse_wyk_neg(path)
     m = re.search(r"-\s*(\S+)\s*$", tytul)
     obreb = m.group(1) if m else obiekt
@@ -754,7 +793,7 @@ def html_wyk_neg(path, obiekt, stan, bez_nazwisk=False, marginesy=None):
              + "".join(tr) + "</tbody></table>")
     return _strona("Zestawienie powierzchni i zasobności dla drzewostanów "
                    "negatywnych i źle produkujących",
-                   obreb, "", tresc, marginesy=marginesy)
+                   obreb, "", tresc, marginesy=marginesy, czcionki=czcionki)
 
 
 # typ -> renderer; wszystkie mają sygnaturę (path, obiekt, stan, ...)
@@ -954,23 +993,28 @@ def html_na_pdf(html_path, pdf_path, timeout=120):
 
 
 def generuj_raport_pdf(typ, txt_path, pdf_path, bez_nazwisk=False,
-                       margins=None, agencja="AGENCJA „CEZAR”"):
-    """TXT mietka → HTML → PDF dla jednego raportu."""
+                       margins=None, agencja="AGENCJA „CEZAR”",
+                       czcionki=None):
+    """TXT mietka → HTML → PDF dla jednego raportu.
+
+    'czcionki' = {TYP: {"tytul": {"pt":…, "font":…}, "tabela": {…}}}
+    (ustawienia z kreatora / zakładki Nowe Szablony)."""
     typ = typ.upper()
     renderer = RENDERERY.get(typ)
     if renderer is None:
         raise ValueError(f"Nieznany typ raportu: {typ}")
     obiekt, stan, okres = meta_z_pliku(txt_path)
     mg = _marginesy(margins, typ)
+    cz = (czcionki or {}).get(typ) if isinstance(czcionki, dict) else None
     if typ == "WSKAZ1":
         html = renderer(txt_path, obiekt, stan, okres=okres,
-                        bez_nazwisk=bez_nazwisk, marginesy=mg)
+                        bez_nazwisk=bez_nazwisk, marginesy=mg, czcionki=cz)
     elif typ == "WSK_ZB":
         html = renderer(txt_path, obiekt, okres or stan,
-                        bez_nazwisk=bez_nazwisk, marginesy=mg)
+                        bez_nazwisk=bez_nazwisk, marginesy=mg, czcionki=cz)
     else:
         html = renderer(txt_path, obiekt, stan,
-                        bez_nazwisk=bez_nazwisk, marginesy=mg)
+                        bez_nazwisk=bez_nazwisk, marginesy=mg, czcionki=cz)
     with tempfile.TemporaryDirectory(prefix="forestly_tpl_") as tmp:
         html_path = Path(tmp) / f"{typ}.html"
         html_path.write_text(html, encoding="utf-8")

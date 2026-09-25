@@ -63,6 +63,22 @@ def _margins(mode):
     return {"id": f"margins_{mode}", "kind": "margins", "mode": mode,
             "label": "Ustawienia marginesów (w cm):"}
 
+# typy raportów nowego wyglądu + lista czcionek do wyboru
+CZCIONKI_TYPY = ["REJESTR1", "OPTAX", "TAB_KLW3", "WSKAZ1", "WSK_ZB",
+                 "ZEST1", "HALIZNY", "WYK_NEG"]
+CZCIONKI_LISTA = ["", "Arial", "Times New Roman", "Calibri", "Verdana",
+                  "Tahoma", "Georgia", "Trebuchet MS", "Courier New"]
+
+def _czcionki(mode):
+    return {"id": f"czcionki_{mode}", "kind": "czcionki", "mode": mode,
+            "label": "Ustawienia czcionek (tytuł dokumentu / tekst w tabeli):",
+            "types": CZCIONKI_TYPY, "fonts": CZCIONKI_LISTA,
+            "tooltip": ("Rozmiar (pt) i rodzaj czcionki — osobno dla tytułu "
+                        "dokumentu i osobno dla tekstu w tabelach, dla każdego "
+                        "typu raportu. Nazwa obiektu, \"Stan na\" i AGENCJA "
+                        "zostają bez zmian. Domyślne wartości (tytuł 12 pt, "
+                        "tabela 8,6 pt) zachowują dzisiejszy wygląd.")}
+
 
 def _button(bid, label, task, style="primary", tooltip=""):
     return {"id": bid, "label": label, "task": task, "style": style,
@@ -156,6 +172,7 @@ def build_schema():
                        "Włączenie tej opcji uruchamia makra 'ZamienLF' oraz 'UsunNazwiskaRej', "
                        "a także kasuje pierwszą stronę z rejestru."),
                 _margins("ALL"),
+                _czcionki("ALL"),
                 {"kind": "dashboard", "id": "dashboard", "steps": DASHBOARD_STEPS},
             ],
             "buttons": [
@@ -179,6 +196,7 @@ def build_schema():
                        "Bez nazwisk (dotyczy REJESTR1 i WSKAZ1)", True,
                        "Działa tak samo jak opcja 'Usuwaj nazwiska' w Pełnym Automacie."),
                 _margins("NS"),
+                _czcionki("NS"),
                 _info("Program sam wygeneruje pliki TXT wybranego raportu z DBF-ów "
                       "każdego obrębu (jak zakładka 'MIETEK -> TXT'; pliki TXT powstaną "
                       "obok DBF-ów) i zamieni je na PDF-y nowym wyglądem. "
