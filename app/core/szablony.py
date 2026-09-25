@@ -119,14 +119,22 @@ def _wiersz_rejestru(k):
     return {"dz": k[2], "pod": k[3], "gat": k[4], "w": k[5], "bon": k[6],
             "zal": k[7], "odn": k[8], "poz": k[9], "inne": k[10],
             "razem": k[11] if len(k) > 11 else "",
+            "gzal": k[12] if len(k) > 12 else "",
+            "ochr": k[13] if len(k) > 13 else "",
             "rodzaj": k[14] if len(k) > 14 else "",
             "pow_z": k[15] if len(k) > 15 else "",
-            "miaz_z": k[16] if len(k) > 16 else ""}
+            "miaz_z": k[16] if len(k) > 16 else "",
+            "wyk": k[17] if len(k) > 17 else ""}
 
 
 def _ma_dane(k):
     """Czy wiersz niesie dane (wydzielenie lub wskazanie)? Pomija separatory '-'."""
-    return any(c and not set(c) <= set("-") for c in k[2:17])
+    return any(c and not set(c) <= set("-") for c in k[2:18])
+
+def _tylko_wykon(k):
+    """Wiersz z samą dopiską w kolumnie 'Wykon.' — dopisz do poprzedniego."""
+    return (len(k) > 17 and k[17]
+            and not any(c and not set(c) <= set("-") for c in k[2:17]))
 
 
 def parse_rejestr1(path):
@@ -158,6 +166,10 @@ def parse_rejestr1(path):
                     {"nazw": k[1], "adres": "", "wiersze": []})
             if _ma_dane(k) and cur["wlasciciele"]:
                 cur["wlasciciele"][-1]["wiersze"].append(_wiersz_rejestru(k))
+            elif (_tylko_wykon(k) and cur["wlasciciele"]
+                  and cur["wlasciciele"][-1]["wiersze"]):
+                w = cur["wlasciciele"][-1]["wiersze"][-1]
+                w["wyk"] = (w["wyk"] + " " + k[17]).strip()
             continue
         if cur is None:
             continue
@@ -168,13 +180,15 @@ def parse_rejestr1(path):
             cur["razem_d_nr"] = m2.group(1) if m2 else ""
         elif k[1] and "Razem pozycja" in k[1]:
             cur["razem_p"] = [k[7], k[8], k[9], k[10],
-                              k[11] if len(k) > 11 else ""]
+                              k[11] if len(k) > 11 else "",
+                              k[12] if len(k) > 12 else ""]
         elif k[1] and "Razem obiekt" in k[1]:
             cur["razem_ob"] = True
             m = re.search(r"(-?[\d.]+)\s*ha", k[1])
             cur["razem_d"] = m.group(1) if m else ""
             cur["razem_ob_v"] = [k[7], k[8], k[9], k[10],
-                                 k[11] if len(k) > 11 else ""]
+                                 k[11] if len(k) > 11 else "",
+                                 k[12] if len(k) > 12 else ""]
         else:
             # wiersz adresu (nazwisko wypełnione, brak danych działki)
             # i/lub kolejny zabieg (Rodzaj/Pow/Miąż) tego samego właściciela
@@ -184,6 +198,10 @@ def parse_rejestr1(path):
                     wl["adres"] = k[1]
             if _ma_dane(k) and cur["wlasciciele"]:
                 cur["wlasciciele"][-1]["wiersze"].append(_wiersz_rejestru(k))
+            elif (_tylko_wykon(k) and cur["wlasciciele"]
+                  and cur["wlasciciele"][-1]["wiersze"]):
+                w = cur["wlasciciele"][-1]["wiersze"][-1]
+                w["wyk"] = (w["wyk"] + " " + k[17]).strip()
     return pozycje
 
 # --------------------------------------------------------------- OPTAX
@@ -395,6 +413,9 @@ CSS = """
   table { border-collapse: collapse; width: 100%; }
   thead { display: table-header-group; }
   th { font-weight: 600; font-size: 7.6pt; background: #f2f2f2; }
+  th.vert { writing-mode: vertical-rl; text-orientation: mixed;
+            transform: rotate(180deg); padding: 3px 1px; }
+
   th, td { border: 0.4pt solid #9a9a9a; padding: 2.4px 5px; vertical-align: top; }
   td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   td.c { text-align: center; }
@@ -453,10 +474,11 @@ def html_rejestr1(path, obiekt, stan, bez_nazwisk=False, marginesy=None):
                            f'<td class="c">{w["bon"]}</td><td class="n">{w["zal"]}</td>'
                            f'<td class="n">{w["odn"]}</td><td class="n">{w["poz"]}</td>'
                            f'<td class="n">{w["inne"]}</td><td class="n">{w["razem"]}</td>'
+                           f'<td class="n">{w["gzal"]}</td><td class="n">{w["ochr"]}</td>'
                            f'<td>{w["rodzaj"]}</td><td class="n">{w["pow_z"]}</td>'
-                           f'<td class="n">{w["miaz_z"]}</td>')
+                           f'<td class="n">{w["miaz_z"]}</td><td>{w["wyk"]}</td>')
                 else:
-                    kom = "<td></td>" * 13
+                    kom = "<td></td>" * 16
                 wl_td = ""
                 if wl_first and not bez_nazwisk:
                     tresc_wl = ""
@@ -474,7 +496,7 @@ def html_rejestr1(path, obiekt, stan, bez_nazwisk=False, marginesy=None):
                 else:
                     tr.append("<tr>" + wl_td + kom + "</tr>")
                 wl_first = False
-        cd = 12 if bez_nazwisk else 13
+        cd = 15 if bez_nazwisk else 16
         if p["razem_d"] and not p["razem_ob"]:
             nr_d = p.get("razem_d_nr") or ""
             tr.append(f'<tr class="rdz">'
@@ -482,33 +504,41 @@ def html_rejestr1(path, obiekt, stan, bez_nazwisk=False, marginesy=None):
                       f'<td colspan="{cd}"></td></tr>')
         cp_ = 4 if bez_nazwisk else 5
         if p["razem_p"]:
-            rp = p["razem_p"]
+            rp = list(p["razem_p"]) + [""] * (6 - len(p["razem_p"]))
             tr.append(f'<tr class="sub"><td class="rl" colspan="2">Razem pozycja</td>'
                       f'<td colspan="{cp_}"></td>'
                       f'<td class="n">{rp[0]}</td><td class="n">{rp[1]}</td>'
                       f'<td class="n">{rp[2]}</td><td class="n">{rp[3]}</td>'
-                      f'<td class="n">{rp[4]}</td><td colspan="3"></td></tr>')
+                      f'<td class="n">{rp[4]}</td><td class="n">{rp[5]}</td>'
+                      f'<td colspan="5"></td></tr>')
         if p["razem_ob"]:
-            rv = p.get("razem_ob_v") or ["", "", "", "", ""]
+            rv = list(p.get("razem_ob_v") or []) + [""] * 6
             tr.append(f'<tr class="razem ob">'
                       f'<td class="rl" colspan="2">Razem obiekt — {p["razem_d"]} ha</td>'
                       f'<td colspan="{cp_}"></td>'
                       f'<td class="n">{rv[0]}</td><td class="n">{rv[1]}</td>'
                       f'<td class="n">{rv[2]}</td><td class="n">{rv[3]}</td>'
-                      f'<td class="n">{rv[4]}</td><td colspan="3"></td></tr>')
+                      f'<td class="n">{rv[4]}</td><td class="n">{rv[5]}</td>'
+                      f'<td colspan="5"></td></tr>')
     nazw_th = "" if bez_nazwisk else (
-        '<th rowspan="2" style="width:17%">Nazwisko i imię<br>'
+        '<th rowspan="3" style="width:14%">Nazwisko i imię<br>'
         '<span class="opis">adres, współwłaściciele</span></th>\n')
     head = f"""<thead><tr>
-<th rowspan="2" style="width:5.5%">Nr<br>rej.</th>
-{nazw_th}<th rowspan="2" style="width:5.5%">Nr<br>działki</th>
-<th rowspan="2" style="width:4.5%">Oddz.<br>poddz.</th>
+<th rowspan="3" style="width:5%">Nr<br>rej.</th>
+{nazw_th}<th rowspan="3" style="width:5%">Nr<br>działki</th>
+<th rowspan="3" style="width:4.5%">Oddz.<br>poddz.</th>
 <th colspan="8">Opis i powierzchnia lasów [ha]</th>
-<th colspan="3">Wskazania gospodarcze</th></tr>
-<tr><th>gat.</th><th>W</th><th>Bon</th><th>zal.</th><th>do<br>odn.</th>
-<th>po-</th><th>in.</th><th>razem</th>
-<th style="width:12%">Rodzaj zabiegu</th><th class="n" style="width:5.5%">Pow.<br>[ha]</th>
-<th class="n" style="width:5.5%">Miąż.<br>[m³]</th></tr></thead>"""
+<th rowspan="3" class="wz">Pow.<br>gruntów<br>do zal.</th>
+<th rowspan="3" class="vert">Ochr.</th>
+<th colspan="3">Wskazania gospodarcze</th>
+<th rowspan="3" style="width:5.5%">Wykon.</th></tr>
+<tr><th colspan="4">zalesiona</th><th colspan="2">nie zalesiona</th>
+<th rowspan="2">inne<br>grunty</th><th rowspan="2">razem<br>lasy</th>
+<th rowspan="2" style="width:10%">Rodzaj<br>zabiegu</th>
+<th rowspan="2" class="n" style="width:5.5%">Pow.<br>[ha]</th>
+<th rowspan="2" class="n" style="width:5.5%">Miąż.<br>[m³]</th></tr>
+<tr><th>gat.</th><th>W</th><th>Bon</th><th>Pow.</th><th>do<br>odn.</th>
+<th>pozost.</th></tr></thead>"""
     tresc = ('<table>' + head + '<tbody>' + "".join(tr) + "</tbody></table>")
     return _strona("Rejestr działek leśnych i gruntów do zalesienia wg. właścicieli",
                    obiekt, stan, tresc, poziom=True, marginesy=marginesy)

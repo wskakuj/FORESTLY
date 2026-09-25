@@ -139,5 +139,10 @@
       "SKROTY"
     ],
     "excluded": []
-  }
+  },
+  "web.all_pelny_opis_og": false,
+  "web.all_krotki_opis_og": true,
+  "web.ns_src": "",
+  "web.ns_dst": "",
+  "web.ns_bez_nazwisk": true
 }

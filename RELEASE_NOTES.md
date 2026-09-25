@@ -1,3 +1,3 @@
-# Co nowego w v2.0.62
-- fix
+# Co nowego w v2.0.63
+- rejestr fix
 
