@@ -412,6 +412,12 @@ function closeWizard() {
 
 function renderWizStep() {
   if (!WIZ.open) return;
+  /* opuszczamy krok marginesów/czcionek (3) — okno podglądu ma się zamknąć,
+     żeby nie wisiało nad kolejnymi krokami kreatora */
+  if (WIZ.lastStep != null && WIZ.lastStep === 3 && WIZ.step !== 3) {
+    try { api().close_preview_window(); } catch (e) { /* już zamknięte */ }
+  }
+  WIZ.lastStep = WIZ.step;
   const body = document.getElementById("wiz-body");
   const dots = document.getElementById("wiz-dots");
   if (!body) return;
@@ -558,54 +564,88 @@ function renderWizStep() {
 
     /* mapa (opcjonalnie): wskaż plik albo przeciągnij i upuść */
     const karta = el("div", "wiz-map-card");
-    karta.innerHTML = '<h2>Mapa (opcjonalnie)</h2>' +
-      '<div class="wiz-sub">Wskaż plik mapy (jpg, png, tiff) albo przeciągnij go ' +
-      'poniżej — dołączę ją jako PDF na końcu każdego pakietu (opcja "Mapa" ' +
-      'w układzie PDF).</div>';
+    karta.innerHTML = '<h2>Mapy (opcjonalnie)</h2>' +
+      '<div class="wiz-sub">Wskaż folder z mapami (jpg, png, tiff) albo przeciągnij je ' +
+      'poniżej — można wiele naraz. Każdą mapę dopasuję do wsi PO NAZWIE ' +
+      '(nazwa pliku ma zawierać nazwę wsi, np. "CHORZEWO mapa.jpg") i dołączę ' +
+      'jako PDF na końcu pakietu.</div>';
     const fm = wizField("all_mapa");
     if (fm) {
       fm.classList.add("wiz-map-field");
       karta.appendChild(fm);
     }
     const dz = el("div", "wiz-drop");
-    dz.innerHTML = '<b>Przeciągnij i upuść mapę tutaj</b>' +
-                   '<span>jpg · png · tiff &nbsp;→&nbsp; PDF na końcu pakietu</span>';
+    dz.innerHTML = '<b>Przeciągnij i upuść mapy tutaj</b>' +
+                   '<span>jpg · png · tiff · można wiele naraz · dopasuję po nazwie wsi</span>';
+    const czysc = el("button", "btn ghost small wiz-map-clear",
+                     "Wyczyść przeciągnięte mapy");
+    czysc.type = "button";
+    czysc.onclick = async () => {
+      try {
+        await api().mapa_drop_clear();
+        toast("Zapomniano przeciągnięte mapy.", "ok");
+      } catch (e) { toast("Nie udało się wyczyścić.", "warn"); }
+    };
+    karta.appendChild(czysc);
     dz.addEventListener("dragover", e => {
       e.preventDefault();
       dz.classList.add("over");
     });
     dz.addEventListener("dragleave", () => dz.classList.remove("over"));
+    let lastDropFolder = "";
     dz.addEventListener("drop", async e => {
       e.preventDefault();
       dz.classList.remove("over");
-      const plik = e.dataTransfer.files && e.dataTransfer.files[0];
-      if (!plik) return;
-      if (!/\.(jpe?g|png|tiff?)$/i.test(plik.name)) {
-        toast("To nie jest plik graficzny (jpg / png / tiff).", "warn");
-        return;
-      }
+      const pliki = e.dataTransfer.files
+        ? Array.from(e.dataTransfer.files)
+        : [];
+      if (!pliki.length) return;
+      const grafiki = pliki.filter(f => /\.(jpe?g|png|tiff?)$/i.test(f.name));
+      const odrzucone = pliki.length - grafiki.length;
+      if (odrzucone)
+        toast("Pominięto " + odrzucone + " plik(ów) — mapy to jpg / png / tiff.", "warn");
+      if (!grafiki.length) return;
+      dz.classList.add("busy");
+      // najpierw czytamy WSZYSTKIE pliki (odczyty ruszają natychmiast,
+      // równolegle — nie wolno ich odkładać na po await-ach, bo po
+      // zakończeniu zdarzenia drop niektóre silniki blokują dostęp),
+      // dopiero potem wysyłamy do programu
+      let odczyty = [];
       try {
-        const buf = new Uint8Array(await plik.arrayBuffer());
-        let b64 = "";
-        const K = 32768;
-        for (let i = 0; i < buf.length; i += K)
-          b64 += String.fromCharCode.apply(null, buf.subarray(i, i + K));
-        dz.classList.add("busy");
-        const r = await api().save_mapa_drop(plik.name, btoa(b64));
-        if (r && r.ok) {
-          const inp = fm ? fm.querySelector("input") : null;
-          if (inp) {
-            inp.value = r.path;
-            inp.dispatchEvent(new Event("input", { bubbles: true }));
-          }
-          toast("Mapa zapisana: " + plik.name, "ok");
-        } else {
-          toast((r && r.error) || "Nie udało się zapisać mapy.", "warn");
-        }
+        odczyty = await Promise.all(grafiki.map(async plik => {
+          const buf = new Uint8Array(await plik.arrayBuffer());
+          let b64 = "";
+          const K = 32768;
+          for (let i = 0; i < buf.length; i += K)
+            b64 += String.fromCharCode.apply(null, buf.subarray(i, i + K));
+          return [plik.name, btoa(b64)];
+        }));
       } catch (err) {
-        toast("Nie udało się wczytać pliku: " + err, "warn");
-      } finally {
-        dz.classList.remove("busy");
+        toast("Nie udało się wczytać plików: " + err, "warn");
+      }
+      let ok = 0, folder = "";
+      for (const [nazwa, b64] of odczyty) {
+        try {
+          const r = await api().save_mapa_drop(nazwa, b64);
+          if (r && r.ok) {
+            ok++;
+            folder = r.folder || "";
+          } else {
+            toast(nazwa + ": " + ((r && r.error) || "nie udało się zapisać"), "warn");
+          }
+        } catch (err) {
+          toast(nazwa + ": nie udało się zapisać (" + err + ")", "warn");
+        }
+      }
+      dz.classList.remove("busy");
+      if (ok) {
+        const inp = fm ? fm.querySelector("input") : null;
+        if (inp && folder && (!inp.value || inp.value === lastDropFolder)) {
+          inp.value = folder;      // pokaż folder z przeciągniętymi mapami
+          inp.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+        lastDropFolder = folder || lastDropFolder;
+        toast("Zapisano " + ok + " map(y) — dopasuję po nazwie wsi.", "ok");
       }
     });
     karta.appendChild(dz);
@@ -629,7 +669,7 @@ function renderWizStep() {
         ? "OBIE WERSJE — dwa foldery ('Z nazwiskami' i 'Bez nazwisk')"
         : (wizVal("remove_names")
            ? "usuwane z REJESTRU" : "REJESTR z pełnymi nazwiskami")],
-      ["Mapa", wizVal("all_mapa") || "— bez mapy —"],
+      ["Mapy", wizVal("all_mapa") || "— bez map —"],
       ["Własne skróty i symbole", wizVal("all_custom_skroty")
         ? (wizVal("all_skroty") || "(nie wskazano pliku)") : "domyślne z programu"],
       ["Opisy ogólne", wizVal("all_pelny_opis_og")
@@ -2001,13 +2041,29 @@ function showChangelog(ev) {
 
 function showDialog(ev) {
   if (ev.kind === "confirm") {
-    if (window.confirm(ev.title + "\n\n" + ev.message)) {
-      api().dialog_reply(ev.id, true);
-    } else {
-      api().dialog_reply(ev.id, false);
-    }
+    const backdrop = el("div", "modal-backdrop");
+    const modal = el("div", "modal");
+    if (ev.title) modal.appendChild(el("h3", null, escapeHtml(ev.title)));
+    const msg = el("div", "modal-msg");
+    msg.style.whiteSpace = "pre-line";
+    msg.textContent = ev.message || "";
+    modal.appendChild(msg);
+    const row = el("div", "modal-row");
+    const nie = el("button", "btn secondary", "Anuluj");
+    const tak = el("button", "btn primary", "OK");
+    nie.onclick = () => { backdrop.remove(); api().dialog_reply(ev.id, false); };
+    tak.onclick = () => { backdrop.remove(); api().dialog_reply(ev.id, true); };
+    row.appendChild(nie); row.appendChild(tak);
+    modal.appendChild(row);
+    backdrop.appendChild(modal);
+    backdrop.onclick = e => {
+      if (e.target === backdrop) { backdrop.remove(); api().dialog_reply(ev.id, false); }
+    };
+    document.body.appendChild(backdrop);
+    setTimeout(() => tak.focus(), 50);
   } else {
-    const t = toast(ev.message, ev.kind === "error" ? "error" : ev.kind === "warn" ? "warn" : "ok");
+    const t = toast(ev.title ? (ev.title + ": " + ev.message) : ev.message,
+                    ev.kind === "error" ? "error" : ev.kind === "warn" ? "warn" : "ok");
     const root = $("#toast-root");
     root.appendChild(t);
   }

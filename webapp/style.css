@@ -1055,3 +1055,6 @@ body.mp-dragging { cursor: move; }
 .wiz-drop.over { border-color: var(--accent, #0067C0);
   background: var(--accent-bg, rgba(0,103,192,.10)); }
 .wiz-drop.busy { opacity: .55; pointer-events: none; }
+
+.wiz-map-clear { margin-top: 8px; }
+.modal-msg { white-space: pre-line; }

@@ -120,7 +120,7 @@
   "web.gdos_xlsx": "D:\\download\\Opera\\gdos_obszary.xlsx",
   "web.all_gen_opis_og": true,
   "web.all_gdos": "D:\\download\\gówno\\Nowy folder (20)\\Nowy folder",
-  "last_output_dir": "D:\\download\\gówno\\Nowy folder (20)\\Nowy folder\\PDF polaczone",
+  "last_output_dir": "D:\\download\\gówno\\Nowy folder (20)\\Nowy folder\\Bez nazwisk\\PDF polaczone",
   "web.all_tpl_stan": "31.12.1997 r.",
   "web.all_tpl_okres": "01.01.2027 – 31.12.2036 r.",
   "web.all_wsk_od": "01.01.2027",
@@ -162,7 +162,7 @@
       },
       "tabela": {
         "pt": 8.6,
-        "font": "Verdana"
+        "font": ""
       }
     },
     "TAB_KLW3": {
@@ -246,8 +246,8 @@
   },
   "web.all_pelny_opis_og": true,
   "web.all_krotki_opis_og": false,
-  "web.all_obie_wersje": false,
-  "web.all_mapa": "C:\\Users\\niepy\\AppData\\Local\\Temp\\forestly_mapy\\DĄBRÓWKA_ULOZONE.jpg",
+  "web.all_obie_wersje": true,
+  "web.all_mapa": "D:\\download\\gówno\\Nowy folder (20)\\Nowy folder",
   "web.ns_src": "",
   "web.ns_dst": "",
   "web.ns_bez_nazwisk": true,

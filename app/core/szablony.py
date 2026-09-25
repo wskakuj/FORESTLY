@@ -856,13 +856,21 @@ def html_skroty(docx_path, obiekt="", stan="", bez_nazwisk=False,
     sekcje = _skroty_sekcje(docx_path)
     if not sekcje:
         raise ValueError(f"Nie rozpoznano sekcji skrótów w {docx_path}")
-    czesci = []
-    for tytul, pary in sekcje:
+    # sekcje w DWÓCH KOLUMNACH obok siebie (jak w starym wydaniu):
+    # np. "Symbole siedliskowych typów lasu" obok "Symbole nazw drzew",
+    # dalej "Skróty w opisie drzewostanu" obok "Skróty we wskazówkach" —
+    # kolumny rozdziela pionowa kreska
+    kolumny = ([], [])
+    for i, (tytul, pary) in enumerate(sekcje):
         tr = "".join(
             f'<tr><td class="sk">{_e(skr)}</td><td>{_e(zn)}</td></tr>'
             for skr, zn in pary)
-        czesci.append(f'<h2>{_e(tytul)}</h2>'
-                      f'<table class="skroty"><tbody>{tr}</tbody></table>')
+        kolumny[i % 2].append(f'<h2>{_e(tytul)}</h2>'
+                              f'<table class="skroty"><tbody>{tr}</tbody></table>')
+    czesci = ['<div class="sk-dwie">'
+              '<div class="sk-kol">' + "".join(kolumny[0]) + '</div>'
+              '<div class="sk-kol sk-kol-prawa">' + "".join(kolumny[1]) +
+              '</div></div>']
     extra_css = """
   h2 { font-size: 9.6pt; text-transform: uppercase; letter-spacing: .8px;
        color: #1f3d2b; margin: 5.2mm 0 1.6mm; padding-bottom: .9mm;
@@ -875,6 +883,10 @@ def html_skroty(docx_path, obiekt="", stan="", bez_nazwisk=False,
   table.skroty td.sk { font-weight: 600; text-align: center; min-width: 12mm;
                        white-space: nowrap; }
   table.skroty tr:last-child td { border-bottom: .5pt solid #999; }
+  .sk-dwie { display: table; width: 100%; table-layout: fixed; }
+  .sk-kol { display: table-cell; vertical-align: top; padding-right: 4mm; }
+  .sk-kol-prawa { border-left: .6pt solid #9aa89b; padding-right: 0;
+                  padding-left: 4.5mm; }
 """
     return _strona("Wykaz skrótów i symboli", obiekt, stan, "".join(czesci),
                    extra_css=extra_css, marginesy=marginesy, czcionki=czcionki)

@@ -174,9 +174,9 @@ def build_schema():
                        "(folder 'Bez nazwisk').\nIgnoruje powyższy przełącznik "
                        "usuwania nazwisk."),
                 _path("all_mapa", "all_mapa_entry",
-                      "Plik mapy (jpg/png/tiff, opcjonalnie):",
-                      "Mapa dołączana na końcu każdego pakietu PDF",
-                      kind="file"),
+                      "Folder z mapami (jpg/png/tiff, opcjonalnie):",
+                      "Wszystkie mapy z folderu — dopasuję do wsi po nazwie pliku",
+                      kind="folder"),
                 _check("remove_names", "remove_names_var",
                        "Usuwaj nazwiska z REJESTRU (oraz 1. stronę)", True,
                        "Włączenie tej opcji uruchamia makra 'ZamienLF' oraz 'UsunNazwiskaRej', "

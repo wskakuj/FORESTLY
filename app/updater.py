@@ -25,7 +25,25 @@ from app.config import CURRENT_VERSION, GITHUB_USER, GITHUB_REPO
 
 
 class UpdaterMixin:
-    """Mixin dla ModernApp — metody aktualizacji z GitHub."""
+    """Mixin dla ModernApp — metody aktualizacji z GitHub.
+
+    Okienka (pytanie o aktualizację, komunikaty) idą przez metody
+    updater_ask/updater_info/updater_error — stary GUI (CustomTkinter)
+    używa zwykłych okien dialogowych tkinter, a nowe GUI webowe je
+    nadpisuje i pokazuje wszystko w wyglądzie programu.
+    """
+
+    def updater_ask(self, title, message):
+        """Pytanie tak/nie (np. o pobranie nowej wersji). Zwraca bool."""
+        return messagebox.askyesno(title, message)
+
+    def updater_info(self, title, message):
+        """Informacja dla użytkownika (np. 'masz najnowszą wersję')."""
+        messagebox.showinfo(title, message)
+
+    def updater_error(self, title, message):
+        """Błąd do pokazania użytkownikowi."""
+        messagebox.showerror(title, message)
 
     def notify_update_check(self, is_latest, manual=False):
         """Wynik sprawdzenia wersji — do nadpisania w GUI (web pokazuje toast)."""
@@ -69,7 +87,7 @@ class UpdaterMixin:
                             downloads = [(a0["name"], a0["browser_download_url"])]
                         msg = f"Dostępna jest nowa wersja programu: {latest_version}\n(Obecnie używasz: {CURRENT_VERSION})\nCzy chcesz automatycznie pobrać i zainstalować aktualizację?"
                         changelog_body = data.get("body", "")
-                        if messagebox.askyesno("Dostępna aktualizacja!", msg):
+                        if self.updater_ask("Dostępna aktualizacja!", msg):
                             if downloads:
                                 self.download_and_update(downloads, latest_version, changelog_body)
                             else:
@@ -79,7 +97,7 @@ class UpdaterMixin:
                                 webbrowser.open(data.get("html_url"))
                     else:
                         if manual:
-                            messagebox.showinfo(
+                            self.updater_info(
                                 "Aktualizacja",
                                 f"Posiadasz najnowszą wersję programu ({CURRENT_VERSION}).",
                             )
@@ -90,7 +108,7 @@ class UpdaterMixin:
             except Exception as e:
                 if manual:
                     # Pokazujemy błąd TYLKO wtedy, gdy użytkownik sam kliknął "Sprawdź update"
-                    messagebox.showerror(
+                    self.updater_error(
                         "Błąd połączenia", f"Nie udało się połączyć z GitHubem:\n{e}"
                     )
                     self.log(
@@ -105,7 +123,7 @@ class UpdaterMixin:
     def download_and_update(self, downloads, new_version, changelog_text=""):
             """downloads: [(nazwa, url), ...] — wszystkie pliki do podmiany."""
             if not getattr(sys, "frozen", False):
-                messagebox.showwarning(
+                self.updater_info(
                     "Wersja deweloperska",
                     "Automatyczna podmiana pliku działa tylko po skompilowaniu programu do .exe!",
                 )
@@ -189,27 +207,44 @@ class UpdaterMixin:
     Clear-PyInstallerEnv
 
     $form = New-Object System.Windows.Forms.Form
-    $form.Text = "Aktualizator Forestly"
-    $form.Size = New-Object System.Drawing.Size(480, 160)
+    $form.Text = "Forestly — Aktualizacja"
+    $form.Size = New-Object System.Drawing.Size(520, 214)
     $form.StartPosition = "CenterScreen"
     $form.FormBorderStyle = "FixedToolWindow"
-    $form.BackColor = [System.Drawing.Color]::FromArgb(37, 37, 38)
+    $form.BackColor = [System.Drawing.Color]::FromArgb(35, 38, 45)
     $form.ForeColor = [System.Drawing.Color]::White
     $form.TopMost = $true
 
+    $title = New-Object System.Windows.Forms.Label
+    $title.Location = New-Object System.Drawing.Point(20, 16)
+    $title.Size = New-Object System.Drawing.Size(470, 28)
+    $title.Font = New-Object System.Drawing.Font("Segoe UI Semibold", 12)
+    $title.ForeColor = [System.Drawing.Color]::FromArgb(79, 163, 255)
+    $title.Text = "Forestly — Aktualizacja"
+    $form.Controls.Add($title)
+
     $label = New-Object System.Windows.Forms.Label
-    $label.Location = New-Object System.Drawing.Point(20, 20)
-    $label.Size = New-Object System.Drawing.Size(440, 30)
-    $label.Font = New-Object System.Drawing.Font("Segoe UI", 11)
+    $label.Location = New-Object System.Drawing.Point(20, 54)
+    $label.Size = New-Object System.Drawing.Size(470, 46)
+    $label.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+    $label.ForeColor = [System.Drawing.Color]::FromArgb(232, 232, 232)
     $label.Text = "Czekam na zamknięcie starej wersji programu..."
     $form.Controls.Add($label)
 
     $progressBar = New-Object System.Windows.Forms.ProgressBar
-    $progressBar.Location = New-Object System.Drawing.Point(20, 60)
-    $progressBar.Size = New-Object System.Drawing.Size(420, 20)
+    $progressBar.Location = New-Object System.Drawing.Point(20, 108)
+    $progressBar.Size = New-Object System.Drawing.Size(460, 14)
     $progressBar.Style = "Marquee"
     $progressBar.MarqueeAnimationSpeed = 30
     $form.Controls.Add($progressBar)
+
+    $footer = New-Object System.Windows.Forms.Label
+    $footer.Location = New-Object System.Drawing.Point(20, 176)
+    $footer.Size = New-Object System.Drawing.Size(470, 20)
+    $footer.Font = New-Object System.Drawing.Font("Segoe UI", 8.5)
+    $footer.ForeColor = [System.Drawing.Color]::FromArgb(120, 128, 138)
+    $footer.Text = "Instaluję wersję {new_version}"
+    $form.Controls.Add($footer)
 
     $form.Add_Shown({{
         $form.Refresh()
@@ -440,6 +475,6 @@ class UpdaterMixin:
 
             except Exception as e:
                 self.log(f"[UPDATE BŁĄD] {e}")
-                messagebox.showerror("Błąd", str(e))
+                self.updater_error("Błąd", str(e))
                 self.update_status("Gotowy", "#0078D7", animate=False)
 

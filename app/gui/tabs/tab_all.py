@@ -1195,65 +1195,134 @@ class TabAllMixin:
         (kolejne strony) albo pustą listę."""
         import subprocess
         img_path = Path(img_path)
-        png_wzor = Path(tmp_dir) / "gdi_strona.png"
-        ps = (
-            "Add-Type -AssemblyName System.Drawing;"
-            "$src = [System.Drawing.Image]::FromFile('" +
-            str(img_path.resolve()).replace("'", "''") + "');"
-            "try {"
-            "  $fdGuid = [System.Drawing.Imaging.FrameDimension]::Page;"
-            "  $fd = New-Object System.Drawing.Imaging.FrameDimension("
-            "$src.FrameDimensionsList[[int][System.Drawing.Imaging.FrameDimension]::Page]);"
-            "  $n = $src.GetFrameCount($fd);"
-            "  for ($i = 0; $i -lt $n; $i++) {"
-            "    $src.SelectActiveFrame($fd, $i) | Out-Null;"
-            "    $bmp = New-Object System.Drawing.Bitmap($src);"
-            "    $bmp.Save(('" + str(png_wzor.resolve()).replace("'", "''") +
-            "' -replace 'strona', ('{0:d3}' -f $i)),"
-            "      [System.Drawing.Imaging.ImageFormat]::Png);"
-            "    $bmp.Dispose();"
-            "  }"
-            "} finally { $src.Dispose() }"
-        )
+        out_dir = Path(tmp_dir)
+        # PowerShell: GDI+ czyta obraz (także wielostronicowy TIFF) i zapisuje
+        # każdą stronę jako PNG (gdi_000.png, gdi_001.png, ...)
+        ps_lines = [
+            "Add-Type -AssemblyName System.Drawing",
+            "$src = [System.Drawing.Image]::FromFile('" + str(img_path.resolve()).replace("'", "''") + "')",
+            "try {",
+            "  $fd = [System.Drawing.Imaging.FrameDimension]::Page",
+            "  $n = $src.GetFrameCount($fd)",
+            "  if ($n -lt 1) { $n = 1 }",
+            "  for ($i = 0; $i -lt $n; $i++) {",
+            "    if ($n -gt 1) { $src.SelectActiveFrame($fd, $i) | Out-Null }",
+            "    $bmp = New-Object System.Drawing.Bitmap($src)",
+            "    $bmp.Save((Join-Path '" + str(out_dir.resolve()).replace("'", "''") + "' ('gdi_{0:d3}.png' -f $i)), [System.Drawing.Imaging.ImageFormat]::Png)",
+            "    $bmp.Dispose()",
+            "  }",
+            "} finally { $src.Dispose() }",
+        ]
+        ps = "\n".join(ps_lines)
         try:
             subprocess.run(
                 ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
                  "-Command", ps],
-                capture_output=True, timeout=180, check=True)
+                capture_output=True, timeout=300, check=True)
         except Exception as e:
+            stderr = ""
+            try:
+                stderr = (e.stderr or b"").decode("utf-8", "replace")[:200]
+            except Exception:
+                pass
+            self.log(f"[MAPA] GDI+ nie dał rady: {e} {stderr}")
             return []
-        return sorted(Path(tmp_dir).glob("gdi_*.png"))
+        return sorted(out_dir.glob("gdi_*.png"))
+
+    def _mapa_przez_word(self, img_path, pdf_out):
+        """Ostateczny ratunek: wstawienie obrazu do dokumentu Worda i eksport
+        PDF — Word ma własne dekodery i otwiera TIFF-y, na których zawiodły
+        i Pillow, i GDI+. Strona dopasowuje rozmiar do obrazu (bez marginesów).
+        Zwraca True/False."""
+        word_app = None
+        _pid = None
+        try:
+            from app.core import office_guard
+        except Exception:
+            office_guard = None
+        try:
+            word_app = win32com.client.DispatchEx("Word.Application")
+            if office_guard is not None:
+                try:
+                    _pid = office_guard.register(word_app)
+                except Exception:
+                    pass
+            word_app.Visible = False
+            word_app.DisplayAlerts = 0
+            doc = word_app.Documents.Add()
+            ksztalt = word_app.Selection.InlineShapes.AddPicture(
+                str(Path(img_path).resolve()), False, True)
+            try:
+                w_pt, h_pt = float(ksztalt.Width), float(ksztalt.Height)
+                ustaw = doc.PageSetup
+                ustaw.PageWidth = w_pt
+                ustaw.PageHeight = h_pt
+                ustaw.TopMargin = 0
+                ustaw.BottomMargin = 0
+                ustaw.LeftMargin = 0
+                ustaw.RightMargin = 0
+            except Exception:
+                pass
+            doc.ExportAsFixedFormat(
+                OutputFileName=str(Path(pdf_out).resolve()),
+                ExportFormat=17, OpenAfterExport=False, OptimizeFor=0,
+                Range=0, Item=0, IncludeDocProps=True, KeepIRM=True,
+                CreateBookmarks=1, DocStructureTags=True,
+                BitmapMissingFonts=True, UseISO19005_1=False)
+            doc.Close(False)
+            return Path(pdf_out).exists() and Path(pdf_out).stat().st_size > 100
+        except Exception as e:
+            self.log(f"[MAPA] Word nie dał rady z tym obrazem: {e}")
+            return False
+        finally:
+            if word_app is not None:
+                try:
+                    word_app.Quit()
+                except Exception:
+                    pass
+                if office_guard is not None and _pid is not None:
+                    try:
+                        office_guard.unregister(_pid)
+                    except Exception:
+                        pass
 
     def _mapa_na_pdf(self, img_path, pdf_out):
         """Obraz mapy (jpg/png/tiff) → PDF.
 
-        Najpierw Pillow; gdy TIFF-a nie da się zdekodować (np. rzadkie
-        kompresje / kafelkowe GeoTIFF), próbujemy jeszcze przez GDI+ (Windows)
-        — tak duża mapa jak każdy inny plik trafia do PDF-a.
+        Trzy drogi, aż któraś zadziała: (1) Pillow; (2) gdy TIFF-a nie da
+        się zdekodować — windowsowy GDI+; (3) na końcu Word, który ma własne
+        dekodery obrazów. Dzięki temu duża mapa jak każdy inny plik trafia
+        do PDF-a.
         """
         from PIL import Image
         try:
             self._mapa_na_pdf_pil(img_path, pdf_out)
             return
         except Exception as e:
-            wyj = Path(img_path).suffix.lower()
-            if wyj not in (".tif", ".tiff"):
-                raise           # dla jpg/png nie ma fallbacku — to błąd pliku
+            if Path(img_path).suffix.lower() not in (".tif", ".tiff"):
+                raise
             self.log(f"[MAPA] Pillow nie czyta tego TIFF-a ({e}) — "
                      "próbuję przez składnik Windows (GDI+)...")
         import tempfile
         with tempfile.TemporaryDirectory(prefix="forestly_gdi_") as tmp:
             pngi = self._mapa_przez_gdiplus(img_path, tmp)
+            if not pngi and Path(img_path).suffix.lower() in (".tif", ".tiff"):
+                if self._mapa_przez_word(img_path, pdf_out):
+                    self.log("[MAPA] Obraz przekonwertował Word (na Pillow i GDI+ "
+                             "Pillow i GDI+ zawiodły).")
+                    return
+                raise RuntimeError(
+                    "Nie udało się przekonwertować TIFF-a (Pillow i GDI+ i Word "
+                    "odmówiły). Zapisz mapę jako PNG/JPG i spróbuj ponownie.")
             if not pngi:
                 raise RuntimeError(
-                    "Nie udało się przekonwertować TIFF-a (ani Pillow, ani "
-                    "GDI+). Zapisz mapę jako PNG/JPG albo zwykły TIFF i "
-                    "spróbuj ponownie.")
+                    "Nie udało się przekonwertować obrazu (Pillow i GDI+ "
+                    "odmówiły). Zapisz mapę jako PNG/JPG i spróbuj ponownie.")
             self.log(f"[MAPA] GDI+ rozszyfrował TIFF-a: {len(pngi)} stron.")
-            from PIL import Image
+            from PIL import Image as _Im
             strony = []
             for png in pngi:
-                im = Image.open(png)
+                im = _Im.open(png)
                 if im.mode not in ("RGB", "L"):
                     im = im.convert("RGB")
                 strony.append(im.copy())
@@ -1264,28 +1333,93 @@ class TabAllMixin:
                 strony[0].save(str(pdf_out), "PDF")
         return
 
-    def _inject_mapa_step(self, pdf_dir, mapa_path):
-        """Mapa (jpg/png/tiff) → 'mapa.pdf' w każdym folderzu z PDF-ami wsi.
+    _MAPA_ROZSZERZENIA = {".jpg", ".jpeg", ".png", ".tif", ".tiff"}
 
-        Plik nazywa się 'mapa.pdf', więc układ PDF dopasowuje go do
-        szablonu MAPA (domyślnie na końcu pakietu).
+    @staticmethod
+    def _norm_nazwy(text):
+        """Nazwa bez polskich znaków, wielkości liter i separatorów —
+        do dopasowywania wsi do plików map (np. 'JAŹWIE map.jpg' ≈ 'Jaźwie.001')."""
+        import unicodedata
+        t = unicodedata.normalize("NFKD", str(text or ""))
+        t = "".join(ch for ch in t if not unicodedata.combining(ch))
+        return "".join(ch for ch in t.lower() if ch.isalnum())
+
+    def _mapa_zrodla(self):
+        """Wszystkie pliki map: z wybranego folderu + te przeciągnięte w kreatorze."""
+        zrodla = {}
+        me = getattr(self, "all_mapa_entry", None)
+        folder = (me.get().strip()
+                  if me is not None and hasattr(me, "get") else "")
+        kandydaci = []
+        if folder and Path(folder).is_dir():
+            kandydaci.extend(Path(folder).iterdir())
+        drop = Path(tempfile.gettempdir()) / "forestly_mapy"
+        if drop.is_dir():
+            kandydaci.extend(drop.iterdir())
+        for f in kandydaci:
+            if f.is_file() and f.suffix.lower() in self._MAPA_ROZSZERZENIA:
+                zrodla[f.name] = f      # folder ma pierwszeństwo, drop dopisuje braki
+        return zrodla
+
+    def _inject_mapa_step(self, pdf_dir):
+        """Mapy (jpg/png/tiff) dopasowane PO NAZWIE WSI → 'mapa.pdf' w folderach.
+
+        Nazwa pliku mapy ma zawierać nazwę wsi (np. 'CHORZEWO mapa.jpg');
+        dopasowanie ignoruje wielkość liter, polskie znaki i separatory.
+        Pliki trafiają do folderów z PDF-ami wsi jako 'mapa.pdf', więc
+        układ PDF dopasowuje je do szablonu MAPA (na końcu pakietu).
         """
         try:
-            with tempfile.TemporaryDirectory(prefix="forestly_mapa_") as tmp:
-                mapa_pdf = Path(tmp) / "mapa.pdf"
-                self._mapa_na_pdf(mapa_path, mapa_pdf)
-                pdf_folders = {p.parent for p in Path(pdf_dir).rglob("*.pdf")}
-                n = 0
-                for folder in pdf_folders:
-                    docel = folder / "mapa.pdf"
-                    if docel.exists():
-                        docel.unlink()
-                    shutil.copyfile(mapa_pdf, docel)
-                    n += 1
-                self.log(f"[MAPA] Dołączono mapę do {n} folderów wsi.")
-                return n
+            zrodla = self._mapa_zrodla()
+            if not zrodla:
+                self.log("[MAPA] Brak plików map — pomijam.")
+                return 0
+            pdf_folders = sorted({p.parent for p in Path(pdf_dir).rglob("*.pdf")})
+            wsie = sorted({f.name for f in pdf_folders
+                           if f.name.upper() not in ("PDF", "WORD", "TXT")})
+            cache_pdfow = {}          # mapa źródłowa -> gotowy mapa.pdf (raz konwertowana)
+            n = 0
+            niedopasowane = []
+            for wieś in wsie:
+                wz = self._norm_nazwy(wieś.replace(".001", ""))
+                trafienie = None
+                for nazwa, f in zrodla.items():
+                    if wz and wz in self._norm_nazwy(Path(nazwa).stem):
+                        trafienie = f
+                        break
+                if trafienie is None and len(wsie) == 1 and len(zrodla) == 1:
+                    trafienie = next(iter(zrodla.values()))   # jedna wieś, jedna mapa
+                if trafienie is None:
+                    continue
+                if trafienie not in cache_pdfow:
+                    with tempfile.TemporaryDirectory(prefix="forestly_mapa_") as tmp:
+                        mp = Path(tmp) / "mapa.pdf"
+                        self._mapa_na_pdf(trafienie, mp)
+                        cache_pdfow[trafienie] = mp.read_bytes()
+                for f in pdf_folders:
+                    if f.name == wieś:
+                        docel = f / "mapa.pdf"
+                        if docel.exists():
+                            docel.unlink()
+                        docel.write_bytes(cache_pdfow[trafienie])
+                        n += 1
+                self.log(f"[MAPA] {wieś}: mapa {trafienie.name} → mapa.pdf")
+            for nazwa in zrodla:
+                if not any(self._norm_nazwy(w.replace(".001", ""))
+                           in self._norm_nazwy(Path(nazwa).stem)
+                           for w in wsie):
+                    niedopasowane.append(nazwa)
+            if niedopasowane:
+                self.log("[MAPA] Nie dopasowano (w nazwie brak nazwy wsi): "
+                         + ", ".join(niedopasowane))
+            bez_mapy = [w for w in wsie
+                        if not any(self._norm_nazwy(w.replace(".001", ""))
+                                   in self._norm_nazwy(Path(n).stem) for n in zrodla)]
+            if bez_mapy and len(bez_mapy) < len(wsie):
+                self.log("[MAPA] Bez mapy zostały: " + ", ".join(bez_mapy))
+            return n
         except Exception as e:
-            self.log(f"[MAPA] Nie udało się dołączyć mapy: {e}")
+            self.log(f"[MAPA] Nie udało się dołączyć map: {e}")
             return 0
 
     def _resolve_skroty_path(self):
@@ -1593,16 +1727,17 @@ class TabAllMixin:
                 self.update_status("Dołączanie 'Skrótów i symboli' do pakietów...", "#0078D7")
                 self._inject_skroty_step(dir_03)
 
-                # === MAPA (opcjonalnie): jpg/png/tiff → mapa.pdf na końcu ===
+                # === MAPY (opcjonalnie): folder/przeciągnięte, dopasowanie po nazwie wsi ===
                 _me = getattr(self, "all_mapa_entry", None)
                 _mapa_raw = (_me.get().strip()
                              if _me is not None and hasattr(_me, "get") else "")
-                if _mapa_raw and Path(_mapa_raw).exists():
-                    self.update_status("Dołączanie mapy do pakietów...", "#0078D7")
+                _drop = Path(tempfile.gettempdir()) / "forestly_mapy"
+                if (_mapa_raw and Path(_mapa_raw).is_dir()) or _drop.is_dir():
+                    self.update_status("Dołączanie map do pakietów...", "#0078D7")
                     self.check_stop()
-                    self._inject_mapa_step(dir_03, Path(_mapa_raw))
+                    self._inject_mapa_step(dir_03)
                 elif _mapa_raw:
-                    self.log(f"[MAPA] Nie znaleziono pliku: {_mapa_raw} — pomijam.")
+                    self.log(f"[MAPA] Nie znaleziono folderu: {_mapa_raw} — pomijam.")
 
                 self.update_status("Scalanie pakietów PDF...", "#0078D7")
                 self.update_dashboard(4, "running", "Scalanie...")
@@ -1631,15 +1766,29 @@ class TabAllMixin:
                                  "przemianowano na 'PDF polaczone'.")
                 except Exception as e:
                     self.log(f"[PORZĄDKI] Nie udało się zmienić nazwy folderu: {e}")
-                # przy "Obu wersjach" finalny wynik to same scalone
-                # pakiety — pośredni folder 'PDF' (niepołączone pliki wsi)
-                # jest zbędny
-                if getattr(self, "_dwie_wersje_aktywne", False) and dir_03 and dir_03.exists():
+                # wyczyszczone TXT wracają tam, skąd przyszły — do folderów
+                # .001 danej wsi w źródle mietka; folder 'TXT' w wynikach
+                # nie jest już potrzebny
+                if dir_01 and dir_01.exists():
                     try:
-                        shutil.rmtree(dir_03)
-                        self.log("[PORZĄDKI] Usunięto folder pośredni 'PDF'.")
+                        przeniesiono = 0
+                        for f in dir_01.rglob("*"):
+                            if not (f.is_file() and f.suffix.lower() == ".txt"):
+                                continue
+                            rel = f.relative_to(dir_01)
+                            cel = in_root / rel
+                            cel.parent.mkdir(parents=True, exist_ok=True)
+                            shutil.copyfile(f, cel)
+                            przeniesiono += 1
+                        shutil.rmtree(dir_01)
+                        if przeniesiono:
+                            self.log(f"[PORZĄDKI] {przeniesiono} plików TXT wróciło "
+                                     "do źródłowych folderów wsi (.001); "
+                                     "usunięto folder 'TXT'.")
+                        else:
+                            self.log("[PORZĄDKI] Usunięto folder 'TXT'.")
                     except Exception as e:
-                        self.log(f"[PORZĄDKI] Nie udało się usunąć 'PDF': {e}")
+                        self.log(f"[PORZĄDKI] Nie udało się przenieść TXT do źródeł: {e}")
                 # folder 'Word' — przy nowych szablonach to tylko pliki
                 # przejściowe (STR_TYT i opisy ogólne), finalny jest PDF
                 if nowe_szablony and dir_02 and dir_02.exists():

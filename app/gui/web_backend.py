@@ -1012,6 +1012,30 @@ class WebBackend(
                          daemon=True).start()
         return {"ok": True}
 
+    # --------------------------------- aktualizator: wygląd jak cały program
+    def updater_ask(self, title, message):
+        """Pytanie aktualizatora w modalu programu (nie tkinter!)."""
+        return self._web_confirm(title, message)
+
+    def updater_info(self, title, message):
+        self._emit({"type": "dialog", "kind": "info", "title": str(title),
+                    "message": str(message)})
+
+    def updater_error(self, title, message):
+        self._emit({"type": "dialog", "kind": "error", "title": str(title),
+                    "message": str(message)})
+
+    def mapa_drop_clear(self):
+        """Zapomina mapy przeciągnięte w kreatorze (folder tymczasowy)."""
+        import shutil
+        folder = Path(tempfile.gettempdir()) / "forestly_mapy"
+        try:
+            if folder.is_dir():
+                shutil.rmtree(folder)
+            return {"ok": True}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
     # ------------------------------------------------------------ polling
 
     def poll(self):
@@ -1429,7 +1453,7 @@ class WebBackend(
                                  "(mógł się nie zmieścić w całości). Wskaż go "
                                  "przyciskiem 'Wybierz' — wtedy czytam go "
                                  "bezpośrednio z dysku."}
-            return {"ok": True, "path": str(cel)}
+            return {"ok": True, "path": str(cel), "folder": str(folder)}
         except Exception as e:
             return {"ok": False, "error": str(e)}
 
