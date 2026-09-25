@@ -904,6 +904,33 @@ class TabAllMixin:
                      + ("WŁĄCZONE" if nowe_szablony_flag else "wyłączone")
                      + ".")
 
+        # 'Obie wersje' (tylko Pełny Automat): dwa pełne przebiegi —
+        # REJESTR z nazwiskami i bez nich — do dwóch osobnych folderów
+        if mode == "ALL" and self._all_obie_wersje():
+            dst_root = Path(dst_path)
+
+            def _dwa_przebiegi():
+                self.log("[OBIE WERSJE] Przebieg 1/2: REJESTR z pełnymi "
+                         "nazwiskami → 'Z nazwiskami'.")
+                self.run_logic_thread(src_path, str(dst_root / "Z nazwiskami"),
+                                      mode, False, margins_dict,
+                                      nowe_szablony_flag)
+                try:
+                    self.check_stop()
+                except Exception:
+                    self.log("[OBIE WERSJE] Przerwano — drugi przebieg "
+                             " ('Bez nazwisk') już się nie wykona.")
+                    return
+                self.running = True   # ciasne okno między przebiegami
+                self.log("[OBIE WERSJE] Przebieg 2/2: REJESTR bez nazwisk "
+                         "→ 'Bez nazwisk'.")
+                self.run_logic_thread(src_path, str(dst_root / "Bez nazwisk"),
+                                      mode, True, margins_dict,
+                                      nowe_szablony_flag)
+
+            threading.Thread(target=_dwa_przebiegi, daemon=True).start()
+            return
+
         threading.Thread(
             target=self.run_logic_thread,
             args=(src_path, dst_path, mode, remove_names_flag, margins_dict,
@@ -1130,6 +1157,56 @@ class TabAllMixin:
                 pass
 
     # NOWA METODA: Wstrzykiwanie Skrótów i Symboli do pakietów wsi
+    def _all_obie_wersje(self):
+        """Czy wybrano 'Obie wersje' (REJESTR z nazwiskami i bez — dwa foldery)."""
+        v = getattr(self, "all_obie_wersje_var", None)
+        try:
+            return bool(v.get()) if v is not None else False
+        except Exception:
+            return False
+
+    def _mapa_na_pdf(self, img_path, pdf_out):
+        """Obraz mapy (jpg/png/tiff, także wielostronicowy TIFF) → PDF."""
+        from PIL import Image, ImageSequence
+        strony = []
+        for ramka in ImageSequence.Iterator(Image.open(str(img_path))):
+            m = ramka.mode
+            if m not in ("RGB", "L"):
+                ramka = ramka.convert("RGB")
+            strony.append(ramka.copy())
+        if not strony:
+            raise ValueError("Pusty obraz mapy.")
+        pierwsza, reszta = strony[0], strony[1:]
+        if reszta:
+            pierwsza.save(str(pdf_out), "PDF", save_all=True,
+                          append_images=reszta)
+        else:
+            pierwsza.save(str(pdf_out), "PDF")
+
+    def _inject_mapa_step(self, pdf_dir, mapa_path):
+        """Mapa (jpg/png/tiff) → 'mapa.pdf' w każdym folderzu z PDF-ami wsi.
+
+        Plik nazywa się 'mapa.pdf', więc układ PDF dopasowuje go do
+        szablonu MAPA (domyślnie na końcu pakietu).
+        """
+        try:
+            with tempfile.TemporaryDirectory(prefix="forestly_mapa_") as tmp:
+                mapa_pdf = Path(tmp) / "mapa.pdf"
+                self._mapa_na_pdf(mapa_path, mapa_pdf)
+                pdf_folders = {p.parent for p in Path(pdf_dir).rglob("*.pdf")}
+                n = 0
+                for folder in pdf_folders:
+                    docel = folder / "mapa.pdf"
+                    if docel.exists():
+                        docel.unlink()
+                    shutil.copyfile(mapa_pdf, docel)
+                    n += 1
+                self.log(f"[MAPA] Dołączono mapę do {n} folderów wsi.")
+                return n
+        except Exception as e:
+            self.log(f"[MAPA] Nie udało się dołączyć mapy: {e}")
+            return 0
+
     def _resolve_skroty_path(self):
         """Plik ze skrótami: własny (checkbox w Pełnym automacie) albo domyślny z zasobów."""
         if getattr(self, "all_custom_skroty_var", None) and self.all_custom_skroty_var.get():
@@ -1171,7 +1248,24 @@ class TabAllMixin:
         skroty_pdf_to_copy = None
 
         if ext in {".doc", ".docx"}:
-            self.log("[SKROTY] Konwertuję plik Word na PDF...")
+            # najpierw próbujemy nowym szablonem (HTML → PDF, bez Worda) —
+            # czytamy sekcje wprost z .docx, także z pliku własnego użytkownika
+            try:
+                from app.core import szablony as _sz
+                with tempfile.TemporaryDirectory(prefix="forestly_skroty_") as _tmp:
+                    _hp = Path(_tmp) / "skroty.html"
+                    _hp.write_text(_sz.html_skroty(skroty_source_path),
+                                   encoding="utf-8")
+                    temp_skroty_pdf = Path(tempfile.gettempdir()) / "skroty_temp.pdf"
+                    _sz.html_na_pdf(_hp, temp_skroty_pdf)
+                skroty_pdf_to_copy = temp_skroty_pdf
+                self.log("[SKROTY] Wygenerowano nowym szablonem (bez Worda).")
+            except Exception as _e:
+                self.log(f"[SKROTY] Nowy szablon niedostępny ({_e}) "
+                         "— konwertuję przez Word...")
+                temp_skroty_pdf = None
+                skroty_pdf_to_copy = None
+                self.log("[SKROTY] Konwertuję plik Word na PDF...")
             word_app = None
             _word_pid = None
             try:
@@ -1415,6 +1509,17 @@ class TabAllMixin:
                 self.update_status("Dołączanie 'Skrótów i symboli' do pakietów...", "#0078D7")
                 self._inject_skroty_step(dir_03)
 
+                # === MAPA (opcjonalnie): jpg/png/tiff → mapa.pdf na końcu ===
+                _me = getattr(self, "all_mapa_entry", None)
+                _mapa_raw = (_me.get().strip()
+                             if _me is not None and hasattr(_me, "get") else "")
+                if _mapa_raw and Path(_mapa_raw).exists():
+                    self.update_status("Dołączanie mapy do pakietów...", "#0078D7")
+                    self.check_stop()
+                    self._inject_mapa_step(dir_03, Path(_mapa_raw))
+                elif _mapa_raw:
+                    self.log(f"[MAPA] Nie znaleziono pliku: {_mapa_raw} — pomijam.")
+
                 self.update_status("Scalanie pakietów PDF...", "#0078D7")
                 self.update_dashboard(4, "running", "Scalanie...")
                 self.check_stop()
@@ -1442,6 +1547,14 @@ class TabAllMixin:
                                  "przemianowano na 'PDF polaczone'.")
                 except Exception as e:
                     self.log(f"[PORZĄDKI] Nie udało się zmienić nazwy folderu: {e}")
+                # folder 'Word' — przy nowych szablonach to tylko pliki
+                # przejściowe (STR_TYT i opisy ogólne), finalny jest PDF
+                if nowe_szablony and dir_02 and dir_02.exists():
+                    try:
+                        shutil.rmtree(dir_02)
+                        self.log("[PORZĄDKI] Usunięto folder pośredni 'Word'.")
+                    except Exception as e:
+                        self.log(f"[PORZĄDKI] Nie udało się usunąć 'Word': {e}")
 
                 # folder wyników = finalne pliki (dla przycisku "Otwórz folder
                 # wyników" — także po zamknięciu i restarcie programu)

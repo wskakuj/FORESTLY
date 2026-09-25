@@ -808,6 +808,77 @@ RENDERERY = {
     "WYK_NEG": html_wyk_neg,
 }
 
+# --------------------------------------------------------------- HTML: skróty
+def _skroty_sekcje(docx_path):
+    """Sekcje z pliku 'Skróty i symbole': [(tytuł, [(skrót, znaczenie)...])].
+
+    Plik ma prostą budowę: akapit z tytułem sekcji, potem tabela
+    1-wierszowa o 2 kolumnach (po lewej skróty, po prawej rozwinięcia,
+    każdy wiersz to jedna para).
+    """
+    from docx import Document
+    from docx.table import Table
+    from docx.text.paragraph import Paragraph
+    doc = Document(str(docx_path))
+    sekcje, aktualny = [], "Skróty i symbole"
+    for child in doc.element.body.iterchildren():
+        if child.tag.endswith("}p"):
+            t = Paragraph(child, doc).text.strip()
+            if t:
+                aktualny = t
+        elif child.tag.endswith("}tbl"):
+            tab = Table(child, doc)
+            for row in tab.rows:
+                kom = [c.text for c in row.cells]
+                if len(kom) < 2:
+                    continue
+                lewe = [x.strip() for x in kom[0].split("\n") if x.strip()]
+                prawe = [x.strip() for x in kom[1].split("\n") if x.strip()]
+                pary = list(zip(lewe, prawe))
+                if pary:
+                    sekcje.append((aktualny, pary))
+    return sekcje
+
+def html_skroty(docx_path, obiekt="", stan="", bez_nazwisk=False,
+                marginesy=None, czcionki=None):
+    """'Skróty i symbole' nowym wyglądem — HTML → PDF, bez uruchamiania Worda.
+
+    Czyta sekcje wprost z pliku .docx (domyślnego albo własnego użytkownika),
+    więc własne wersje też dostają nowy wygląd. Gdy struktura pliku jest
+    inna (brak rozpoznanych sekcji) — zgłaszamy błąd i wywołujący ma wrócić
+    do konwersji przez Worda.
+    """
+    import html as _html
+
+    def _e(x):
+        return _html.escape(str(x), quote=False)
+
+    sekcje = _skroty_sekcje(docx_path)
+    if not sekcje:
+        raise ValueError(f"Nie rozpoznano sekcji skrótów w {docx_path}")
+    czesci = []
+    for tytul, pary in sekcje:
+        tr = "".join(
+            f'<tr><td class="sk">{_e(skr)}</td><td>{_e(zn)}</td></tr>'
+            for skr, zn in pary)
+        czesci.append(f'<h2>{_e(tytul)}</h2>'
+                      f'<table class="skroty"><tbody>{tr}</tbody></table>')
+    extra_css = """
+  h2 { font-size: 9.6pt; text-transform: uppercase; letter-spacing: .8px;
+       color: #1f3d2b; margin: 5.2mm 0 1.6mm; padding-bottom: .9mm;
+       border-bottom: 1pt solid #1f3d2b; font-weight: 700; }
+  h2:first-child { margin-top: 0; }
+  table.skroty { border-collapse: collapse; width: 100%; margin: 0 0 2mm; }
+  table.skroty td { border: 0; padding: 1.05mm 3mm; font-size: 8.4pt;
+                    border-bottom: .3pt solid #d8d8d8; }
+  table.skroty tr:nth-child(even) td { background: #f4f6f4; }
+  table.skroty td.sk { font-weight: 600; text-align: center; width: 22mm;
+                       white-space: nowrap; }
+  table.skroty tr:last-child td { border-bottom: .5pt solid #999; }
+"""
+    return _strona("Wykaz skrótów i symboli", obiekt, stan, "".join(czesci),
+                   extra_css=extra_css, marginesy=marginesy, czcionki=czcionki)
+
 # --------------------------------------------------------------- HTML: strona tytułowa
 
 WYKONAWCA = ["WYKONAWCA", "pracownia urządzania lasu", "ul. Boczna 28",

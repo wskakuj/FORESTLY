@@ -167,6 +167,16 @@ def build_schema():
                        "Użyj własnego pliku 'Skróty i symbole' (zamiast domyślnego z programu)", False),
                 _path("all_skroty", "all_skroty_entry", "Własny plik:",
                       "Wskaż własny plik ze skrótami...", kind="file"),
+                _check("all_obie_wersje", "all_obie_wersje_var",
+                       "Obie wersje REJESTRU — dwa foldery wynikowe", False,
+                       "Uruchamia Pełny Automat dwukrotnie: raz z pełnymi "
+                       "nazwiskami (folder 'Z nazwiskami'), raz bez nich "
+                       "(folder 'Bez nazwisk').\nIgnoruje powyższy przełącznik "
+                       "usuwania nazwisk."),
+                _path("all_mapa", "all_mapa_entry",
+                      "Plik mapy (jpg/png/tiff, opcjonalnie):",
+                      "Mapa dołączana na końcu każdego pakietu PDF",
+                      kind="file"),
                 _check("remove_names", "remove_names_var",
                        "Usuwaj nazwiska z REJESTRU (oraz 1. stronę)", True,
                        "Włączenie tej opcji uruchamia makra 'ZamienLF' oraz 'UsunNazwiskaRej', "

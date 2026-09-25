@@ -18,7 +18,7 @@ from pathlib import Path
 import customtkinter as ctk
 
 # --- WERSJA I AKTUALIZACJA ---
-CURRENT_VERSION = "v2.0.65"
+CURRENT_VERSION = "v2.0.66"
 GITHUB_USER = "wskakuj"
 GITHUB_REPO = "FORESTLY"
 
@@ -118,6 +118,9 @@ PDF_ORDER_TEMPLATES = [
     {"key": "WK_ZM1", "label": "Wykaz rozbieżności między ewidencją gruntów a stanem faktycznym", "aliases": ["wk_zm1.pdf"]},
     {"key": "WSKAZ1", "label": "Wskazówki gospodarki leśnej", "aliases": ["wskaz1.pdf", "wskaz1"]},
     {"key": "SKROTY", "label": "Wykaz skrótów i symboli", "aliases": ["skroty"]},
+    # mapa dołączana na końcu pakietu (plik *.pdf z "mapa" w nazwie,
+    # np. "mapa.pdf" albo "CHORZEWO_mapa.pdf")
+    {"key": "MAPA", "label": "Mapa", "aliases": ["mapa"]},
 ]
 
 EXCEL_SHEET_DEFAULTS = [

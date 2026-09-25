@@ -72,6 +72,114 @@ MARGIN_FILE_TYPES = ["REJESTR1", "OPTAX", "TAB_KLW3", "WSKAZ1", "HALIZNY",
 
 # --------------------------------------------------------------- sztuczne widgety
 
+# ------------------------------------------------------------ okno podglądu
+# Osobne okno systemowe z podglądem marginesów/czcionek: można je przesunąć
+# w dowolne miejsce EKRANU (nie tylko wewnątrz programu) i dowolnie skalować.
+# Zawartość sama się odświeża — okno czyta aktualne marginesy i czcionki
+# zapisane w ustawieniach (te same, które edytuje kreator).
+_PV_OKNO_HTML = """<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+  html, body { height: 100%; }
+  body { margin: 0; background: #23262d; color: #e8e8e8;
+         font: 13px "Segoe UI", sans-serif; display: flex;
+         flex-direction: column; overflow: hidden; }
+  header { display: flex; gap: 12px; align-items: center;
+           padding: 10px 14px 8px; }
+  header strong { font-size: 14px; }
+  select { background: #333; color: #eee; border: 1px solid #555;
+           border-radius: 6px; padding: 5px 9px; font: inherit; }
+  #info { color: #98a0aa; font-size: 12px; white-space: nowrap;
+          overflow: hidden; text-overflow: ellipsis; flex: 1; }
+  #wrap { flex: 1; overflow: auto; padding: 8px 16px 16px; }
+  #sheet { position: relative; margin: 0 auto; background: #fff;
+           box-shadow: 0 6px 26px rgba(0, 0, 0, .6); }
+  iframe { position: absolute; inset: 0; border: 0; width: 100%; height: 100%; }
+</style></head><body>
+<header>
+  <strong>Podgląd</strong>
+  <select id="typ"></select>
+  <span id="info"></span>
+</header>
+<div id="wrap"><div id="sheet"><iframe id="frame"></iframe></div></div>
+<script>
+(function () {
+  const TYPY = ["OPTAX", "REJESTR1", "WSKAZ1", "TAB_KLW3", "WSK_ZB",
+                "ZEST1", "HALIZNY", "WYK_NEG", "WK_ZM1"];
+  const MP_WIERSZ = { REJESTR1: "REJESTR1", TAB_KLW3: "TAB_KLW3" };
+  let typ = "OPTAX", lastHtml = "", poziom = false;
+  const sel = document.getElementById("typ");
+  TYPY.forEach(t => {
+    const o = document.createElement("option");
+    o.value = t; o.textContent = t; sel.appendChild(o);
+  });
+  sel.onchange = () => { typ = sel.value; lastHtml = ""; odswiez(); };
+
+  function dopasuj() {
+    const szer = poziom ? 1123 : 794, wys = poziom ? 794 : 1123;
+    const w = document.getElementById("wrap");
+    const sk = Math.max(.1, Math.min((w.clientWidth - 32) / szer,
+                                    (w.clientHeight - 24) / wys));
+    const sh = document.getElementById("sheet");
+    sh.style.width = szer + "px"; sh.style.height = wys + "px";
+    sh.style.transform = "scale(" + sk + ")";
+    sh.style.transformOrigin = "top left";
+  }
+
+  document.getElementById("info").textContent = "Ładowanie podglądu…";
+  async function odswiez() {
+    try {
+      if (!window.pywebview || !pywebview.api) {
+        setTimeout(odswiez, 250);   /* api wstrzykiwane asynchronicznie */
+        return;
+      }
+      const r = await pywebview.api.preview_window_state(typ);
+      if (!r || !r.ok) {
+        document.getElementById("info").textContent =
+          (r && r.error) || "Nie udało się przygotować podglądu.";
+        return;
+      }
+      document.getElementById("info").textContent =
+        (r.zrodlo || "dokument przykładowy") + "  (" + typ +
+        (r.poziom ? ", poziomo" : ", pionowo") + ")";
+      if (r.html !== lastHtml) {
+        lastHtml = r.html;
+        poziom = !!r.poziom;
+        const m = r.marginesy || {};
+        const T = m.T != null ? m.T : 1.5, B = m.B != null ? m.B : 1.5,
+              L = m.L != null ? m.L : 2.5, R = m.R != null ? m.R : 1.5;
+        const szer = poziom ? 1123 : 794, wys = poziom ? 794 : 1123;
+        const css = "<style>html, body { background:#fff !important; " +
+          "max-width:none !important; margin:0 !important; padding:0 " +
+          "important; overflow:hidden !important; } " +
+          "#mp-page { position:relative; width:" + szer + "px; height:" +
+          wys + "px; } " +
+          "#mp-win { position:absolute; left:" + L + "cm; top:" + T + "cm; " +
+          "right:" + R + "cm; bottom:" + B + "cm; overflow:hidden; }" +
+          "</style>" +
+          "<scr" + "ipt>(function () { function mpWrap() { " +
+          "if (document.getElementById('mp-win')) return; " +
+          "var p = document.createElement('div'); p.id = 'mp-page'; " +
+          "var w = document.createElement('div'); w.id = 'mp-win'; " +
+          "p.appendChild(w); " +
+          "while (document.body.firstChild) w.appendChild(document.body.firstChild); " +
+          "document.body.appendChild(p); } " +
+          "if (document.readyState === 'loading') " +
+          "document.addEventListener('DOMContentLoaded', mpWrap); " +
+          "else mpWrap(); })();</scr" + "ipt>";
+        document.getElementById("frame").srcdoc = r.html + css;
+      }
+      dopasuj();
+    } catch (e) { /* okno się zamyka */ }
+  }
+
+  window.odswiezNatychmiast = () => { lastHtml = ""; odswiez(); };
+  window.addEventListener("resize", dopasuj);
+  setInterval(odswiez, 900);
+  odswiez();
+})();
+</scr""" + """ipt></body></html>"""
+
+
 class FakeEntry:
     """Zamiennik CTkEntry — przechowuje tekst."""
 
@@ -1197,6 +1305,93 @@ class WebBackend(
             return {"ok": False, "error": traceback.format_exc(limit=1)}
         return {"ok": True, "html": html, "poziom": typ in szablony.POZIOMO,
                 "zrodlo": zrodlo or ""}
+
+    def _pv_win_zamkniete(self):
+        """Zamknięto okno podglądu — zapomnij referencję (patrz open_preview_window)."""
+        self._pv_win = None
+
+    def open_preview_window(self, mode="ALL"):
+        """Podgląd marginesów/czcionek w OSOBNYM oknie systemowym.
+
+        Okno można przesunąć w dowolne miejsce ekranu (poza program też)
+        i dowolnie skalować — natywny pasek tytułowy systemu Windows.
+        Zawartość sama się odświeża (okno pyta co ~1 s o aktualne
+        marginesy/czcionki z zapisanych ustawień). Gdy wywołane ponownie,
+        odświeża istniejące okno zamiast otwierać kolejne.
+        """
+        try:
+            import webview
+        except Exception as e:
+            return {"ok": False, "error": f"Brak modułu pywebview: {e}"}
+        self._pv_mode = "NS" if str(mode).upper() == "NS" else "ALL"
+        try:
+            win = getattr(self, "_pv_win", None)
+            if win is not None:
+                try:
+                    win.evaluate_js("odswiezNatychmiast && odswiezNatychmiast()")
+                except Exception:
+                    pass
+                return {"ok": True, "istniejace": True}
+            self._pv_win = webview.create_window(
+                "Podgląd marginesów i czcionek", html=_PV_OKNO_HTML,
+                width=880, height=980, background_color="#23262d",
+                js_api=self)
+            try:
+                # zamknięcie okna czyści referencję — żeby ponowne kliknięcie
+                # przycisku otworzyło świeże okno zamiast "odświeżać" zamknięte
+                self._pv_win.events.closed += self._pv_win_zamkniete
+            except Exception:
+                pass
+            return {"ok": True}
+        except Exception as e:
+            self._pv_win = None
+            return {"ok": False, "error": str(e)}
+
+    def preview_window_state(self, typ):
+        """Stan podglądu dla osobnego okna: raport wygenerowany na AKTUALNYCH
+        marginesach i czcionkach zapisanych w ustawieniach (kreator zapisuje
+        je na bieżąco, więc okno reaguje na zmiany bez restartu)."""
+        from app.config import load_margins
+        mode = getattr(self, "_pv_mode", "ALL")
+        m = (load_margins() or {}).get(mode) or {}
+        cz = ((self.load_settings() or {}).get("web.czcionki") or {}).get(mode)
+        r = self.get_margins_preview(typ, m, cz)
+        if r.get("ok"):
+            try:
+                from app.core import szablony
+                # _marginesy zwraca (góra, prawo, dół, lewo) w cm
+                mg = szablony._marginesy(_marginesy_z_slownika(m), str(typ).upper())
+                r["marginesy"] = {"T": mg[0], "R": mg[1], "B": mg[2], "L": mg[3]}
+            except Exception:
+                pass
+        return r
+
+    def save_mapa_drop(self, nazwa, b64):
+        """Mapa przeciągnięta w kreatorze (drag&drop) → plik na dysku.
+
+        Przeglądarka nie przekazuje pełnej ścieżki upuszczonego pliku,
+        więc dostajemy zawartość (base64) i zapisujemy ją sami pod
+        tymczasową ścieżką; tę ścieżkę kreator wpisuje w pole 'Plik mapy'.
+        """
+        import base64
+        import re
+        try:
+            nazwa = str(nazwa or "mapa").strip()
+            b64 = str(b64 or "")
+            if "," in b64[:64]:          # format data:image/...;base64,....
+                b64 = b64.split(",", 2)[1]
+            if not re.match(r"^[\w .-]+$", nazwa, re.UNICODE):
+                return {"ok": False, "error": "Niedozwolona nazwa pliku."}
+            if not nazwa.lower().endswith((".jpg", ".jpeg", ".png", ".tif", ".tiff")):
+                return {"ok": False,
+                        "error": "Mapa musi być plikiem jpg, png albo tiff."}
+            folder = Path(tempfile.gettempdir()) / "forestly_mapy"
+            folder.mkdir(parents=True, exist_ok=True)
+            cel = folder / nazwa
+            cel.write_bytes(base64.b64decode(b64))
+            return {"ok": True, "path": str(cel)}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
 
     # ---------------------------------------------- układ PDF (kolejność)
 

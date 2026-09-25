@@ -503,29 +503,110 @@ function renderWizStep() {
     if (cd) moveTo(cd.parentElement);
     next.onclick = () => { WIZ.step = 4; renderWizStep(); };
   } else if (WIZ.step === 4) {
+    /* trzy warianty: z nazwiskami / bez nazwisk / obie wersje (dwa foldery) */
     const big = document.createElement("div");
     big.className = "wiz-check-big";
     big.innerHTML = '<h2>Nazwiska w REJESTRZE</h2>' +
-      '<div class="wiz-sub">Włącz, jeśli z wydruków REJESTR (oraz z 1. strony)' +
-      ' mają zniknąć nazwiska właścicieli.</div>';
+      '<div class="wiz-sub">Wybierz, która wersja wydruków ma powstać. ' +
+      '"Obie wersje" uruchamia proces dwukrotnie i tworzy dwa foldery wynikowe.</div>';
     const f = wizField("remove_names");
-    if (f) {
-      f.classList.add("wiz-switch-big");
-      big.appendChild(f);
-      const cap = el("div", "wiz-switch-cap");
-      const inp = f.querySelector('input[type="checkbox"]');
-      const refresh = () => {
-        const on = !!(inp && inp.checked);
-        cap.textContent = on
-          ? "Nazwiska właścicieli zostaną usunięte z REJESTRU."
-          : "REJESTR zostanie wygenerowany z pełnymi nazwiskami właścicieli.";
-        cap.classList.toggle("on", on);
+    const fo = wizField("all_obie_wersje");
+    const inpR = f ? f.querySelector('input[type="checkbox"]') : null;
+    const inpO = fo ? fo.querySelector('input[type="checkbox"]') : null;
+    const kafle = el("div", "wiz-tiles");
+    const opcje = [
+      { txt: "Z nazwiskami",
+        sub: "REJESTR z pełnymi nazwiskami właścicieli",
+        set: () => { if (inpO) inpO.checked = false;
+                     if (inpR) inpR.checked = false; } },
+      { txt: "Bez nazwisk",
+        sub: "nazwiska usunięte z REJESTRU (oraz z 1. strony)",
+        set: () => { if (inpO) inpO.checked = false;
+                     if (inpR) inpR.checked = true; } },
+      { txt: "Obie wersje",
+        sub: "dwa foldery: 'Z nazwiskami' i 'Bez nazwisk'",
+        set: () => { if (inpO) inpO.checked = true;
+                     if (inpR) inpR.checked = true; } },
+    ];
+    const odswiezKafle = () => {
+      const obie = !!(inpO && inpO.checked);
+      const bez = !!(inpR && inpR.checked);
+      const wybrana = obie ? 2 : (bez ? 1 : 0);
+      Array.from(kafle.children).forEach((k, i) =>
+        k.classList.toggle("sel", i === wybrana));
+    };
+    opcje.forEach(o => {
+      const k = el("div", "wiz-tile");
+      k.innerHTML = '<div class="wiz-tile-t">' + escapeHtml(o.txt) + '</div>' +
+                    '<div class="wiz-tile-s">' + escapeHtml(o.sub) + '</div>';
+      k.onclick = () => {
+        o.set();
+        if (inpR) inpR.dispatchEvent(new Event("change", { bubbles: true }));
+        if (inpO) inpO.dispatchEvent(new Event("change", { bubbles: true }));
+        odswiezKafle();
       };
-      if (inp) inp.addEventListener("change", refresh);
-      refresh();
-      big.appendChild(cap);
-    }
+      kafle.appendChild(k);
+    });
+    if (inpR) inpR.addEventListener("change", odswiezKafle);
+    if (inpO) inpO.addEventListener("change", odswiezKafle);
+    big.appendChild(kafle);
+    odswiezKafle();
     st.appendChild(big);
+
+    /* mapa (opcjonalnie): wskaż plik albo przeciągnij i upuść */
+    const karta = el("div", "wiz-map-card");
+    karta.innerHTML = '<h2>Mapa (opcjonalnie)</h2>' +
+      '<div class="wiz-sub">Wskaż plik mapy (jpg, png, tiff) albo przeciągnij go ' +
+      'poniżej — dołączę ją jako PDF na końcu każdego pakietu (opcja "Mapa" ' +
+      'w układzie PDF).</div>';
+    const fm = wizField("all_mapa");
+    if (fm) {
+      fm.classList.add("wiz-map-field");
+      karta.appendChild(fm);
+    }
+    const dz = el("div", "wiz-drop");
+    dz.innerHTML = '<b>Przeciągnij i upuść mapę tutaj</b>' +
+                   '<span>jpg · png · tiff &nbsp;→&nbsp; PDF na końcu pakietu</span>';
+    dz.addEventListener("dragover", e => {
+      e.preventDefault();
+      dz.classList.add("over");
+    });
+    dz.addEventListener("dragleave", () => dz.classList.remove("over"));
+    dz.addEventListener("drop", async e => {
+      e.preventDefault();
+      dz.classList.remove("over");
+      const plik = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (!plik) return;
+      if (!/\.(jpe?g|png|tiff?)$/i.test(plik.name)) {
+        toast("To nie jest plik graficzny (jpg / png / tiff).", "warn");
+        return;
+      }
+      try {
+        const buf = new Uint8Array(await plik.arrayBuffer());
+        let b64 = "";
+        const K = 32768;
+        for (let i = 0; i < buf.length; i += K)
+          b64 += String.fromCharCode.apply(null, buf.subarray(i, i + K));
+        dz.classList.add("busy");
+        const r = await api().save_mapa_drop(plik.name, btoa(b64));
+        if (r && r.ok) {
+          const inp = fm ? fm.querySelector("input") : null;
+          if (inp) {
+            inp.value = r.path;
+            inp.dispatchEvent(new Event("input", { bubbles: true }));
+          }
+          toast("Mapa zapisana: " + plik.name, "ok");
+        } else {
+          toast((r && r.error) || "Nie udało się zapisać mapy.", "warn");
+        }
+      } catch (err) {
+        toast("Nie udało się wczytać pliku: " + err, "warn");
+      } finally {
+        dz.classList.remove("busy");
+      }
+    });
+    karta.appendChild(dz);
+    st.appendChild(karta);
     next.onclick = () => { WIZ.step = 5; renderWizStep(); };
   } else if (WIZ.step === 5) {
     st.innerHTML = '<h2>Wszystko gotowe!</h2>' +
@@ -541,8 +622,11 @@ function renderWizStep() {
       ["Stan na", wizVal("all_tpl_stan") || "—"],
       ["Okres 10-lecia WSK_ZB", (String(wizVal("all_wsk_od")) + " – " +
                   wizVal("all_wsk_do")).replace(/^ – $|^ – | – $/g, "").trim() || "—"],
-      ["Nazwiska w REJESTRZE", wizVal("remove_names")
-        ? "usuwane z REJESTRU" : "REJESTR z pełnymi nazwiskami"],
+      ["Nazwiska w REJESTRZE", wizVal("all_obie_wersje")
+        ? "OBIE WERSJE — dwa foldery ('Z nazwiskami' i 'Bez nazwisk')"
+        : (wizVal("remove_names")
+           ? "usuwane z REJESTRU" : "REJESTR z pełnymi nazwiskami")],
+      ["Mapa", wizVal("all_mapa") || "— bez mapy —"],
       ["Własne skróty i symbole", wizVal("all_custom_skroty")
         ? (wizVal("all_skroty") || "(nie wskazano pliku)") : "domyślne z programu"],
       ["Opisy ogólne", wizVal("all_pelny_opis_og")
@@ -1273,7 +1357,15 @@ function renderMargins(c) {
     const pv = el("button", "btn ghost small mp-open-btn");
     pv.type = "button";
     pv.textContent = "👁  Podgląd dokumentu z marginesami";
-    pv.onclick = () => openMarginsPreview(c.id, c.mode);
+    pv.onclick = async () => {
+      /* osobne okno SYSTEMOWE — można je przesunąć po całym ekranie;
+         gdyby nie wyszło (starsza wersja pywebview), stary podgląd w aplikacji */
+      try {
+        const r = await api().open_preview_window(c.mode || "ALL");
+        if (r && r.ok) return;
+      } catch (e) { /* spadamy do podglądu w obrębie programu */ }
+      openMarginsPreview(c.id, c.mode);
+    };
     wrap.appendChild(pv);
   }
   return wrap;

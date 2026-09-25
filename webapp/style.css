@@ -1033,3 +1033,25 @@ body.mp-dragging { cursor: move; }
                 height: auto !important; border-radius: 0;
                 resize: none; z-index: 460; }
 [data-theme="light"] .mp-typ { background: #fff; }
+
+/* ---------- kreator: kafle nazwisk + karta mapy (krok 4) ---------- */
+.wiz-tiles { display: flex; gap: 12px; margin-top: 14px; flex-wrap: wrap; }
+.wiz-tile { flex: 1 1 150px; min-width: 150px; max-width: 240px; cursor: pointer;
+  border: 2px solid var(--border, #3a3f4a); border-radius: 12px;
+  padding: 14px 14px 12px; background: var(--panel, #23262d);
+  transition: border-color .12s, transform .12s, background .12s; }
+.wiz-tile:hover { transform: translateY(-2px); border-color: var(--accent-dim, #3f6ea8); }
+.wiz-tile.sel { border-color: var(--accent, #0067C0); background: var(--accent-bg, rgba(0,103,192,.12)); }
+.wiz-tile-t { font-weight: 700; font-size: 15px; margin-bottom: 5px; }
+.wiz-tile-s { font-size: 12.5px; color: var(--muted, #98a0aa); line-height: 1.35; }
+.wiz-map-card { margin-top: 26px; padding: 16px 18px; border: 1px solid var(--border, #3a3f4a);
+  border-radius: 12px; background: var(--panel, #23262d); }
+.wiz-map-field { margin-top: 10px; }
+.wiz-drop { margin-top: 12px; border: 2px dashed var(--border-strong, #4a5060);
+  border-radius: 12px; padding: 22px 16px; text-align: center; cursor: copy;
+  color: var(--muted, #98a0aa); transition: border-color .12s, background .12s; }
+.wiz-drop b { display: block; font-size: 14px; margin-bottom: 4px; color: var(--fg, #e8e8e8); }
+.wiz-drop span { font-size: 12.5px; }
+.wiz-drop.over { border-color: var(--accent, #0067C0);
+  background: var(--accent-bg, rgba(0,103,192,.10)); }
+.wiz-drop.busy { opacity: .55; pointer-events: none; }
