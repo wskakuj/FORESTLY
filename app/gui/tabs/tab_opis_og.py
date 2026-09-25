@@ -69,12 +69,16 @@ class TabOpisOgMixin:
 
     @classmethod
     def _read_wsk_zb_doc(cls, path):
-        """Czyta liczby z binarnego WSK_ZB.doc (bez uruchamiania Worda)."""
+        """Czyta liczby z WSK_ZB.doc (binarnie) albo WSK_ZB.TXT (cp852) — bez Worda."""
         try:
             data = Path(path).read_bytes()
         except OSError as e:
             return None, f"nie można odczytać pliku ({e})"
-        for enc in ("utf-16-le", "cp1250", "utf-8"):
+        if str(path).lower().endswith(".txt"):
+            encs = ("cp852", "cp1250", "utf-8")
+        else:
+            encs = ("utf-16-le", "cp1250", "utf-8")
+        for enc in encs:
             vals = cls._parse_wsk_zb_text(data.decode(enc, errors="ignore"))
             if vals:
                 return vals, None
@@ -246,13 +250,19 @@ class TabOpisOgMixin:
             return
 
         # --- jakie mamy źródła? ---
-        # 1) wsie z gotowym Wordem (WSK_ZB.doc w folderze wsi)
-        if (root / "WSK_ZB.doc").exists():
+        # 1) wsie z gotowym WSK_ZB (.doc z Worda albo .TXT z nowych szablonów)
+        def _wsk_zb(d):
+            for n in ("WSK_ZB.doc", "WSK_ZB.TXT", "WSK_ZB.txt"):
+                if (d / n).exists():
+                    return d / n
+            return None
+
+        if _wsk_zb(root):
             word_villages = [root]
         else:
             word_villages = sorted(
                 d for d in root.iterdir()
-                if d.is_dir() and (d / "WSK_ZB.doc").exists()
+                if d.is_dir() and _wsk_zb(d)
             )
         # 2) wsie z danymi MIETEKA (O*.DBF) — dla nich robimy tymczasowo
         #    MIETEK -> TXT -> Word i czytamy WSK_ZB z folderu tymczasowego
@@ -294,7 +304,8 @@ class TabOpisOgMixin:
         try:
             # --- lista zadań: (folder docelowy, nazwa wsi, skąd czytać WSK_ZB.doc) ---
             # dla wsi z Wordem: folder wsi; dla MIETEKA: folder z plikami DBF
-            jobs = [(d, d.name, d / "WSK_ZB.doc") for d in word_villages]
+            jobs = [(d, d.name, _wsk_zb(d) or (d / "WSK_ZB.doc"))
+                    for d in word_villages]
             if mietek_todo:
                 temp_dir, wsk_map = self._mietek_to_wsk_docs(root, mietek_sources)
                 # folder z DBF -> nazwa wsi (z pary wyznaczonej przy detekcji)

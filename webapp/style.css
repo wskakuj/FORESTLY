@@ -344,6 +344,15 @@ select option {
 .check-row input[type="checkbox"]:checked::after { transform: translateX(18px); }
 .check-row span { font-size: 13px; line-height: 1.4; }
 .check-row.disabled { opacity: .35; pointer-events: none; }
+/* przełącznik "nowe szablony" na ekranie powitalnym kreatora 1-Click */
+.wiz-newtpl {
+  margin-top: 14px; padding: 12px 14px;
+  border: 1px solid rgba(127, 140, 160, 0.35);
+  border-radius: 12px;
+  background: rgba(127, 140, 160, 0.08);
+  text-align: left;
+}
+.wiz-newtpl .opis { font-size: 12px; opacity: .8; }
 .wiz-check-big .check-row input[type="checkbox"] {
   width: 54px; height: 30px;
 }

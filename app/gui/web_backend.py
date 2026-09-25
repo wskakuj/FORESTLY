@@ -328,6 +328,11 @@ class WebBackend(
         self.remove_names_var = FakeVar(
             bool(self.get_setting("web.remove_names", True)))
 
+        # nowe szablony wydruków (HTML → PDF, bez Worda) — przełącznik
+        # na pierwszym ekranie kreatora 1-Click; stan pamiętany w ustawieniach
+        self.nowe_szablony_var = FakeVar(
+            bool(self.get_setting("web.nowe_szablony", False)))
+
 
     def _fakes_for_controls(self, controls):
         """Tworzy atrapy widgetów dla kontrolek schematu (wraz z grupami)."""
@@ -375,6 +380,18 @@ class WebBackend(
 
     def set_values(self, values):
         """Przyjmuje słownik {id_kontrolki: wartość} z frontendu."""
+        values = dict(values or {})
+
+        # przełącznik "nowe szablony" z ekranu powitalnego kreatora 1-Click
+        # (kontrolka spoza schematu — własny HTML w kreatorze)
+        if "nowe_szablony" in values:
+            on = bool(values.pop("nowe_szablony"))
+            self.nowe_szablony_var.set(on)
+            try:
+                self.set_setting("web.nowe_szablony", on)
+            except Exception:
+                pass
+
         controls = {}
 
         def _index(ctrls):

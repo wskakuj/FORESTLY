@@ -416,6 +416,22 @@ function renderWizStep() {
         ' i opisami ogólnymi) → PDF → scalenie w jeden dokument.<br>' +
         'Przeprowadzę Cię przez cztery krótkie kroki — potem zrobię wszystko sama.</div>' +
       '</div>';
+    /* przełącznik nowych szablonów (HTML → PDF bez Worda) */
+    const nsw = el("label", "check-row wiz-newtpl");
+    nsw.innerHTML = '<input type="checkbox" id="wiz-nowe-szablony"><span>' +
+      '<b>Nowe szablony wydruków</b><br>' +
+      '<span class="opis">Włączony: szybsze generowanie PDF bez Worda i nowy,' +
+      ' czytelniejszy wygląd. Wyłączony: wszystko działa jak dotychczas.</span></span>';
+    const nsInp = nsw.querySelector("input");
+    nsInp.checked = (localStorage.getItem("forestly_nowe_szablony") ?? "1") !== "0";
+    nsInp.addEventListener("change", () => {
+      localStorage.setItem("forestly_nowe_szablony", nsInp.checked ? "1" : "0");
+      scheduleSetValues();
+    });
+    const heroBox = st.querySelector(".wiz-hero");
+    if (heroBox) heroBox.appendChild(nsw);
+    /* synchronizacja stanu z backendem od razu (żeby default też doszedł) */
+    scheduleSetValues();
     back.classList.add("hidden");
     next.innerHTML = "<span>Zaczynamy ›</span>";
     next.onclick = () => { WIZ.step = 1; renderWizStep(); };
@@ -1259,6 +1275,9 @@ function collectValues() {
       out[cid] = data;
     }
   });
+  /* przełącznik "nowe szablony" (ekran powitalny kreatora 1-Click) */
+  const _ns = document.getElementById("wiz-nowe-szablony");
+  if (_ns) out.nowe_szablony = _ns.checked;
   return out;
 }
 
