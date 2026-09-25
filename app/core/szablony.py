@@ -872,7 +872,7 @@ def html_skroty(docx_path, obiekt="", stan="", bez_nazwisk=False,
   table.skroty td { border: 0; padding: 1.05mm 3mm; font-size: 8.4pt;
                     border-bottom: .3pt solid #d8d8d8; }
   table.skroty tr:nth-child(even) td { background: #f4f6f4; }
-  table.skroty td.sk { font-weight: 600; text-align: center; width: 22mm;
+  table.skroty td.sk { font-weight: 600; text-align: center; min-width: 12mm;
                        white-space: nowrap; }
   table.skroty tr:last-child td { border-bottom: .5pt solid #999; }
 """

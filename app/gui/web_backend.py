@@ -1484,6 +1484,20 @@ class WebBackend(
                               "excluded": list(excluded or [])})
         except Exception:
             pass
+        # w programie są dwa przyciski "Skonfiguruj układ PDF" (zakładka
+        # 1-Click — tryb ALL — oraz zakładka Scalanie PDF — tryb PDF);
+        # użytkownik konfiguruje JEDEN układ dla całego programu, więc
+        # zapis trafia do obu trybów — inaczej układ ustawiony "w PDF"
+        # nie działał w Pełnym Automacie (i odwrotnie)
+        try:
+            siostrzany = "PDF" if mode == "ALL" else "ALL"
+            set_saved_template_order(config_folder, siostrzany, list(order or []))
+            set_saved_excluded_templates(config_folder, siostrzany, list(excluded or []))
+            self.set_setting(f"pdf_order.{siostrzany}",
+                             {"order": list(order or []),
+                              "excluded": list(excluded or [])})
+        except Exception:
+            pass
         msg = f"[UKŁAD] Zapisano kolejność PDF dla trybu {mode}."
         if excluded:
             _lbl = ", ".join(t["label"] for t in PDF_ORDER_TEMPLATES

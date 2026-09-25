@@ -229,6 +229,12 @@ class TabPdfMixin:
                 self.log("[UKŁAD] Użyto zapamiętanej kolejności PDF z ustawień.")
         template_keys = get_saved_template_order(in_dir, mode_key)
         excluded_keys = get_saved_excluded_templates(in_dir, mode_key)
+        # jawny zapis użytej kolejności — od razu widać w logach, czyje
+        # ustawienie zadziałało (i w jakiej kolejności scalono)
+        _lbl_map = {t["key"]: t["label"] for t in PDF_ORDER_TEMPLATES}
+        self.log("[UKŁAD] Kolejność scalania (" + mode_key + "): "
+                 + " → ".join(_lbl_map.get(k, k) for k in template_keys
+                              if k not in excluded_keys))
         # od v2.0.32: 'Opis ogólny' to stała część zestawienia (generuje go
         # Pełny Automat) — nie scalamy bez niego
         if "OPIS" in excluded_keys:

@@ -120,7 +120,7 @@
   "web.gdos_xlsx": "D:\\download\\Opera\\gdos_obszary.xlsx",
   "web.all_gen_opis_og": true,
   "web.all_gdos": "D:\\download\\gówno\\Nowy folder (20)\\Nowy folder",
-  "last_output_dir": "D:\\download\\gówno\\Nowy folder (20)\\Nowy folder\\Bez nazwisk\\PDF polaczone",
+  "last_output_dir": "D:\\download\\gówno\\Nowy folder (20)\\Nowy folder\\PDF polaczone",
   "web.all_tpl_stan": "31.12.1997 r.",
   "web.all_tpl_okres": "01.01.2027 – 31.12.2036 r.",
   "web.all_wsk_od": "01.01.2027",
@@ -128,14 +128,18 @@
   "web.nowe_szablony": true,
   "pdf_order.ALL": {
     "order": [
-      "REJESTR1",
-      "OPTAX",
+      "MAPA",
       "TITLE",
-      "OPIS",
       "WSKAZ1",
-      "TAB_KLW3",
+      "OPTAX",
+      "REJESTR1",
       "WSK_ZB",
+      "OPIS",
+      "TAB_KLW3",
+      "WYK_NEG",
+      "HALIZNY",
       "ZEST1",
+      "WK_ZM1",
       "SKROTY"
     ],
     "excluded": []
@@ -153,12 +157,12 @@
     },
     "OPTAX": {
       "tytul": {
-        "pt": 18.0,
+        "pt": 14.0,
         "font": "Arial"
       },
       "tabela": {
-        "pt": 10.0,
-        "font": "Arial"
+        "pt": 8.6,
+        "font": "Verdana"
       }
     },
     "TAB_KLW3": {
@@ -222,10 +226,28 @@
       }
     }
   },
+  "pdf_order.PDF": {
+    "order": [
+      "MAPA",
+      "TITLE",
+      "WSKAZ1",
+      "OPTAX",
+      "REJESTR1",
+      "WSK_ZB",
+      "OPIS",
+      "TAB_KLW3",
+      "WYK_NEG",
+      "HALIZNY",
+      "ZEST1",
+      "WK_ZM1",
+      "SKROTY"
+    ],
+    "excluded": []
+  },
   "web.all_pelny_opis_og": true,
   "web.all_krotki_opis_og": false,
-  "web.all_obie_wersje": true,
-  "web.all_mapa": "C:\\Users\\niepy\\AppData\\Local\\Temp\\forestly_mapy\\DĄBRÓWKA_ULOZONE.tif",
+  "web.all_obie_wersje": false,
+  "web.all_mapa": "C:\\Users\\niepy\\AppData\\Local\\Temp\\forestly_mapy\\DĄBRÓWKA_ULOZONE.jpg",
   "web.ns_src": "",
   "web.ns_dst": "",
   "web.ns_bez_nazwisk": true,

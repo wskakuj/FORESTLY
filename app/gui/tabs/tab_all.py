@@ -1346,50 +1346,53 @@ class TabAllMixin:
                          "— konwertuję przez Word...")
                 temp_skroty_pdf = None
                 skroty_pdf_to_copy = None
+            # konwersja przez Worda — TYLKO gdy nowy szablon nie dał rady
+            # (kiedyś biegła zawsze i nadpisywała nowy wygląd starym)
+            if skroty_pdf_to_copy is None:
                 self.log("[SKROTY] Konwertuję plik Word na PDF...")
-            word_app = None
-            _word_pid = None
-            try:
-                word_app = win32com.client.DispatchEx("Word.Application")
+                word_app = None
+                _word_pid = None
                 try:
-                    from app.core import office_guard
-                    _word_pid = office_guard.register(word_app)
-                except Exception:
-                    pass
-                word_app.Visible = False
-                word_app.DisplayAlerts = 0
-                doc = word_app.Documents.Open(str(skroty_source_path.resolve()), AddToRecentFiles=False)
-                temp_skroty_pdf = Path(tempfile.gettempdir()) / "skroty_temp.pdf"
-                doc.ExportAsFixedFormat(
-                    OutputFileName=str(temp_skroty_pdf),
-                    ExportFormat=17,
-                    OpenAfterExport=False,
-                    OptimizeFor=0,
-                    Range=0,
-                    Item=0,
-                    IncludeDocProps=True,
-                    KeepIRM=True,
-                    CreateBookmarks=1,
-                    DocStructureTags=True,
-                    BitmapMissingFonts=True,
-                    UseISO19005_1=False,
-                )
-                doc.Close(False)
-                skroty_pdf_to_copy = temp_skroty_pdf
-            except Exception as e:
-                self.log(f"[SKROTY] Błąd konwersji: {e}")
-                return 0
-            finally:
-                if word_app is not None:
-                    try:
-                        word_app.Quit()
-                    except:
-                        pass
+                    word_app = win32com.client.DispatchEx("Word.Application")
                     try:
                         from app.core import office_guard
-                        office_guard.unregister(_word_pid)
+                        _word_pid = office_guard.register(word_app)
                     except Exception:
                         pass
+                    word_app.Visible = False
+                    word_app.DisplayAlerts = 0
+                    doc = word_app.Documents.Open(str(skroty_source_path.resolve()), AddToRecentFiles=False)
+                    temp_skroty_pdf = Path(tempfile.gettempdir()) / "skroty_temp.pdf"
+                    doc.ExportAsFixedFormat(
+                        OutputFileName=str(temp_skroty_pdf),
+                        ExportFormat=17,
+                        OpenAfterExport=False,
+                        OptimizeFor=0,
+                        Range=0,
+                        Item=0,
+                        IncludeDocProps=True,
+                        KeepIRM=True,
+                        CreateBookmarks=1,
+                        DocStructureTags=True,
+                        BitmapMissingFonts=True,
+                        UseISO19005_1=False,
+                    )
+                    doc.Close(False)
+                    skroty_pdf_to_copy = temp_skroty_pdf
+                except Exception as e:
+                    self.log(f"[SKROTY] Błąd konwersji: {e}")
+                    return 0
+                finally:
+                    if word_app is not None:
+                        try:
+                            word_app.Quit()
+                        except:
+                            pass
+                        try:
+                            from app.core import office_guard
+                            office_guard.unregister(_word_pid)
+                        except Exception:
+                            pass
         elif ext == ".pdf":
             skroty_pdf_to_copy = skroty_source_path
         else:
