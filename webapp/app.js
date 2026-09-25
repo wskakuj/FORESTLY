@@ -1577,6 +1577,10 @@ async function openOrderDialog(mode) {
   let excluded = (r.excluded || []).slice();
   // klucze wykluczone, których nie ma w kolejności — dokładamy na spód listy
   for (const k of excluded) if (!order.includes(k)) order.push(k);
+  // zawsze pokazuj wszystkie szablony — zapis ze starszej wersji programu
+  // mógł nie zawierać nowszych pozycji (HALIZNY, WYK_NEG, WK_ZM1...)
+  for (const t of templates) if (!order.includes(t.key)) order.push(t.key);
+  let dragKey = null;
 
   const backdrop = el("div", "modal-backdrop");
   const modal = el("div", "modal");
@@ -1617,6 +1621,35 @@ async function openOrderDialog(mode) {
         renderList();
       };
       it.appendChild(up); it.appendChild(dn); it.appendChild(tg);
+      /* przeciąganie po liście (drag & drop) — alternatywa dla strzałek */
+      it.draggable = true;
+      it.addEventListener("dragstart", (e) => {
+        dragKey = key;
+        it.classList.add("dragging");
+        e.dataTransfer.effectAllowed = "move";
+        try { e.dataTransfer.setData("text/plain", key); } catch (err) {}
+      });
+      it.addEventListener("dragend", () => {
+        dragKey = null;
+        it.classList.remove("dragging");
+        list.querySelectorAll(".drag-over").forEach(x => x.classList.remove("drag-over"));
+      });
+      it.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        if (dragKey !== null && dragKey !== key) it.classList.add("drag-over");
+      });
+      it.addEventListener("dragleave", () => it.classList.remove("drag-over"));
+      it.addEventListener("drop", (e) => {
+        e.preventDefault();
+        it.classList.remove("drag-over");
+        if (dragKey === null || dragKey === key) return;
+        const from = order.indexOf(dragKey);
+        const to = order.indexOf(key);
+        if (from < 0 || to < 0) return;
+        order.splice(from, 1);
+        order.splice(to, 0, dragKey);
+        renderList();
+      });
       list.appendChild(it);
     });
   }

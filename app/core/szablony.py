@@ -416,7 +416,7 @@ CSS = """
 
 
 def _strona(tytul, obiekt, stan, tresc, extra_css="", poziom=False,
-            marginesy=None, agencja="AGENCJA „CEZAR”"):
+            marginesy=None, agencja="AGENCJA „CEZAR”", tytul2=""):
     t, r, b, l = marginesy or _DOMYSLNE_MARGINESY
     orient = "@page { size: A4 landscape; }" if poziom else ""
     page = f"@page {{ size: A4; margin: {t}cm {r}cm {b}cm {l}cm; }}"
@@ -427,7 +427,7 @@ def _strona(tytul, obiekt, stan, tresc, extra_css="", poziom=False,
 <body>
 <div class="hdr">
   <div class="agencja">{agencja}</div>
-  <h1>{tytul}</h1>
+  <h1>{tytul}{('<br>' + tytul2) if tytul2 else ''}</h1>
   <div class="meta">Obiekt: <b>{obiekt}</b>{(" &nbsp;—&nbsp; Stan na: <b>" + stan + "</b>") if stan else ""}</div>
 </div>
 {tresc}
@@ -655,8 +655,7 @@ def html_wskzb(path, obiekt, stan, bez_nazwisk=False, marginesy=None):
                       '<table class="gl"><tbody>' + pozycje(p["poz"], p.get("suma"))
                       + "</tbody></table>")
         czesci.append(f'<div class="sekcja"><h2>{s["nr"]} {s["tyt"]}</h2>{inner}</div>')
-    tresc = (f'<div class="podtyt">w 10-leciu od {stan} wg. wskazań gospodarczych</div>'
-             + "".join(czesci))
+    tresc = "".join(czesci)
     extra = """
   .podtyt { text-align: center; font-size: 9.5pt; margin: 0 0 5mm; }
   .sekcja h2 { font-size: 10.5pt; border-bottom: 1pt solid #333;
@@ -664,8 +663,10 @@ def html_wskzb(path, obiekt, stan, bez_nazwisk=False, marginesy=None):
   .podt { font-weight: 600; margin: 3mm 0 1mm; }
   table.gl { width: 75%; margin-left: 8mm; }
   table.gl td:first-child { width: 60%; }"""
+    tytul2 = (f"w 10-leciu od {stan} wg. wskazań gospodarczych" if stan else "")
     return _strona("Zestawienie czynności gospodarczych projektowanych do wykonania",
-                   obiekt, "", tresc, extra_css=extra, marginesy=marginesy)
+                   obiekt, "", tresc, extra_css=extra, marginesy=marginesy,
+                   tytul2=tytul2)
 
 
 def html_zest1(path, obiekt, stan, bez_nazwisk=False, marginesy=None):

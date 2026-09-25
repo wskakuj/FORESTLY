@@ -18,7 +18,7 @@ from pathlib import Path
 import customtkinter as ctk
 
 # --- WERSJA I AKTUALIZACJA ---
-CURRENT_VERSION = "v2.0.56"
+CURRENT_VERSION = "v2.0.57"
 GITHUB_USER = "wskakuj"
 GITHUB_REPO = "FORESTLY"
 
@@ -247,15 +247,11 @@ def get_saved_template_order(folder: Path, mode_key: str):
         # dopisanie nowych kluczy (np. WSKAZ1) na ich domyślnych pozycjach,
         # z zachowaniem własnej kolejności starego zapisu
         missing = [k for k in get_default_template_keys() if k not in saved]
+        # brakujące pozycje (np. dopisane w nowszej wersji programu, a nieobecne
+        # w starym zapisie) dokładamy NA KOŃCU — własna kolejność użytkownika
+        # zostaje nietknięta i nic nie wędruje na początek zestawienia
         for mk in missing:
-            inserted = False
-            for idx, sk in enumerate(saved):
-                if sk in valid and valid.index(mk) < valid.index(sk):
-                    saved.insert(idx, mk)
-                    inserted = True
-                    break
-            if not inserted:
-                saved.append(mk)
+            saved.append(mk)
         return saved
     return get_default_template_keys()
 

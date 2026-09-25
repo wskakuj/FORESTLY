@@ -974,3 +974,8 @@ details.margins-details[open] > summary {
 }
 .wiz-done.err { background: rgba(251, 113, 133, 0.14); color: var(--red); }
 @keyframes wizPop { 0% { transform: scale(0.4); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+
+/* przeciąganie pozycji w oknie układu PDF */
+.order-item[draggable="true"] { cursor: grab; }
+.order-item.dragging { opacity: .4; cursor: grabbing; }
+.order-item.drag-over { outline: 2px dashed var(--accent, #2dd4a7); outline-offset: -2px; }

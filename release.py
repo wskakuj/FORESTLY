@@ -11,6 +11,10 @@ Użycie (w folderze repo FORESTLY):
     python release.py        → kreator krok po kroku
     python release.py -k     → bez pytania o potwierdzenie (konto gotowe)
 
+Numer następnej wersji podpowiadany jest na podstawie ostatniego tagu
+na GitHubie (vX.Y.Z + 1), więc działa nawet, gdy lokalny app/config.py
+został w tyle za już wydanymi wersjami.
+
 Wymagania: git (zalogowany — klon robiony przez HTTPS z zapamiętanym hasłem).
 """
 
@@ -56,6 +60,33 @@ def set_current_version(ver):
     s2 = re.sub(r'CURRENT_VERSION = "[^"]+"',
                 f'CURRENT_VERSION = "{ver}"', s, count=1)
     CONFIG.write_text(s2, encoding="utf-8")
+
+
+def _vt(v):
+    """Wersja jako krotka liczb (do porównań)."""
+    m = re.match(r"^v(\d+)\.(\d+)\.(\d+)$", v or "")
+    return tuple(int(x) for x in m.groups()) if m else (0, 0, 0)
+
+
+def remote_tag_list():
+    """Lista tagów vX.Y.Z z GitHuba (origin) — zapytanie do serwera.
+
+    Działa też bez lokalnego 'git fetch' i bez zalogowania (publiczne repo),
+    a gdy nie ma sieci — zwraca pustą listę (release.py nie zgłasza błędu).
+    """
+    out = git("ls-remote", "--tags", "origin", check=False)
+    tags = []
+    for line in out.splitlines():
+        m = re.search(r"refs/tags/(v\d+\.\d+\.\d+)$", line.strip())
+        if m:
+            tags.append(m.group(1))
+    return tags
+
+
+def latest_remote_tag():
+    """Najwyższy tag na GitHubie (albo None, gdy nie da się odczytać)."""
+    tags = remote_tag_list()
+    return max(tags, key=_vt) if tags else None
 
 
 def next_patch(v):
@@ -151,10 +182,19 @@ def main():
         print("\nUwaga: są już commity niewysłane na GitHub —")
         print("wydanie dokończy ich wysyłkę.")
 
-    # 2) nowa wersja
+    # 2) nowa wersja — propozycja z ostatniego tagu NA GITHUBIE
+    #    (localny app/config.py bywa w tyle, np. gdy release robiony był
+    #    z innej kopii repo — źródłem prawdy jest to, co już wypchnięte)
     cur = read_current_version()
-    prop = next_patch(cur) or "v0.0.1"
-    print(f"\nAktualna wersja (app/config.py): {cur}")
+    remote = latest_remote_tag()
+    if remote:
+        base = remote if _vt(remote) >= _vt(cur) else cur
+        print(f"Ostatnia wersja na GitHub  : {remote}")
+    else:
+        base = cur
+        print("(nie udało się odczytać tagów z GitHub — bazuję na config.py)")
+    prop = next_patch(base) or "v0.0.1"
+    print(f"Aktualna wersja (app/config.py): {cur}")
     try:
         ans = input(f"Nowa wersja [{prop}]: ").strip() or prop
     except EOFError:
@@ -162,8 +202,10 @@ def main():
     if not re.match(r"^v\d+\.\d+\.\d+$", ans):
         print("✗ Wersja musi być w formacie vX.Y.Z (np. v2.0.2)")
         sys.exit(1)
-    if git("tag", "-l", ans):
-        print(f"✗ Tag {ans} już istnieje w repo — wybierz inny numer.")
+    # tag może już istnieć lokalnie LUB na GitHub (lokalne tagi bywają stare)
+    remote_tags = remote_tag_list()
+    if git("tag", "-l", ans) or ans in remote_tags:
+        print(f"✗ Tag {ans} już istnieje (lokalnie lub na GitHub) — wybierz inny numer.")
         sys.exit(1)
 
     # 3) opis commita
