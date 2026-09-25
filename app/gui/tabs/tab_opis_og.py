@@ -233,13 +233,16 @@ class TabOpisOgMixin:
         gdos_raw = gdos_entry.get().strip() if gdos_entry is not None else ""
         self._opis_og_generuj(Path(raw), Path(gdos_raw) if gdos_raw else None)
 
-    def _opis_og_generuj(self, root, gdos_folder=None, tylko_istniejace=False):
+    def _opis_og_generuj(self, root, gdos_folder=None, tylko_istniejace=False,
+                         skrocony=False):
         """Generuje 'opis og_<wieś>.docx' we wszystkich wsiach pod 'root'.
 
         root — folder główny z folderami wsi (albo pojedyncza wieś z WSK_ZB.doc);
         gdos_folder — opcjonalny folder z wynikami GDOŚ (formy ochrony przyrody);
         tylko_istniejace — bez tworzenia tymczasowych Wordów z DBF (Pełny
-        Automat: korzystamy wyłącznie z WSK_ZB.doc utworzonych przez pipeline)."""
+        Automat: korzystamy wyłącznie z WSK_ZB.doc utworzonych przez pipeline);
+        skrocony — opis ogólny bez 'Powiązanie z gospodarką leśną' i bez opisów
+        pozostałych form ochrony przyrody (sama lista form)."""
         from app.core.word_worker import get_resource_path
 
         root = Path(root)
@@ -348,10 +351,13 @@ class TabOpisOgMixin:
                     fx = self._gdos_find_for_village(gdos_map, vname)
                     if fx is not None:
                         try:
-                            formy = self._gdos_formy_dla_wsi(fx)
-                            n_for = sum(1 for f_ in formy if f_.startswith("- "))
+                            formy = self._gdos_formy_dla_wsi(fx, skrocony=skrocony)
+                            n_for = (len(formy) if skrocony
+                                     else sum(1 for f_ in formy if f_.startswith("- ")))
                             self.log(f"[OPIS OG] {vname}: formy ochrony z GDOŚ "
-                                     f"({fx.name}; {n_for} form)")
+                                     f"({fx.name}; {n_for} form)"
+                                     + (" — wersja skrócona (bez powiązań i opisów)"
+                                        if skrocony else ""))
                         except Exception as e:
                             self.log(f"[OPIS OG] {vname}: błąd odczytu GDOŚ "
                                      f"({fx.name}) — {e}")
@@ -475,8 +481,12 @@ class TabOpisOgMixin:
                 return gdos_map[hit[0]]
         return None
 
-    def _gdos_formy_dla_wsi(self, xlsx_path):
-        """Parsuje wynik GDOŚ — zwraca listę akapitów o formach ochrony przyrody."""
+    def _gdos_formy_dla_wsi(self, xlsx_path, skrocony=False):
+        """Parsuje wynik GDOŚ — zwraca listę akapitów o formach ochrony przyrody.
+
+        skrocony=True -> tylko lista form (bez 'Powiązanie z gospodarką leśną'
+        i bez opisów pozostałych form) — wersja skrócona opisu ogólnego.
+        """
         import openpyxl
         wb = openpyxl.load_workbook(str(xlsx_path), data_only=True)
 
@@ -540,7 +550,10 @@ class TabOpisOgMixin:
             return ["W obszarze objętym opracowaniem nie zlokalizowano "
                     "żadnych form ochrony przyrody."]
 
-        par = ["Zlokalizowano następujące formy ochrony przyrody"]
+        # wersja skrócona: zwykłe zdania bez nagłówka, myślników i PZO,
+        # np. „Obszar Natura 2000 SOO Ostoja Międzychodzko-Sierakowska
+        # PLH300032 w pododdziałach 1a, 1b (w części: 1a, 1b)."
+        par = [] if skrocony else ["Zlokalizowano następujące formy ochrony przyrody"]
         for z in obszary:
             typ, nazwa, kbe = z["typ"], z["nazwa"], z["kb"]
             pelne = sorted(set(z["pelne"]), key=self._gdos_ak)
@@ -551,6 +564,14 @@ class TabOpisOgMixin:
                 gdzie = ("w pododdziałach " + ", ".join(pelne + czesc)) if (pelne or czesc) else ""
                 if czesc:
                     gdzie += f" (w części: {', '.join(czesc)})"
+            if skrocony:
+                if typ in ("OSO", "SOO"):
+                    kod = f" {kbe['kod']}" if (kbe and kbe.get("kod")) else ""
+                    par.append((f"Obszar Natura 2000 {typ} {nazwa}{kod} {gdzie}"
+                                if gdzie else f"Obszar Natura 2000 {typ} {nazwa}{kod}") + ".")
+                else:
+                    par.append((f"{nazwa} {gdzie}" if gdzie else nazwa) + ".")
+                continue
             if typ in ("OSO", "SOO"):
                 if kbe and kbe.get("kod"):
                     par.append(f"- Obszar Natura 2000 {typ} {nazwa} {kbe['kod']} "
@@ -560,7 +581,7 @@ class TabOpisOgMixin:
                                "[TU UZUPEŁNIJ: kod obszaru i publikację PZO]")
             else:
                 par.append(f"- {nazwa} {gdzie}.")
-            if kbe:
+            if kbe and not skrocony:
                 if typ in ("OSO", "SOO") and kbe.get("powiazanie"):
                     par.append(f"Powiązanie z gospodarką leśną - {nazwa}: {kbe['powiazanie']}")
                 elif kbe.get("opis"):

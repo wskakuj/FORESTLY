@@ -19,7 +19,6 @@ const BRANCH_HTML =
 
 const DEPENDS = {
   all_skroty: "all_custom_skroty",
-  all_gdos: "all_gen_opis_og",
   xl_global_size: "xl_global_font",
   tpl_MIETEK_village: "tpl_MIETEK_single",
   tpl_MIETEK_area_v: "tpl_MIETEK_area",
@@ -109,6 +108,33 @@ function renderAll(cfg) {
   showTab(START_KEY);
   applyDeps();
   wireTerritory();
+  wireOpisOgExclusive();
+}
+
+/* „Pełne opisy ogólne" <-> „Skrócone opisy ogólne" — wzajemne wykluczanie
+   (oba odznaczone = opisy ogólne pomijane); folder GDOŚ potrzebny w obu
+   wariantach, więc pokazujemy go przy każdym z nich */
+function wireOpisOgExclusive() {
+  const pelny = document.querySelector('[data-cid="all_pelny_opis_og"]');
+  const krotki = document.querySelector('[data-cid="all_krotki_opis_og"]');
+  const gdos = document.querySelector('[data-cid="all_gdos"]');
+  if (!pelny || !krotki) return;
+  const odswiez = () => {
+    if (gdos) {
+      const row = gdos.closest(".field") || gdos;
+      row.classList.toggle("hidden", !pelny.checked && !krotki.checked);
+    }
+    scheduleSetValues();
+  };
+  pelny.addEventListener("change", () => {
+    if (pelny.checked) krotki.checked = false;
+    odswiez();
+  });
+  krotki.addEventListener("change", () => {
+    if (krotki.checked) pelny.checked = false;
+    odswiez();
+  });
+  odswiez();
 }
 
 /* ------------------------------------------- nawigacja: Start, grupy, szukajka */
@@ -452,7 +478,8 @@ function renderWizStep() {
       grp.open = true;
       moveTo(grp.parentElement);
     }
-    moveTo(wizField("all_gen_opis_og"));
+    moveTo(wizField("all_pelny_opis_og"));
+    moveTo(wizField("all_krotki_opis_og"));
     moveTo(wizField("all_gdos"));
     moveTo(wizField("all_custom_skroty"));
     moveTo(wizField("all_skroty"));
@@ -510,9 +537,13 @@ function renderWizStep() {
         ? "usuwane z REJESTRU" : "REJESTR z pełnymi nazwiskami"],
       ["Własne skróty i symbole", wizVal("all_custom_skroty")
         ? (wizVal("all_skroty") || "(nie wskazano pliku)") : "domyślne z programu"],
-      ["Opisy ogólne", wizVal("all_gen_opis_og")
-        ? (wizVal("all_gdos") ? "z formami ochrony z GDOŚ" : "bez folderu GDOŚ")
-        : "pomijane"],
+      ["Opisy ogólne", wizVal("all_pelny_opis_og")
+        ? (wizVal("all_gdos") ? "pełne, z formami ochrony z GDOŚ"
+                              : "pełne, bez folderu GDOŚ")
+        : wizVal("all_krotki_opis_og")
+          ? (wizVal("all_gdos") ? "skrócone, lista form z GDOŚ"
+                                : "skrócone, bez folderu GDOŚ")
+          : "pomijane"],
     ];
     rows.forEach(r => {
       sum.appendChild(el("div", "wiz-row",

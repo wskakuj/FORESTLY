@@ -130,11 +130,20 @@ def build_schema():
                              'konkretnej i wiersza powierzchni).\n'
                              '„Stan na\u201d zastępuje daty we wszystkich generowanych '
                              'dokumentach Word, a pola 10-lecia — okres w WSK_ZB.'), collapsed=False),
-                _check("all_gen_opis_og", "all_gen_opis_og_var",
-                       "Generuj opisy ogólne (opis og_<wieś>.docx) po plikach Word", True,
-                       "Po utworzeniu plików Word generuje dla każdej wsi opis ogólny "
-                       "i dołącza go do zestawienia (w PDF zaraz za stroną tytułową).\n"
+                _check("all_pelny_opis_og", "all_pelny_opis_og_var",
+                       "Pełne opisy ogólne (z powiązaniami z gospodarką leśną "
+                       "i opisami form)", True,
+                       "Pełny opis ogólny (opis og_<wieś>.docx) — z powiązaniami "
+                       "obszarów Natura 2000 z gospodarką leśną i opisami "
+                       "pozostałych form ochrony przyrody.\n"
                        "Dane liczbowe pochodzą z WSK_ZB.doc wsi."),
+                _check("all_krotki_opis_og", "all_krotki_opis_og_var",
+                       "Skrócone opisy ogólne (sama lista form ochrony przyrody)", False,
+                       "Opis ogólny w wersji skróconej — same zdania typu "
+                       "„Obszar Natura 2000 SOO … PLH300032 w pododdziałach …”, "
+                       "bez powiązań z gospodarką leśną i bez opisów form.\n"
+                       "Zaznacz ALBO to, ALBO pełne (wzajemnie się wykluczają); "
+                       "oba odznaczone = opisy ogólne nie powstają."),
                 _path("all_gdos", "all_gdos_entry",
                       "Folder z wynikami GDOŚ (opcjonalny):",
                       "Formy ochrony przyrody (np. NN_WIEŚ_wynik.xlsx) do opisów ogólnych"),

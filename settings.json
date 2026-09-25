@@ -128,16 +128,24 @@
   "web.nowe_szablony": true,
   "pdf_order.ALL": {
     "order": [
+      "TITLE",
       "REJESTR1",
       "OPTAX",
-      "TITLE",
       "OPIS",
       "WSKAZ1",
       "TAB_KLW3",
       "WSK_ZB",
       "ZEST1",
-      "SKROTY"
+      "SKROTY",
+      "WYK_NEG",
+      "HALIZNY",
+      "WK_ZM1"
     ],
     "excluded": []
-  }
+  },
+  "web.all_pelny_opis_og": false,
+  "web.all_krotki_opis_og": true,
+  "web.ns_src": "",
+  "web.ns_dst": "",
+  "web.ns_bez_nazwisk": true
 }

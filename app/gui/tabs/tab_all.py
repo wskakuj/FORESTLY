@@ -209,10 +209,15 @@ class TabAllMixin:
             self._all_wiz_stop.pack(side="right")
 
     def _toggle_all_gdos_ui(self):
-        """Pole folderu GDOŚ widoczne tylko przy włączonych opisach ogólnych."""
-        if getattr(self, "all_gen_opis_og_var", None) is None:
+        """Folder GDOŚ jest źródłem form ochrony w obu wariantach opisu
+        (pełnym i skróconym) — pole widoczne, gdy wybrano którykolwiek."""
+        if getattr(self, "all_gdos_frame", None) is None:
             return
-        if self.all_gen_opis_og_var.get():
+        wybrany = ((getattr(self, "all_pelny_opis_og_var", None) is not None
+                    and self.all_pelny_opis_og_var.get())
+                   or (getattr(self, "all_krotki_opis_og_var", None) is not None
+                       and self.all_krotki_opis_og_var.get()))
+        if wybrany:
             self.all_gdos_frame.grid()
         else:
             self.all_gdos_frame.grid_remove()
@@ -395,15 +400,33 @@ class TabAllMixin:
         # --- opisy ogólne (zawsze z gotowych WSK_ZB.doc z pipeline) ---
         # Folder z wynikami GDOŚ nie jest już potrzebny — cała baza obszarów
         # ochrony przyrody jest w programie (zakładka GDOŚ / gdos_obszary.json)
-        self.all_gen_opis_og_var = ctk.BooleanVar(value=True)
+        self.all_pelny_opis_og_var = ctk.BooleanVar(value=True)
+        self.all_krotki_opis_og_var = ctk.BooleanVar(value=False)
+
+        def _wybor_opisu(ktory):
+            # wzajemne wykluczanie: pełne <-> skrócone (oba odznaczone = brak opisów)
+            if ktory == "pelny" and self.all_pelny_opis_og_var.get():
+                self.all_krotki_opis_og_var.set(False)
+            elif ktory == "krotki" and self.all_krotki_opis_og_var.get():
+                self.all_pelny_opis_og_var.set(False)
+            self._toggle_all_gdos_ui()
+
         cb_opis = ctk.CTkCheckBox(
             f2,
-            text="Generuj opisy ogólne (opis og_<wieś>.docx) po plikach Word",
-            variable=self.all_gen_opis_og_var,
+            text="Pełne opisy ogólne (z powiązaniami z gospodarką leśną)",
+            variable=self.all_pelny_opis_og_var,
             font=ctk.CTkFont(family="Segoe UI", size=12),
-            command=self._toggle_all_gdos_ui,
+            command=lambda: _wybor_opisu("pelny"),
         )
         cb_opis.grid(row=5, column=0, padx=5, pady=(2, 2), sticky="w")
+        cb_opis_krotki = ctk.CTkCheckBox(
+            f2,
+            text="Skrócone opisy ogólne (sama lista form ochrony przyrody)",
+            variable=self.all_krotki_opis_og_var,
+            font=ctk.CTkFont(family="Segoe UI", size=12),
+            command=lambda: _wybor_opisu("krotki"),
+        )
+        cb_opis_krotki.grid(row=5, column=0, padx=5, pady=(2, 2), sticky="e")
 
         # folder z wynikami GDOŚ — źródło form ochrony przyrody dla opisów
         self.all_gdos_frame = ctk.CTkFrame(
@@ -552,8 +575,11 @@ class TabAllMixin:
 
         skroty = (self.all_custom_skroty_var.get()
                   if hasattr(self, "all_custom_skroty_var") else False)
-        opis_og = (self.all_gen_opis_og_var.get()
-                   if hasattr(self, "all_gen_opis_og_var") else False)
+        _op_pelny = (self.all_pelny_opis_og_var.get()
+                     if hasattr(self, "all_pelny_opis_og_var") else False)
+        _op_krotki = (self.all_krotki_opis_og_var.get()
+                      if hasattr(self, "all_krotki_opis_og_var") else False)
+        opis_og = _op_pelny or _op_krotki
         wiersze = [
             ("Mietki (źródło)", self.entries["ALL"]["src"].get().strip() or "— nie wskazano —"),
             ("Folder wyników", self.entries["ALL"]["dst"].get().strip() or "— nie wskazano —"),
@@ -567,8 +593,12 @@ class TabAllMixin:
              (self.all_skroty_entry.get().strip() or "(nie wskazano pliku)") if skroty
              else "domyślne z programu"),
             ("Opisy ogólne",
-             "z formami ochrony z GDOŚ" if (opis_og and self.all_gdos_entry.get().strip())
-             else ("bez folderu GDOŚ" if opis_og else "pomijane")),
+             (("pełne, z formami ochrony z GDOŚ"
+               if self.all_gdos_entry.get().strip() else "pełne, bez folderu GDOŚ")
+              if _op_pelny else
+              ("skrócone, lista form z GDOŚ"
+               if self.all_gdos_entry.get().strip() else "skrócone, bez folderu GDOŚ")
+              if _op_krotki else "pomijane")),
         ]
         for i, (k, val) in enumerate(wiersze):
             ctk.CTkLabel(w, text=k, font=font_k, text_color="#888888", anchor="w"
@@ -976,10 +1006,15 @@ class TabAllMixin:
                     pass
 
         # 3) opisy ogólne — jak w starym torze (WSK_ZB czytane bez Worda)
-        if (getattr(self, "all_gen_opis_og_var", None) is None
-                or self.all_gen_opis_og_var.get()):
+        # opisy ogólne: pełne / skrócone / wcale — wg dwóch przełączników
+        _pelny_opis = (getattr(self, "all_pelny_opis_og_var", None) is not None
+                       and self.all_pelny_opis_og_var.get())
+        _krotki_opis = (getattr(self, "all_krotki_opis_og_var", None) is not None
+                        and self.all_krotki_opis_og_var.get())
+        if _pelny_opis or _krotki_opis:
             self.update_status(
-                "Generowanie opisów ogólnych (opis og_<wieś>.docx)...",
+                "Generowanie opisów ogólnych (opis og_<wieś>.docx)"
+                + ("" if _pelny_opis else " — wersja skrócona") + "...",
                 "#0078D7",
             )
             self.check_stop()
@@ -991,6 +1026,7 @@ class TabAllMixin:
                 self._opis_og_generuj(
                     word_dir, Path(gdos_raw) if gdos_raw else None,
                     tylko_istniejace=True,
+                    skrocony=not _pelny_opis,
                 )
             except Exception:
                 self.log("[OPIS OG] Błąd generowania opisów ogólnych:"
@@ -1338,10 +1374,15 @@ class TabAllMixin:
                     self.set_progress(0.45)
 
                     # === OPISY OGÓLNE (po plikach Word, przed konwersją do PDF) ===
-                    if (getattr(self, "all_gen_opis_og_var", None) is None
-                            or self.all_gen_opis_og_var.get()):
+                    # opisy ogólne: pełne / skrócone / wcale (dwa przełączniki)
+                    _pelny_opis = (getattr(self, "all_pelny_opis_og_var", None) is not None
+                                   and self.all_pelny_opis_og_var.get())
+                    _krotki_opis = (getattr(self, "all_krotki_opis_og_var", None) is not None
+                                    and self.all_krotki_opis_og_var.get())
+                    if _pelny_opis or _krotki_opis:
                         self.update_status(
-                            "Generowanie opisów ogólnych (opis og_<wieś>.docx)...",
+                            "Generowanie opisów ogólnych (opis og_<wieś>.docx)"
+                            + ("" if _pelny_opis else " — wersja skrócona") + "...",
                             "#0078D7",
                         )
                         self.check_stop()
@@ -1353,6 +1394,7 @@ class TabAllMixin:
                             self._opis_og_generuj(
                                 dir_02, Path(gdos_raw) if gdos_raw else None,
                                 tylko_istniejace=True,
+                                skrocony=not _pelny_opis,
                             )
                         except Exception:
                             self.log("[OPIS OG] Błąd generowania opisów ogólnych:\n"
