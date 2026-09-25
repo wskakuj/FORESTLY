@@ -114,6 +114,25 @@ class FakeButton:
         pass
 
 
+def _marginesy_z_slownika(saved):
+    """{T,B,L,R} (z dysku / frontendu) -> [góra, dół, lewo, prawo] (float).
+
+    Takiej listy oczekuje szablony.py (konwersja jak w torze 1-Click);
+    błędne wpisy są po prostu pomijane.
+    """
+    out = {}
+    for ftype, poz in (saved or {}).items():
+        try:
+            out[ftype] = [
+                float(str(poz.get("T", "1.5")).replace(",", ".")),
+                float(str(poz.get("B", "1.5")).replace(",", ".")),
+                float(str(poz.get("L", "2.5")).replace(",", ".")),
+                float(str(poz.get("R", "1.5")).replace(",", "."))]
+        except (TypeError, ValueError, AttributeError):
+            continue
+    return out
+
+
 # --------------------------------------------------------------------- backend
 
 class WebBackend(
@@ -962,26 +981,11 @@ class WebBackend(
             if not obraby:
                 raise RuntimeError("Brak podfolderów obrębów we wskazanym folderze.")
             # marginesy: własne dla tej zakładki (tryb NS); gdy użytkownik
-            # nie ruszał tabeli — przejmujemy zapamiętane z Pełnego Automatu.
-            # Na dysku marginesy leżą jako {T,B,L,R} — szablony.py chce listę
-            # [góra, dół, lewo, prawo] (konwersja jak w torze 1-Click)
-            def _ns_marginesy():
-                for tryb in ("NS", "ALL"):
-                    saved = load_margins().get(tryb) or {}
-                    out = {}
-                    for ftype, poz in saved.items():
-                        try:
-                            out[ftype] = [
-                                float(str(poz.get("T", "1.5")).replace(",", ".")),
-                                float(str(poz.get("B", "1.5")).replace(",", ".")),
-                                float(str(poz.get("L", "2.5")).replace(",", ".")),
-                                float(str(poz.get("R", "1.5")).replace(",", "."))]
-                        except (TypeError, ValueError, AttributeError):
-                            continue
-                    if out:
-                        return out
-                return None
-            margins = _ns_marginesy()
+            # nie ruszał tabeli — przejmujemy zapamiętane z Pełnego Automatu
+            for _tryb in ("NS", "ALL"):
+                margins = _marginesy_z_slownika(load_margins().get(_tryb))
+                if margins:
+                    break
             self.start_progress_tracking(len(obraby), f"Nowe szablony: {typ}")
             ok, blad, pominiete = 0, 0, []
             for i, obr in enumerate(obraby, 1):
@@ -1037,6 +1041,117 @@ class WebBackend(
             self.update_status("Błąd", "#D83B01", animate=False)
         finally:
             self.restore_all_buttons()
+
+    # ------------------------------------------ podgląd marginesów (na żywo)
+
+    def _find_preview_txt(self, typ):
+        """TXT do podglądu: najpierw folder z formularza, potem cache z DBF.
+
+        Nie ruszam folderów użytkownika — DBF-y obrębu są kopiowane do
+        katalogu tymczasowego i tam powstaje TXT (cache na czas sesji).
+        """
+        import shutil
+        from app.core.wydruki import (generuj_wszystkie_po_przeniesieniu,
+                                       generuj_halizny_txt)
+        from app.gui.tabs.tab_wydruki import AGENCJA_NAGLOWKA
+
+        # 1) istniejące TXT (źródło/docelowy 1-Click i Nowych Szablonów);
+        #    w trybie ALL pliki TXT z poprzedniego przebiegu leżą w dst/TXT
+        kandydaci, widziane = [], set()
+        for tryb in ("ALL", "NS"):
+            for kt in ("src", "dst"):
+                p = (self.entries.get(tryb, {}).get(kt)
+                     or FakeEntry("")).get().strip()
+                if p and Path(p).exists():
+                    for d in (Path(p), Path(p) / "TXT"):
+                        if d not in widziane:
+                            widziane.add(d)
+                            kandydaci.append(d)
+        for d in kandydaci:
+            for wz in (f"{typ}.TXT", f"{typ}.txt"):
+                for f in sorted(d.rglob(wz)):
+                    try:
+                        if f.stat().st_size >= 100:
+                            return f, str(d)
+                    except OSError:
+                        continue
+
+        # 2) cache z DBF-ów (folder źródłowy 1-Click / NS)
+        cache = getattr(self, "_preview_cache", None)
+        if cache is None:
+            cache = self._preview_cache = {}
+        if typ in cache and cache[typ][0].exists():
+            return cache[typ]
+        for tryb in ("ALL", "NS"):
+            p = (self.entries.get(tryb, {}).get("src")
+                 or FakeEntry("")).get().strip()
+            if not p or not Path(p).exists():
+                continue
+            obraby = sorted(d for d in Path(p).iterdir() if d.is_dir())
+            for obr in obraby:
+                if not (list(obr.glob("*.DBF")) or list(obr.glob("*.dbf"))):
+                    continue
+                work = Path(tempfile.gettempdir()) / "forestly_preview" / obr.name
+                try:
+                    if not work.exists():
+                        shutil.copytree(obr, work)
+                    if typ == "HALIZNY":
+                        try:
+                            hp, _hn = generuj_halizny_txt(work, agencja=AGENCJA_NAGLOWKA)
+                        except TypeError:
+                            hp = generuj_halizny_txt(work)
+                        f = Path(hp) if hp else None
+                    else:
+                        out = generuj_wszystkie_po_przeniesieniu(
+                            work, agencja=AGENCJA_NAGLOWKA, tylko={f"{typ}.TXT"})
+                        f = Path(out[f"{typ}.TXT"]) if out.get(f"{typ}.TXT") else None
+                except Exception:
+                    continue
+                if f and f.exists() and f.stat().st_size >= 100:
+                    cache[typ] = (f, f"{obr.name} (z DBF)")
+                    return cache[typ]
+        return None, None
+
+    def get_margins_preview(self, typ, margins):
+        """HTML podglądu raportu nowym wyglądem z podanymi marginesami.
+
+        Frontend pokazuje go w <iframe> i odświeża po każdej zmianie
+        marginesu — bez generowania PDF, bez Worda.
+        """
+        from app.core import szablony
+        typ = str(typ or "OPTAX").upper()
+        if typ not in szablony.RENDERERY:
+            return {"ok": False, "error": f"Nieznany typ raportu: {typ}"}
+        txt, zrodlo = self._find_preview_txt(typ)
+        if not txt:
+            return {"ok": False, "error":
+                    f"Nie znalazłem pliku {typ}.TXT.\n"
+                    "Wskaż w kreatorze folder (źródłowy albo docelowy), "
+                    "w którym leżą pliki TXT — albo uruchom najpierw proces, "
+                    "a podgląd pokaże Twój dokument."}
+        obiekt, stan, okres = szablony.meta_z_pliku(txt)
+        mg = szablony._marginesy(_marginesy_z_slownika(margins), typ)
+        bez = False
+        if typ in szablony.USUWA_NAZWISKA:
+            try:
+                bez = bool((getattr(self, "remove_names_var", None) or FakeVar(False)).get()
+                           or (getattr(self, "ns_bez_nazwisk_var", None) or FakeVar(False)).get())
+            except Exception:
+                bez = False
+        try:
+            if typ == "WSKAZ1":
+                html = szablony.RENDERERY[typ](txt, obiekt, stan, okres=okres,
+                                               bez_nazwisk=bez, marginesy=mg)
+            elif typ == "WSK_ZB":
+                html = szablony.RENDERERY[typ](txt, obiekt, okres or stan,
+                                              bez_nazwisk=bez, marginesy=mg)
+            else:
+                html = szablony.RENDERERY[typ](txt, obiekt, stan,
+                                               bez_nazwisk=bez, marginesy=mg)
+        except Exception:
+            return {"ok": False, "error": traceback.format_exc(limit=1)}
+        return {"ok": True, "html": html, "poziom": typ in szablony.POZIOMO,
+                "zrodlo": zrodlo or ""}
 
     # ---------------------------------------------- układ PDF (kolejność)
 

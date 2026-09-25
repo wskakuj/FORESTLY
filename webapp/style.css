@@ -979,3 +979,32 @@ details.margins-details[open] > summary {
 .order-item[draggable="true"] { cursor: grab; }
 .order-item.dragging { opacity: .4; cursor: grabbing; }
 .order-item.drag-over { outline: 2px dashed var(--accent, #2dd4a7); outline-offset: -2px; }
+
+/* ---- podgląd marginesów — DOK po prawej (aplikacja się zwęża, nic nie zasłania) ---- */
+body.mp-open { --mp-w: min(600px, 55vw); padding-right: var(--mp-w); }
+body.mp-open #wizard { right: var(--mp-w); }
+.mp-dock {
+  position: fixed; top: 0; right: 0; bottom: 0;
+  width: var(--mp-w, 600px);
+  background: var(--panel-solid, #23262d);
+  border-left: 1px solid var(--border-strong, #444);
+  z-index: 350;                    /* nad kreatorem (300), pod modalami (400) */
+  display: flex; flex-direction: column;
+  padding: 14px 16px; gap: 8px;
+  animation: mpslide .18s ease-out;
+}
+@keyframes mpslide { from { transform: translateX(36px); opacity: 0; } }
+.mp-head { display: flex; align-items: center; gap: 10px; }
+.mp-head h3 { margin: 0; flex: 1 1 auto; font-size: 15px; }
+.mp-typ { padding: 6px 8px; border: 1px solid var(--border, #444);
+          border-radius: 6px; background: var(--bg2, #23262d);
+          color: inherit; font-size: 13px; max-width: 180px; }
+.mp-note { font-size: 11.5px; opacity: .75; line-height: 1.45; }
+.mp-sheet-wrap { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 6px; }
+.mp-sheet { box-shadow: 0 6px 22px rgba(0, 0, 0, .45);
+            background: #fff; transform-origin: top left; }
+.mp-sheet.loading { opacity: .35; }
+.mp-frame { display: block; border: 0; background: #fff; }
+.mp-error { font-size: 13px; line-height: 1.5; padding: 16px 12px;
+            border: 1px dashed #d83b01; border-radius: 8px; white-space: pre-wrap; }
+[data-theme="light"] .mp-typ { background: #fff; }

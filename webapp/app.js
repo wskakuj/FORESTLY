@@ -791,6 +791,130 @@ function applyGroupStates(c, grid) {
   });
 }
 
+/* ---------------------------------------------- podgląd marginesów (na żywo) */
+const MP_TYPY = ["OPTAX", "REJESTR1", "TAB_KLW3", "WSKAZ1", "WSK_ZB",
+                 "ZEST1", "HALIZNY", "WYK_NEG"];
+/* typ raportu -> wiersz tabeli marginesów (WSK_ZB drukuje się na marginesach Opisu) */
+const MP_WIERSZ = { WSK_ZB: "OPIS" };
+let MP_CLEANUP = null;
+
+function closeMarginsPreview() {
+  const d = document.getElementById("mp-dock");
+  if (d) d.remove();
+  document.body.classList.remove("mp-open");
+  if (MP_CLEANUP) { MP_CLEANUP(); MP_CLEANUP = null; }
+}
+
+/* Podgląd to DOK po prawej stronie okna — aplikacja (wraz z pełną tabelą
+   marginesów w kreatorze) przesuwa się w lewo, nic nie jest zasłonięte
+   ani ucięte. Edytuje się prawdziwą tabelę, podgląd odświeża się sam. */
+async function openMarginsPreview(cid, mode) {
+  closeMarginsPreview();
+  let typ = "OPTAX";
+  let timer = null;
+  let gen = 0;              /* numer żądania — ignorujemy odpowiedzi nieaktualne */
+
+  const dock = el("div", "mp-dock");
+  dock.id = "mp-dock";
+
+  const head = el("div", "mp-head");
+  head.appendChild(el("h3", null, "Podgląd marginesów"));
+  const sel = el("select", "mp-typ");
+  for (const t of MP_TYPY) {
+    const o = el("option", null, t);
+    o.value = t;
+    sel.appendChild(o);
+  }
+  sel.onchange = () => { typ = sel.value; schedule(); };
+  head.appendChild(sel);
+  const zamknij = el("button", "btn secondary small", "✕");
+  zamknij.title = "Zamknij podgląd";
+  zamknij.onclick = closeMarginsPreview;
+  head.appendChild(zamknij);
+  dock.appendChild(head);
+
+  const info = el("div", "mp-note",
+    "Zmieniaj marginesy w tabeli po lewej — podgląd odświeża się na żywo.");
+  dock.appendChild(info);
+
+  const wrap = el("div", "mp-sheet-wrap");
+  const sheet = el("div", "mp-sheet");
+  const frame = el("iframe", "mp-frame");
+  frame.setAttribute("title", "Podgląd dokumentu");
+  sheet.appendChild(frame);
+  wrap.appendChild(sheet);
+  dock.appendChild(wrap);
+
+  const errMsg = el("div", "mp-error hidden");
+  dock.appendChild(errMsg);
+
+  document.body.appendChild(dock);
+  document.body.classList.add("mp-open");
+
+  /* każde wpisanie w prawdziwej tabeli marginesów odświeża podgląd */
+  const onInput = e => {
+    if (e.target.closest && e.target.closest(`[data-cid="${cid}"]`)) schedule();
+  };
+  document.addEventListener("input", onInput);
+  MP_CLEANUP = () => document.removeEventListener("input", onInput);
+
+  function schedule() {
+    if (!document.getElementById("mp-dock")) { closeMarginsPreview(); return; }
+    clearTimeout(timer);
+    timer = setTimeout(refresh, 400);
+  }
+
+  async function refresh() {
+    if (document.getElementById("mp-dock") !== dock) return;  /* zamknięto */
+    const data = collectValues()[cid] || {};
+    const wiersz = MP_WIERSZ[typ] || typ;
+    const T = (data[wiersz] || {}).T || "1.5", B = (data[wiersz] || {}).B || "1.5",
+          L = (data[wiersz] || {}).L || "2.5", R = (data[wiersz] || {}).R || "1.5";
+    const moje = ++gen;
+    errMsg.classList.add("hidden");
+    sheet.classList.add("loading");
+    let r = null;
+    try { r = await api().get_margins_preview(typ, data); }
+    catch (e) { r = { ok: false, error: String(e) }; }
+    if (moje !== gen) return;                 /* przyszła nieaktualna odpowiedź */
+    if (!r.ok) {
+      sheet.classList.add("hidden");
+      errMsg.textContent = r.error || "Nie udało się przygotować podglądu.";
+      errMsg.classList.remove("hidden");
+      return;
+    }
+    sheet.classList.remove("hidden");
+    info.textContent = (r.zrodlo || "dokument przykładowy") +
+                       "  (" + typ + ", " + (r.poziom ? "poziomo" : "pionowo") + ")";
+    const szer = r.poziom ? 1123 : 794;       /* A4 w px przy 96 dpi */
+    sheet.style.width = szer + "px";
+    frame.style.width = szer + "px";
+    frame.style.height = "600px";
+    /* @page nie działa na ekranie — marginesy wstrzykujemy jako padding */
+    const css = `<style>
+      html, body { background: #fff !important; max-width: none !important;
+                  margin: 0 !important; padding: 0 !important; }
+      body { box-sizing: border-box !important;
+             padding: ${T}cm ${R}cm ${B}cm ${L}cm !important; }
+    </style>`;
+    frame.onload = () => {
+      try {
+        const h = frame.contentDocument.documentElement.scrollHeight;
+        frame.style.height = Math.max(h, 400) + "px";
+        const dostepne = wrap.clientWidth - 12;
+        const skala = Math.min(1, dostepne / szer);
+        sheet.style.transform = "scale(" + skala + ")";
+        sheet.style.transformOrigin = "top left";
+        sheet.style.marginBottom = (Math.max(h, 400) * (skala - 1)) + "px";
+      } catch (e) { /* srcdoc — ten sam origin */ }
+      sheet.classList.remove("loading");
+    };
+    frame.srcdoc = (r.html || "") + css;
+  }
+
+  refresh();
+}
+
 /* kontrolka: select */
 /* rozwijana lista z możliwością wpisania własnej wartości (woj./powiat/gmina).
    dlId — id ukrytego <datalist> jako źródła opcji (aktualizowanego przez wireTerritory) */
@@ -977,6 +1101,14 @@ function renderMargins(c) {
   }
   det.appendChild(table);
   wrap.appendChild(det);
+  /* podgląd na żywo — tylko tam, gdzie marginesy sterują nowymi szablonami */
+  if (c.mode === "ALL" || c.mode === "NS") {
+    const pv = el("button", "btn ghost small mp-open-btn");
+    pv.type = "button";
+    pv.textContent = "👁  Podgląd dokumentu z marginesami";
+    pv.onclick = () => openMarginsPreview(c.id, c.mode);
+    wrap.appendChild(pv);
+  }
   return wrap;
 }
 
