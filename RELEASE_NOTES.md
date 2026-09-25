@@ -1,3 +1,3 @@
-# Co nowego w v2.0.61
-- podglad
+# Co nowego w v2.0.62
+- fix
 

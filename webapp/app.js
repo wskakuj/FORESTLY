@@ -272,7 +272,7 @@ function showTab(key) {
     const g = active.closest(".nav-group");
     if (g) g.classList.remove("collapsed");
     active.scrollIntoView({ block: "nearest" });
-  }
+  }  mpMaybeClose();
 }
 
 function renderOneControl(c) {
@@ -426,7 +426,7 @@ function renderWizStep() {
   body.appendChild(st);
 
   const back = el("button", "btn secondary", "‹ Wstecz");
-  back.onclick = () => { if (WIZ.step > 0 && WIZ.step < 6) { WIZ.step--; renderWizStep(); } };
+  back.onclick = () => { if (WIZ.step > 0 && WIZ.step < 6) { WIZ.step--; renderWizStep(); mpMaybeClose(); } };
   const next = el("button", "btn primary wiz-big", "Dalej ›");
   const nav = document.createElement("div");
   nav.className = "wiz-nav";
@@ -595,6 +595,9 @@ function renderWizStep() {
   nav.appendChild(back);
   nav.appendChild(next);
   st.appendChild(nav);
+  /* podgląd marginesów żyje tylko przy widocznej tabeli marginesów —
+     zmiana kroku kreatora go zamyka */
+  mpMaybeClose();
 }
 
 /* koniec zadania w kroku postępu — ekran "Ukończono" */
@@ -828,19 +831,32 @@ const MP_TYPY = ["OPTAX", "REJESTR1", "TAB_KLW3", "WSKAZ1", "WSK_ZB",
 /* typ raportu -> wiersz tabeli marginesów (WSK_ZB drukuje się na marginesach Opisu) */
 const MP_WIERSZ = { WSK_ZB: "OPIS" };
 let MP_CLEANUP = null;
+let MP_CID = null;          /* cid tabeli marginesów, którą podgląd słucha */
 
 function closeMarginsPreview() {
   const d = document.getElementById("mp-dock");
   if (d) d.remove();
   document.body.classList.remove("mp-open");
   if (MP_CLEANUP) { MP_CLEANUP(); MP_CLEANUP = null; }
+  MP_CID = null;
+}
+
+/* zamyka podgląd, gdy tabela marginesów, której słucha, zniknęła z widoku
+   (zmiana kroku kreatora albo przejście do innej zakładki) */
+function mpMaybeClose() {
+  if (!document.getElementById("mp-dock")) return;
+  const t = MP_CID && document.querySelector(`[data-cid="${MP_CID}"]`);
+  if (!t || !t.offsetParent) closeMarginsPreview();
 }
 
 /* Podgląd to DOK po prawej stronie okna — aplikacja (wraz z pełną tabelą
    marginesów w kreatorze) przesuwa się w lewo, nic nie jest zasłonięte
    ani ucięte. Edytuje się prawdziwą tabelę, podgląd odświeża się sam. */
 async function openMarginsPreview(cid, mode) {
+  /* drugie kliknięcie tego samego przycisku = zamknięcie podglądu */
+  if (MP_CID === cid) { closeMarginsPreview(); return; }
   closeMarginsPreview();
+  MP_CID = cid;
   let typ = "OPTAX";
   let timer = null;
   let gen = 0;              /* numer żądania — ignorujemy odpowiedzi nieaktualne */
@@ -865,7 +881,9 @@ async function openMarginsPreview(cid, mode) {
   dock.appendChild(head);
 
   const info = el("div", "mp-note",
-    "Zmieniaj marginesy w tabeli po lewej — podgląd odświeża się na żywo.");
+    "Podgląd 1. strony A4 (tak, jak wyjdzie z druku). Zmieniaj marginesy " +
+    "w tabeli po lewej — podgląd odświeża się na żywo. " +
+    "Drugi raz kliknięty przycisk podglądu zamyka panel.");
   dock.appendChild(info);
 
   const wrap = el("div", "mp-sheet-wrap");
@@ -917,30 +935,31 @@ async function openMarginsPreview(cid, mode) {
     sheet.classList.remove("hidden");
     info.textContent = (r.zrodlo || "dokument przykładowy") +
                        "  (" + typ + ", " + (r.poziom ? "poziomo" : "pionowo") + ")";
+    /* podgląd JEDNEJ kartki A4 — dokładnie ta wielkość, co w druku;
+       treść poza pierwszą stroną jest przycięta, a marginesy (padding)
+       widać jako białe pole wokół treści */
     const szer = r.poziom ? 1123 : 794;       /* A4 w px przy 96 dpi */
+    const wys = r.poziom ? 794 : 1123;
     sheet.style.width = szer + "px";
+    sheet.style.height = wys + "px";
     frame.style.width = szer + "px";
-    frame.style.height = "600px";
-    /* @page nie działa na ekranie — marginesy wstrzykujemy jako padding */
+    frame.style.height = wys + "px";
     const css = `<style>
       html, body { background: #fff !important; max-width: none !important;
                   margin: 0 !important; padding: 0 !important; }
       body { box-sizing: border-box !important;
+             width: ${szer}px !important; height: ${wys}px !important;
+             overflow: hidden !important;
              padding: ${T}cm ${R}cm ${B}cm ${L}cm !important; }
     </style>`;
-    frame.onload = () => {
-      try {
-        const h = frame.contentDocument.documentElement.scrollHeight;
-        frame.style.height = Math.max(h, 400) + "px";
-        const dostepne = wrap.clientWidth - 12;
-        const skala = Math.min(1, dostepne / szer);
-        sheet.style.transform = "scale(" + skala + ")";
-        sheet.style.transformOrigin = "top left";
-        sheet.style.marginBottom = (Math.max(h, 400) * (skala - 1)) + "px";
-      } catch (e) { /* srcdoc — ten sam origin */ }
-      sheet.classList.remove("loading");
-    };
+    frame.onload = () => sheet.classList.remove("loading");
     frame.srcdoc = (r.html || "") + css;
+    const dostepne = wrap.clientWidth - 12;
+    const skala = Math.min(1, dostepne / szer);
+    sheet.style.transform = "scale(" + skala + ")";
+    sheet.style.transformOrigin = "top left";
+    /* po przeskalowaniu arkusz nie rezerwuje pełnej wysokości w doku */
+    sheet.style.marginBottom = (wys * (skala - 1)) + "px";
   }
 
   refresh();
