@@ -899,10 +899,10 @@ def html_skroty(docx_path, obiekt="", stan="", bez_nazwisk=False,
     inna (brak rozpoznanych sekcji) — zgłaszamy błąd i wywołujący ma wrócić
     do konwersji przez Worda.
 
-    pary — lista krotek indeksów sekcji, które mają iść razem na jedną
-    stronę (domyślnie po dwie kolejne: siedliska|drzewa,
-    drzewostan|wskazówki). Każda sekcja jest cała na jednej stronie —
-    patrz skroty_html_dopasowany, który dobiera pary pomiarem.
+    Układ: strony z PARAMI sekcji obok siebie w kolumnach
+    (siedliska|drzewa, drzewostan|wskazówki) — te dwie ostatnie ZAWSZE
+    razem na jednej stronie. Gdy para nie mieści się po nagłówku,
+    przechodzi w całości na kolejną stronę (break-inside: avoid).
     """
     sekcje = _skroty_sekcje(docx_path)
     if not sekcje:
@@ -924,87 +924,6 @@ def html_skroty(docx_path, obiekt="", stan="", bez_nazwisk=False,
                    marginesy=marginesy,
                    czcionki={"tytul": czc_tytul} if czc_tytul else None,
                    bez_obiektu=True)
-
-
-_SKROTY_DOPAS_CACHE = {}
-
-
-def skroty_html_dopasowany(docx_path, marginesy=None, czcionki=None):
-    """SKROTY z układem stron dobranym tak, by ŻADNA sekcja nie była
-    dzielona między strony (o ile w ogóle mieści się na jednej stronie).
-
-    Najpierw sonda: każda sekcja osobno, na szerokości kolumny, każda
-    od nowej strony — z licznikiem stron wiadomo, które mieszczą się
-    w całości. Sekcje spjęte w pary jadą parami (kolumny obok siebie),
-    a sekcja, która się nie mieści, dostaje własną stronę, żeby nie
-    ciągnąć za sobą drugiej kolumny (tej części, która się mieści).
-    Gdy sonda się nie uda (brak przeglądarki itp.) — układ domyślny.
-    """
-    import json
-    import tempfile
-    # pomiar (Chromium) trwa kilka sekund, a okno podglądu odpytuje
-    # wielokrotnie — cacheujemy ostatni wynik na (
-    # plik+mtime+czcionki+marginesy)
-    try:
-        _mt = os.path.getmtime(docx_path)
-    except OSError:
-        _mt = 0
-    _mg = marginesy or _DOMYSLNE_MARGINESY
-    _klucz = (str(docx_path), round(_mt, 3), json.dumps(czcionki, sort_keys=True),
-              tuple(_mg))
-    if _klucz in _SKROTY_DOPAS_CACHE:
-        return _SKROTY_DOPAS_CACHE[_klucz]
-    sekcje = _skroty_sekcje(docx_path)
-    if not sekcje:
-        raise ValueError(f"Nie rozpoznano sekcji skrótów w {docx_path}")
-    td_dekl, _ = _skroty_czcionki_dekl(czcionki)
-    t, r, b, l = _mg
-    # szerokość wnętrza kolumny (zapasowo węższa — jak prawa kolumna)
-    kol_mm = (210.0 - float(l) - float(r)) / 2.0 - 4.5
-    czesci = "".join(
-        f'<div class="sk-probe" style="width: {kol_mm:g}mm">'
-        + _skroty_kolumna(tytul, pary)
-        + f'<div class="sk-marker">SKPROBE{i}</div></div>'
-        for i, (tytul, pary) in enumerate(sekcje))
-    css = (_SKROTY_CSS.replace("__TD__", td_dekl)
-           + """
-  .sk-probe { break-before: page; break-after: page; break-inside: avoid; }
-  .sk-marker { font-size: 1pt; color: #fff; line-height: 1; }
-""")
-    probe = _strona("Wykaz skrótów i symboli", "", "", czesci,
-                    extra_css=css, marginesy=marginesy, bez_obiektu=True)
-    pary_idx = None
-    try:
-        from pypdf import PdfReader
-        with tempfile.TemporaryDirectory(prefix="forestly_sk_") as tmpd:
-            hp, pp = Path(tmpd) / "probe.html", Path(tmpd) / "probe.pdf"
-            hp.write_text(probe, encoding="utf-8")
-            html_na_pdf(hp, pp)
-            strony = [(pg.extract_text() or "").replace("\n", " ")
-                      for pg in PdfReader(str(pp)).pages]
-        koniec = []
-        for i in range(len(sekcje)):
-            zn = [k for k, s in enumerate(strony) if f"SKPROBE{i}" in s]
-            koniec.append(zn[-1] if zn else 0)
-        miesci, poprzed = [], 0
-        for k in range(len(sekcje)):
-            miesci.append(koniec[k] - poprzed <= 1)
-            poprzed = koniec[k]
-        pary_idx, i = [], 0
-        while i < len(sekcje):
-            if i + 1 < len(sekcje) and miesci[i] and miesci[i + 1]:
-                pary_idx.append((i, i + 1))
-                i += 2
-            else:
-                pary_idx.append((i,))
-                i += 1
-    except Exception:
-        pary_idx = None
-    html = html_skroty(docx_path, marginesy=marginesy, czcionki=czcionki,
-                       pary=pary_idx)
-    _SKROTY_DOPAS_CACHE.clear()          # wystarczy ostatni wynik
-    _SKROTY_DOPAS_CACHE[_klucz] = html
-    return html
 
 
 # --------------------------------------------------------------- HTML: strona tytułowa

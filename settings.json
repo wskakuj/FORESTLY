@@ -120,7 +120,7 @@
   "web.gdos_xlsx": "D:\\download\\Opera\\gdos_obszary.xlsx",
   "web.all_gen_opis_og": true,
   "web.all_gdos": "D:\\download\\gówno\\Nowy folder (20)\\Nowy folder",
-  "last_output_dir": "D:\\download\\gówno\\Nowy folder (20)\\Nowy folder",
+  "last_output_dir": "D:\\download\\gówno\\Nowy folder (20)\\Nowy folder\\PDF polaczone",
   "web.all_tpl_stan": "31.12.1997 r.",
   "web.all_tpl_okres": "01.01.2027 – 31.12.2036 r.",
   "web.all_wsk_od": "01.01.2027",
@@ -129,20 +129,21 @@
   "pdf_order.ALL": {
     "order": [
       "TITLE",
-      "WSKAZ1",
-      "OPTAX",
-      "REJESTR1",
-      "WSK_ZB",
       "OPIS",
       "TAB_KLW3",
+      "OPTAX",
+      "WSK_ZB",
       "WYK_NEG",
       "HALIZNY",
+      "REJESTR1",
       "ZEST1",
       "WK_ZM1",
       "SKROTY",
       "MAPA"
     ],
-    "excluded": []
+    "excluded": [
+      "WSKAZ1"
+    ]
   },
   "web.czcionki.ALL": {
     "REJESTR1": {
@@ -231,7 +232,7 @@
         "font": "Arial"
       },
       "tabela": {
-        "pt": 9.0,
+        "pt": 9.5,
         "font": "Arial"
       }
     }
@@ -239,20 +240,21 @@
   "pdf_order.PDF": {
     "order": [
       "TITLE",
-      "WSKAZ1",
-      "OPTAX",
-      "REJESTR1",
-      "WSK_ZB",
       "OPIS",
       "TAB_KLW3",
+      "OPTAX",
+      "WSK_ZB",
       "WYK_NEG",
       "HALIZNY",
+      "REJESTR1",
       "ZEST1",
       "WK_ZM1",
       "SKROTY",
       "MAPA"
     ],
-    "excluded": []
+    "excluded": [
+      "WSKAZ1"
+    ]
   },
   "web.all_pelny_opis_og": true,
   "web.all_krotki_opis_og": false,

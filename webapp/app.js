@@ -1140,11 +1140,25 @@ async function openMarginsPreview(cid, mode) {
   sel.onchange = () => { typ = sel.value; schedule(); };
   head.appendChild(sel);
   const drukuj = el("button", "btn secondary small", "Drukuj");
-  drukuj.title = "Wydrukuj jedną stronę testową — na aktualnych czcionkach i marginesach";
+  drukuj.title = "Wydrukuj aktualnie widoczną stronę — na bieżących czcionkach i marginesach";
   drukuj.onclick = () => {
     try {
       const doc = frame.contentDocument;
-      if (!doc || !doc.body || !doc.querySelector(".mp-page")) return;
+      if (!doc || !doc.body) return;
+      const strony = doc.querySelectorAll(".mp-page");
+      if (!strony.length) return;
+      /* drukujemy kartkę, którą użytkownik właśnie WIDZI w doku
+         (środek widocznego obszaru wskazuje numer strony) */
+      let sk = 1;
+      const mt = /scale\(([\d.]+)\)/.exec(sheet.style.transform || "");
+      if (mt) sk = parseFloat(mt[1]) || 1;
+      const wysStr = mpPoziom ? 794 : 1123;
+      const srodek = (wrap.scrollTop + wrap.clientHeight / 2) / sk;
+      let k = Math.floor(srodek / (wysStr + 18));
+      if (k < 0) k = 0;
+      if (k >= strony.length) k = strony.length - 1;
+      for (let i = 0; i < strony.length; i++)
+        strony[i].className = "mp-page" + (i === k ? " mp-drukuj" : "");
       let st = doc.getElementById("mp-print");
       if (!st) {
         st = doc.createElement("style"); st.id = "mp-print";
@@ -1152,7 +1166,8 @@ async function openMarginsPreview(cid, mode) {
       }
       st.textContent = "@page { size: A4 " + (mpPoziom ? "landscape" : "portrait")
                      + "; margin: 0 }"
-                     + " @media print { .mp-page + .mp-page { display: none } }";
+                     + " @media print { .mp-page { display: none }"
+                     + " .mp-page.mp-drukuj { display: block } }";
       frame.contentWindow.print();
     } catch (e) { /* iframe niedostępny */ }
   };
@@ -1322,6 +1337,92 @@ async function openMarginsPreview(cid, mode) {
         p.appendChild(w);
         document.body.appendChild(p);
       }
+      /* zwykły raport (bez .sk-strona): stronicujemy sami — mierzymy
+         wysokość treści w szerokości pola druku i łamiemy strony
+         na granicach wierszy tabel (nic nie jest przecięte w pół),
+         a potem każdą stronę pokazujemy jako osobną kartkę A4 */
+      function mpStronicuj(nodes) {
+        var PXCM = 96 / 2.54;
+
+        var W = Math.round(${szer} - (${L} + ${R}) * PXCM);
+        var H = Math.round(${wys} - (${T} + ${B}) * PXCM);
+        var mierz = document.createElement("div");
+        mierz.style.cssText = "position:absolute;top:0;left:0;visibility:hidden;pointer-events:none;width:" + W + "px;";
+        for (var i = 0; i < nodes.length; i++) mierz.appendChild(nodes[i]);
+        document.body.appendChild(mierz);
+        var baza = mierz.getBoundingClientRect().top;
+        function rect(e) { var r = e.getBoundingClientRect();
+          return { top: Math.round(r.top - baza) }; }
+        var calaWys = mierz.offsetHeight || H;
+        var wiersze = [];
+        var tabele = mierz.querySelectorAll("table");
+        for (var t = 0; t < tabele.length; t++) {
+          var rows = tabele[t].rows;
+          for (var i = 0; i < rows.length; i++)
+            wiersze.push({ top: rect(rows[i]).top, table: tabele[t] });
+        }
+        function theadWys(tb) { var th = tb.querySelector("thead");
+          return th ? Math.round(th.getBoundingClientRect().height) : 0; }
+        /* granice łamań stron: wiersze tabel + bloki + POCZĄTKI GRUP rowspan
+           (scalona komórka właściciela = w druku niepodzielny blok);
+           gdy tabela jest kontynuowana na stronie, druk powtarza jej
+           nagłówek — odejmujemy jego wysokość */
+        var kand = [0];
+        var els = mierz.querySelectorAll("tr,table,h1,h2,h3,p,div,li");
+        for (var i = 0; i < els.length; i++) kand.push(rect(els[i]).top);
+        var kandG = [];
+        for (var t2 = 0; t2 < tabele.length; t2++) {
+          var op = [];
+          var rr = tabele[t2].rows;
+          for (var i = 0; i < rr.length; i++) {
+            op = op.filter(function (o) { return o.to >= i; });
+            if (op.length === 0) { kandG.push(rect(rr[i]).top); op = []; }
+            for (var c = 0; c < rr[i].cells.length; c++) {
+              var rs2 = rr[i].cells[c].rowSpan || 1;
+              if (rs2 > 1) op.push({ to: i + rs2 - 1 });
+            }
+          }
+        }
+        kand = kand.concat(kandG);
+        kand.sort(function (x, y) { return x - y; });
+        var u = [kand[0]];
+        for (var i = 1; i < kand.length; i++)
+          if (kand[i] !== u[u.length - 1]) u.push(kand[i]);
+        var starts = [0], s = 0, guard = 0;
+        while (calaWys - s > H && starts.length < 60 && guard++ < 300) {
+          var avail = H;
+          for (var g = 0; g < wiersze.length; g++) {
+            if (wiersze[g].top >= s - 1 && wiersze[g].top <= s + 1) {
+              if (rect(wiersze[g].table).top < s - 1)
+                avail = H - theadWys(wiersze[g].table);
+              break;
+            }
+          }
+          var best = null;
+          var uG = kandG.slice().sort(function (x, y) { return x - y; });
+          for (var k = 0; k < uG.length; k++)
+            if (uG[k] > s && uG[k] <= s + avail) best = uG[k];
+          if (best === null)
+            for (var k = 0; k < u.length; k++)
+              if (u[k] > s && u[k] <= s + avail) best = u[k];
+          if (best === null)
+            for (var k2 = 0; k2 < u.length; k2++)
+              if (u[k2] > s) { best = u[k2]; break; }
+          if (best === null || best <= s) break;
+          starts.push(best); s = best;
+        }
+        for (var p = 0; p < starts.length; p++) {
+          var pg = document.createElement("div"); pg.className = "mp-page";
+          var win = document.createElement("div"); win.className = "mp-win";
+          var kl = mierz.cloneNode(true);
+          kl.style.cssText = "position:absolute;top:0;left:0;width:" + W +
+            "px;transform:translateY(-" + starts[p] + "px);";
+          win.appendChild(kl);
+          pg.appendChild(win);
+          document.body.appendChild(pg);
+        }
+        document.body.removeChild(mierz);
+      }
       function mpWrap() {
         if (document.body.getAttribute("data-mp") === "done") return;
         document.body.setAttribute("data-mp", "done");
@@ -1335,7 +1436,7 @@ async function openMarginsPreview(cid, mode) {
             pierwsza = i; break;
           }
         }
-        if (pierwsza < 0) { mpStrona(nodes); return; }
+        if (pierwsza < 0) { mpStronicuj(nodes); return; }
         /* dokument wielostronicowy (SKROTY): nagłówek + 1. układ sekcji
            na pierwszej kartce, każda kolejna .sk-strona — osobna kartka */
         mpStrona(nodes.slice(0, pierwsza + 1));

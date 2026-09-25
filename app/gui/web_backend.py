@@ -106,7 +106,7 @@ _PV_OKNO_HTML = """<!DOCTYPE html>
 <header>
   <strong>Podgląd</strong>
   <select id="typ"></select>
-  <button id="drukuj" title="Wydrukuj jedną stronę testową — na aktualnych czcionkach i marginesach">Drukuj</button>
+  <button id="drukuj" title="Wydrukuj aktualnie widoczną stronę — na bieżących czcionkach i marginesach">Drukuj</button>
   <span id="info"></span>
 </header>
 <div id="wrap"><div id="sheet"><iframe id="frame"></iframe></div></div>
@@ -165,34 +165,120 @@ _PV_OKNO_HTML = """<!DOCTYPE html>
         const css = "<style>html, body { background:#fff !important; " +
           "max-width:none !important; margin:0 !important; padding:0 " +
           "important; overflow:hidden !important; } " +
+          "body { --mp-w:" + Math.round(szer - (L + R) * 96 / 2.54) +
+          "px; --mp-h:" + Math.round(wys - (T + B) * 96 / 2.54) + "px; } " +
           ".mp-page { position:relative; width:" + szer + "px; height:" +
           wys + "px; margin:0 0 18px; } " +
           ".mp-page:last-child { margin-bottom:0; } " +
           ".mp-win { position:absolute; left:" + L + "cm; top:" + T + "cm; " +
           "right:" + R + "cm; bottom:" + B + "cm; overflow:hidden; } " +
           "</style>" +
-          "<scr" + "ipt>(function () { " +
-          "function mpStrona(dzieci) { " +
-          "var p = document.createElement('div'); p.className = 'mp-page'; " +
-          "var w = document.createElement('div'); w.className = 'mp-win'; " +
-          "for (var i = 0; i < dzieci.length; i++) w.appendChild(dzieci[i]); " +
-          "p.appendChild(w); document.body.appendChild(p); } " +
-          "function mpWrap() { " +
-          "if (document.body.getAttribute('data-mp') === 'done') return; " +
-          "document.body.setAttribute('data-mp', 'done'); " +
-          "var wszystkie = Array.prototype.slice.call(document.body.children); " +
-          "var nodes = wszystkie.filter(function (n) { " +
-          "return n.tagName !== 'STYLE' && n.tagName !== 'SCRIPT'; }); " +
-          "var pierwsza = -1; " +
-          "for (var i = 0; i < nodes.length; i++) { " +
-          "if (nodes[i].classList && nodes[i].classList.contains('sk-strona')) { " +
-          "pierwsza = i; break; } } " +
-          "if (pierwsza < 0) { mpStrona(nodes); return; } " +
-          "mpStrona(nodes.slice(0, pierwsza + 1)); " +
-          "for (var j = pierwsza + 1; j < nodes.length; j++) mpStrona([nodes[j]]); } " +
-          "if (document.readyState === 'loading') " +
-          "document.addEventListener('DOMContentLoaded', mpWrap); " +
-          "else mpWrap(); })();</scr" + "ipt>";
+          "<scr" + "ipt>" +
+          "(function () { " +
+          "  function mpStrona(dzieci) { " +
+          "    var p = document.createElement('div'); p.className = 'mp-page'; " +
+          "    var w = document.createElement('div'); w.className = 'mp-win'; " +
+          "    for (var i = 0; i < dzieci.length; i++) w.appendChild(dzieci[i]); " +
+          "    p.appendChild(w); document.body.appendChild(p); " +
+          "  } " +
+          "  function mpStronicuj(nodes) { " +
+          "    var cs = getComputedStyle(document.body); " +
+          "    var W = parseInt(cs.getPropertyValue('--mp-w')) || 600; " +
+          "    var H = parseInt(cs.getPropertyValue('--mp-h')) || 800; " +
+          "    var mierz = document.createElement('div'); " +
+          "    mierz.style.cssText = 'position:absolute;top:0;left:0;visibility:hidden;pointer-events:none;width:' + W + 'px;'; " +
+          "    for (var i = 0; i < nodes.length; i++) mierz.appendChild(nodes[i]); " +
+          "    document.body.appendChild(mierz); " +
+          "    var baza = mierz.getBoundingClientRect().top; " +
+          "    function rect(e) { var r = e.getBoundingClientRect(); " +
+          "      return { top: Math.round(r.top - baza) }; } " +
+          "    var calaWys = mierz.offsetHeight || H; " +
+          "    var wiersze = []; " +
+          "    var tabele = mierz.querySelectorAll('table'); " +
+          "    for (var t = 0; t < tabele.length; t++) { " +
+          "      var rows = tabele[t].rows; " +
+          "      for (var i = 0; i < rows.length; i++) " +
+          "        wiersze.push({ top: rect(rows[i]).top, table: tabele[t] }); " +
+          "    } " +
+          "    function theadWys(tb) { var th = tb.querySelector('thead'); " +
+          "      return th ? Math.round(th.getBoundingClientRect().height) : 0; } " +
+          "    var kand = [0]; " +
+          "    var els = mierz.querySelectorAll('tr,table,h1,h2,h3,p,div,li'); " +
+          "    for (var i = 0; i < els.length; i++) kand.push(rect(els[i]).top); " +
+          "    var kandG = []; " +
+          "    for (var t2 = 0; t2 < tabele.length; t2++) { " +
+          "      var op = []; " +
+          "      var rr = tabele[t2].rows; " +
+          "      for (var i = 0; i < rr.length; i++) { " +
+          "        op = op.filter(function (o) { return o.to >= i; }); " +
+          "        if (op.length === 0) { kandG.push(rect(rr[i]).top); op = []; } " +
+          "        for (var c = 0; c < rr[i].cells.length; c++) { " +
+          "          var rs2 = rr[i].cells[c].rowSpan || 1; " +
+          "          if (rs2 > 1) op.push({ to: i + rs2 - 1 }); " +
+          "        } " +
+          "      } " +
+          "    } " +
+          "    kand = kand.concat(kandG); " +
+          "    kand.sort(function (x, y) { return x - y; }); " +
+          "    var u = [kand[0]]; " +
+          "    for (var i = 1; i < kand.length; i++) " +
+          "      if (kand[i] !== u[u.length - 1]) u.push(kand[i]); " +
+          "    var starts = [0], s = 0, guard = 0; " +
+          "    while (calaWys - s > H && starts.length < 60 && guard++ < 300) { " +
+          "      var avail = H; " +
+          "      for (var g = 0; g < wiersze.length; g++) { " +
+          "        if (wiersze[g].top >= s - 1 && wiersze[g].top <= s + 1) { " +
+          "          if (rect(wiersze[g].table).top < s - 1) " +
+          "            avail = H - theadWys(wiersze[g].table); " +
+          "          break; " +
+          "        } " +
+          "      } " +
+          "      var best = null; " +
+          "      var uG = kandG.slice().sort(function (x, y) { return x - y; }); " +
+          "      for (var k = 0; k < uG.length; k++) " +
+          "        if (uG[k] > s && uG[k] <= s + avail) best = uG[k]; " +
+          "      if (best === null) " +
+          "        for (var k = 0; k < u.length; k++) " +
+          "          if (u[k] > s && u[k] <= s + avail) best = u[k]; " +
+          "      if (best === null) " +
+          "        for (var k2 = 0; k2 < u.length; k2++) " +
+          "          if (u[k2] > s) { best = u[k2]; break; } " +
+          "      if (best === null || best <= s) break; " +
+          "      starts.push(best); s = best; " +
+          "    } " +
+          "    for (var p = 0; p < starts.length; p++) { " +
+          "      var pg = document.createElement('div'); pg.className = 'mp-page'; " +
+          "      var win = document.createElement('div'); win.className = 'mp-win'; " +
+          "      var kl = mierz.cloneNode(true); " +
+          "      kl.style.cssText = 'position:absolute;top:0;left:0;width:' + W + " +
+          "        'px;transform:translateY(-' + starts[p] + 'px);'; " +
+          "      win.appendChild(kl); " +
+          "      pg.appendChild(win); " +
+          "      document.body.appendChild(pg); " +
+          "    } " +
+          "    document.body.removeChild(mierz); " +
+          "  } " +
+          "  function mpWrap() { " +
+          "    if (document.body.getAttribute('data-mp') === 'done') return; " +
+          "    document.body.setAttribute('data-mp', 'done'); " +
+          "    var wszystkie = Array.prototype.slice.call(document.body.children); " +
+          "    var nodes = wszystkie.filter(function (n) { " +
+          "      return n.tagName !== 'STYLE' && n.tagName !== 'SCRIPT'; " +
+          "    }); " +
+          "    var pierwsza = -1; " +
+          "    for (var i = 0; i < nodes.length; i++) { " +
+          "      if (nodes[i].classList && nodes[i].classList.contains('sk-strona')) { " +
+          "        pierwsza = i; break; " +
+          "      } " +
+          "    } " +
+          "    if (pierwsza < 0) { mpStronicuj(nodes); return; } " +
+          "    mpStrona(nodes.slice(0, pierwsza + 1)); " +
+          "    for (var j = pierwsza + 1; j < nodes.length; j++) mpStrona([nodes[j]]); " +
+          "  } " +
+          "  if (document.readyState === 'loading') " +
+          "    document.addEventListener('DOMContentLoaded', mpWrap); " +
+          "  else mpWrap(); " +
+          "})(); " + "</scr" + "ipt>";
         const fr = document.getElementById("frame");
         fr.onload = function () {
           try {
@@ -213,7 +299,23 @@ _PV_OKNO_HTML = """<!DOCTYPE html>
     var fr = document.getElementById("frame");
     try {
       var doc = fr.contentDocument;
-      if (!doc || !doc.body || !doc.querySelector(".mp-page")) return;
+      if (!doc || !doc.body) return;
+      var strony = doc.querySelectorAll(".mp-page");
+      if (!strony.length) return;
+      /* drukujemy kartkę, którą użytkownik właśnie WIDZI w oknie
+         (środek widocznego obszaru wskazuje numer strony) */
+      var w = document.getElementById("wrap");
+      var sh = document.getElementById("sheet");
+      var sk = 1;
+      var mt = /scale\\(([\\d.]+)\\)/.exec(sh.style.transform || "");
+      if (mt) sk = parseFloat(mt[1]) || 1;
+      var wysStr = poziom ? 794 : 1123;
+      var srodek = (w.scrollTop + w.clientHeight / 2) / sk;
+      var k = Math.floor(srodek / (wysStr + 18));
+      if (k < 0) k = 0;
+      if (k >= strony.length) k = strony.length - 1;
+      for (var i = 0; i < strony.length; i++)
+        strony[i].className = "mp-page" + (i === k ? " mp-drukuj" : "");
       var st = doc.getElementById("mp-print");
       if (!st) {
         st = doc.createElement("style"); st.id = "mp-print";
@@ -221,7 +323,8 @@ _PV_OKNO_HTML = """<!DOCTYPE html>
       }
       st.textContent = "@page { size: A4 " + (poziom ? "landscape" : "portrait")
                      + "; margin: 0 }"
-                     + " @media print { .mp-page + .mp-page { display: none } }";
+                     + " @media print { .mp-page { display: none }"
+                     + " .mp-page.mp-drukuj { display: block } }";
       fr.contentWindow.print();
     } catch (e) { /* okno się zamyka */ }
   };
@@ -1423,8 +1526,7 @@ class WebBackend(
             cz = (czcionki or {}).get("SKROTY") if isinstance(czcionki, dict) else None
             mg = szablony._marginesy(_marginesy_z_slownika(margins), "SKROTY")
             try:
-                html = szablony.skroty_html_dopasowany(
-                    sk, czcionki=cz, marginesy=mg)
+                html = szablony.html_skroty(sk, czcionki=cz, marginesy=mg)
             except Exception:
                 return {"ok": False, "error": traceback.format_exc(limit=1)}
             return {"ok": True, "html": html, "poziom": False,
