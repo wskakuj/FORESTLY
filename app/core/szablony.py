@@ -472,7 +472,7 @@ def _css_czcionek(cz):
 
 def _strona(tytul, obiekt, stan, tresc, extra_css="", poziom=False,
             marginesy=None, agencja="AGENCJA „CEZAR”", tytul2="",
-            czcionki=None):
+            czcionki=None, bez_obiektu=False):
     t, r, b, l = marginesy or _DOMYSLNE_MARGINESY
     orient = "@page { size: A4 landscape; }" if poziom else ""
     page = f"@page {{ size: A4; margin: {t}cm {r}cm {b}cm {l}cm; }}"
@@ -485,7 +485,7 @@ def _strona(tytul, obiekt, stan, tresc, extra_css="", poziom=False,
 <div class="hdr">
   <div class="agencja">{agencja}</div>
   <h1>{tytul}{('<br>' + tytul2) if tytul2 else ''}</h1>
-  <div class="meta">Obiekt: <b>{obiekt}</b>{(" &nbsp;—&nbsp; Stan na: <b>" + stan + "</b>") if stan else ""}</div>
+  {"" if bez_obiektu else f'<div class="meta">Obiekt: <b>{obiekt}</b>{(" &nbsp;—&nbsp; Stan na: <b>" + stan + "</b>") if stan else ""}</div>'}
 </div>
 {tresc}
 </body></html>"""
@@ -856,40 +856,65 @@ def html_skroty(docx_path, obiekt="", stan="", bez_nazwisk=False,
     sekcje = _skroty_sekcje(docx_path)
     if not sekcje:
         raise ValueError(f"Nie rozpoznano sekcji skrótów w {docx_path}")
-    # sekcje w DWÓCH KOLUMNACH obok siebie (jak w starym wydaniu):
-    # np. "Symbole siedliskowych typów lasu" obok "Symbole nazw drzew",
-    # dalej "Skróty w opisie drzewostanu" obok "Skróty we wskazówkach" —
-    # kolumny rozdziela pionowa kreska
-    kolumny = ([], [])
-    for i, (tytul, pary) in enumerate(sekcje):
-        tr = "".join(
-            f'<tr><td class="sk">{_e(skr)}</td><td>{_e(zn)}</td></tr>'
-            for skr, zn in pary)
-        kolumny[i % 2].append(f'<h2>{_e(tytul)}</h2>'
-                              f'<table class="skroty"><tbody>{tr}</tbody></table>')
-    czesci = ['<div class="sk-dwie">'
-              '<div class="sk-kol">' + "".join(kolumny[0]) + '</div>'
-              '<div class="sk-kol sk-kol-prawa">' + "".join(kolumny[1]) +
-              '</div></div>']
+    # każda PARA sekcji dostaje WŁASNĄ STRONĘ — cała tabela zawsze mieści
+    # się w całości na jednej stronie (nic nie przechodzi na kolejną):
+    # strona 1: siedliskowe typy lasu | nazwy drzew,
+    # strona 2: skróty w opisie drzewostanu | wskazówki gospodarcze.
+    # Kolumny rozdziela pionowa kreska.
+    strony = []
+    for i in range(0, len(sekcje), 2):
+        komorki = []
+        for tytul, pary in sekcje[i:i + 2]:
+            tr = "".join(
+                f'<tr><td class="sk">{_e(skr)}</td><td>{_e(zn)}</td></tr>'
+                for skr, zn in pary)
+            komorki.append('<div class="sk-kol">'
+                           f'<h2>{_e(tytul)}</h2>'
+                           f'<table class="skroty"><tbody>{tr}</tbody></table>'
+                           '</div>')
+        prawa = komorki[1] if len(komorki) > 1 else ""
+        if prawa:
+            prawa = prawa.replace('class="sk-kol"', 'class="sk-kol sk-prawa"', 1)
+        strony.append('<div class="sk-strona">' + komorki[0] + prawa + '</div>')
+    czesci = strony
+    # czcionka tekstu tabel (wiersz SKROTY w kreatorze) — domyślnie 8,4 pt
+    czc = czcionki if isinstance(czcionki, dict) else {}
+    tcz = czc.get("tabela") if isinstance(czc.get("tabela"), dict) else {}
+    td_dekl = "font-size: 8.4pt"
+    try:
+        if tcz.get("pt") is not None:
+            td_dekl = f"font-size: {float(tcz['pt']):g}pt"
+    except (TypeError, ValueError):
+        pass
+    fam = str(tcz.get("font") or "").replace("'", "").strip()
+    if fam:
+        td_dekl += f"; font-family: '{fam}', Arial, sans-serif"
     extra_css = """
   h2 { font-size: 9.6pt; text-transform: uppercase; letter-spacing: .8px;
-       color: #1f3d2b; margin: 5.2mm 0 1.6mm; padding-bottom: .9mm;
+       color: #1f3d2b; margin: 3.5mm 0 1.2mm; padding-bottom: .7mm;
        border-bottom: 1pt solid #1f3d2b; font-weight: 700; }
   h2:first-child { margin-top: 0; }
   table.skroty { border-collapse: collapse; width: 100%; margin: 0 0 2mm; }
-  table.skroty td { border: 0; padding: 1.05mm 3mm; font-size: 8.4pt;
+  table.skroty td { border: 0; padding: .5mm 2.6mm; __TD__;
+                    line-height: 1.12;
                     border-bottom: .3pt solid #d8d8d8; }
   table.skroty tr:nth-child(even) td { background: #f4f6f4; }
   table.skroty td.sk { font-weight: 600; text-align: center; min-width: 12mm;
                        white-space: nowrap; }
   table.skroty tr:last-child td { border-bottom: .5pt solid #999; }
-  .sk-dwie { display: table; width: 100%; table-layout: fixed; }
+  .sk-strona { display: table; width: 100%; table-layout: fixed;
+               break-after: page; }
+  .sk-strona:last-child { break-after: auto; }
   .sk-kol { display: table-cell; vertical-align: top; padding-right: 4mm; }
-  .sk-kol-prawa { border-left: .6pt solid #9aa89b; padding-right: 0;
-                  padding-left: 4.5mm; }
+  .sk-prawa { border-left: .6pt solid #9aa89b; padding-left: 4.5mm;
+              padding-right: 0; }
 """
+    extra_css = extra_css.replace("__TD__", td_dekl)
+    _czc_tytul = czc.get("tytul") if isinstance(czc.get("tytul"), dict) else None
     return _strona("Wykaz skrótów i symboli", obiekt, stan, "".join(czesci),
-                   extra_css=extra_css, marginesy=marginesy, czcionki=czcionki)
+                   extra_css=extra_css, marginesy=marginesy,
+                   czcionki={"tytul": _czc_tytul} if _czc_tytul else None,
+                   bez_obiektu=True)
 
 # --------------------------------------------------------------- HTML: strona tytułowa
 

@@ -128,7 +128,6 @@
   "web.nowe_szablony": true,
   "pdf_order.ALL": {
     "order": [
-      "MAPA",
       "TITLE",
       "WSKAZ1",
       "OPTAX",
@@ -140,7 +139,8 @@
       "HALIZNY",
       "ZEST1",
       "WK_ZM1",
-      "SKROTY"
+      "SKROTY",
+      "MAPA"
     ],
     "excluded": []
   },
@@ -157,8 +157,8 @@
     },
     "OPTAX": {
       "tytul": {
-        "pt": 14.0,
-        "font": "Arial"
+        "pt": 12.0,
+        "font": ""
       },
       "tabela": {
         "pt": 8.6,
@@ -224,11 +224,20 @@
         "pt": 8.6,
         "font": ""
       }
+    },
+    "SKROTY": {
+      "tytul": {
+        "pt": 13.0,
+        "font": "Arial"
+      },
+      "tabela": {
+        "pt": 9.0,
+        "font": "Arial"
+      }
     }
   },
   "pdf_order.PDF": {
     "order": [
-      "MAPA",
       "TITLE",
       "WSKAZ1",
       "OPTAX",
@@ -240,14 +249,15 @@
       "HALIZNY",
       "ZEST1",
       "WK_ZM1",
-      "SKROTY"
+      "SKROTY",
+      "MAPA"
     ],
     "excluded": []
   },
   "web.all_pelny_opis_og": true,
   "web.all_krotki_opis_og": false,
   "web.all_obie_wersje": true,
-  "web.all_mapa": "D:\\download\\gówno\\Nowy folder (20)\\Nowy folder",
+  "web.all_mapa": "C:\\Users\\niepy\\AppData\\Local\\Temp\\forestly_mapy",
   "web.ns_src": "",
   "web.ns_dst": "",
   "web.ns_bez_nazwisk": true,
@@ -264,8 +274,8 @@
     },
     "OPTAX": {
       "tytul": {
-        "pt": 14.0,
-        "font": "Arial"
+        "pt": 12.0,
+        "font": ""
       },
       "tabela": {
         "pt": 8.6,
@@ -330,6 +340,16 @@
       "tabela": {
         "pt": 8.6,
         "font": ""
+      }
+    },
+    "SKROTY": {
+      "tytul": {
+        "pt": 13.0,
+        "font": "Arial"
+      },
+      "tabela": {
+        "pt": 9.0,
+        "font": "Arial"
       }
     }
   },

@@ -912,6 +912,7 @@ class TabAllMixin:
             def _dwa_przebiegi():
                 self._dwie_wersje_aktywne = True
                 try:
+                    self._przebieg_etykieta = "Przebieg 1/2 — Z NAZWISKAMI"
                     self.log("[OBIE WERSJE] Przebieg 1/2: REJESTR z pełnymi "
                              "nazwiskami → 'Z nazwiskami'.")
                     self.run_logic_thread(src_path, str(dst_root / "Z nazwiskami"),
@@ -923,6 +924,7 @@ class TabAllMixin:
                         self.log("[OBIE WERSJE] Przerwano — drugi przebieg "
                                  " ('Bez nazwisk') już się nie wykona.")
                         return
+                    self._przebieg_etykieta = "Przebieg 2/2 — BEZ NAZWISK"
                     self.log("[OBIE WERSJE] Przebieg 2/2: REJESTR bez nazwisk "
                              "→ 'Bez nazwisk'.")
                     self.run_logic_thread(src_path, str(dst_root / "Bez nazwisk"),
@@ -930,6 +932,7 @@ class TabAllMixin:
                                           nowe_szablony_flag)
                 finally:
                     self._dwie_wersje_aktywne = False
+                    self._przebieg_etykieta = ""
                     self.running = False
                     self.after(0, self.restore_all_buttons)
 
@@ -1301,7 +1304,7 @@ class TabAllMixin:
         except Exception as e:
             if Path(img_path).suffix.lower() not in (".tif", ".tiff"):
                 raise
-            self.log(f"[MAPA] Pillow nie czyta tego TIFF-a ({e}) — "
+            self.log("[MAPA] Pillow nie czyta tego TIFF-a — "
                      "próbuję przez składnik Windows (GDI+)...")
         import tempfile
         with tempfile.TemporaryDirectory(prefix="forestly_gdi_") as tmp:
@@ -1436,17 +1439,23 @@ class TabAllMixin:
             domyslne = get_resource_path("Skroty.docx")
         return str(domyslne) if domyslne.exists() else None
 
-    def _inject_skroty_step(self, pdf_dir):
+    def _inject_skroty_step(self, pdf_dir, mode="ALL"):
         """Dołącza 'Skróty i symbole' (skroty.pdf) do każdego folderu z PDF-ami."""
         skroty_path = self._resolve_skroty_path()
         if skroty_path and Path(skroty_path).exists():
-            c = self.task_inject_skroty(pdf_dir, skroty_path)
+            # czcionki skrótów z kreatora (wiersz SKROTY); NS bierze swoje,
+            # a gdy ich nie ma — wspólne ALL
+            _czc = self.get_setting(f"web.czcionki.{mode}", None)
+            if not isinstance(_czc, dict):
+                _czc = self.get_setting("web.czcionki.ALL", None)
+            _sk = _czc.get("SKROTY") if isinstance(_czc, dict) else None
+            c = self.task_inject_skroty(pdf_dir, skroty_path, czcionki=_sk)
             self.log(f"[SKROTY] Dodano plik do {c} folderów wsi.")
             return c
         self.log("[UWAGA] Nie znaleziono pliku ze skrótami (ani domyślnego, ani własnego). Pomijam.")
         return 0
 
-    def task_inject_skroty(self, pdf_dir, skroty_source_path):
+    def task_inject_skroty(self, pdf_dir, skroty_source_path, czcionki=None):
         pdf_dir = Path(pdf_dir)
         skroty_source_path = Path(skroty_source_path)
 
@@ -1469,8 +1478,10 @@ class TabAllMixin:
                 from app.core import szablony as _sz
                 with tempfile.TemporaryDirectory(prefix="forestly_skroty_") as _tmp:
                     _hp = Path(_tmp) / "skroty.html"
-                    _hp.write_text(_sz.html_skroty(skroty_source_path),
-                                   encoding="utf-8")
+                    _hp.write_text(_sz.html_skroty(
+                        skroty_source_path,
+                        czcionki=czcionki if isinstance(czcionki, dict) else None),
+                        encoding="utf-8")
                     temp_skroty_pdf = Path(tempfile.gettempdir()) / "skroty_temp.pdf"
                     _sz.html_na_pdf(_hp, temp_skroty_pdf)
                 skroty_pdf_to_copy = temp_skroty_pdf
@@ -1725,7 +1736,7 @@ class TabAllMixin:
 
                     # === WSTRZYKIWANIE SKROTÓW (ZAWSZE WŁĄCZONE) ===
                 self.update_status("Dołączanie 'Skrótów i symboli' do pakietów...", "#0078D7")
-                self._inject_skroty_step(dir_03)
+                self._inject_skroty_step(dir_03, mode)
 
                 # === MAPY (opcjonalnie): folder/przeciągnięte, dopasowanie po nazwie wsi ===
                 _me = getattr(self, "all_mapa_entry", None)
@@ -1870,7 +1881,7 @@ class TabAllMixin:
                         self.update_status(
                             "ETAP 2/4: Dołączanie 'Skrótów i symboli'", "#0078D7"
                         )
-                        self._inject_skroty_step(dir_03)
+                        self._inject_skroty_step(dir_03, mode)
                         self.set_progress(0.5)
                     self.check_stop()
                     self.update_status(

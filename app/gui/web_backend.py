@@ -623,6 +623,10 @@ class WebBackend(
         self._emit({"type": "clear_log"})
 
     def update_status(self, text, color="#0078D7", animate=True):
+        # przy "obu wersjach" pasek statusu mówi, który przebieg trwa
+        et = getattr(self, "_przebieg_etykieta", "")
+        if et:
+            text = f"{et} · {text}"
         self._emit({"type": "status", "text": str(text), "color": color})
 
     def set_progress(self, value, current_file=None, current=None,

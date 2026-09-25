@@ -65,7 +65,7 @@ def _margins(mode):
 
 # typy raportów nowego wyglądu + lista czcionek do wyboru
 CZCIONKI_TYPY = ["REJESTR1", "OPTAX", "TAB_KLW3", "WSKAZ1", "WSK_ZB",
-                 "ZEST1", "HALIZNY", "WYK_NEG"]
+                 "ZEST1", "HALIZNY", "WYK_NEG", "SKROTY"]
 CZCIONKI_LISTA = ["", "Arial", "Times New Roman", "Calibri", "Verdana",
                   "Tahoma", "Georgia", "Trebuchet MS", "Courier New"]
 
@@ -75,9 +75,10 @@ def _czcionki(mode):
             "types": CZCIONKI_TYPY, "fonts": CZCIONKI_LISTA,
             "tooltip": ("Rozmiar (pt) i rodzaj czcionki — osobno dla tytułu "
                         "dokumentu i osobno dla tekstu w tabelach, dla każdego "
-                        "typu raportu. Nazwa obiektu, \"Stan na\" i AGENCJA "
-                        "zostają bez zmian. Domyślne wartości (tytuł 12 pt, "
-                        "tabela 8,6 pt) zachowują dzisiejszy wygląd.")}
+                        "typu raportu oraz wykazu skrótów i symboli "
+                        "(SKROTY — tam tabela ma 8,4 pt). Nazwa obiektu, "
+                        "\"Stan na\" i AGENCJA zostają bez zmian. "
+                        "Domyślne wartości zachowują dzisiejszy wygląd.")}
 
 
 def _button(bid, label, task, style="primary", tooltip=""):
