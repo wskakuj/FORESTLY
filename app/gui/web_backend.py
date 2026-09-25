@@ -252,6 +252,41 @@ _PV_OKNO_HTML = """<!DOCTYPE html>
           "      var kl = mierz.cloneNode(true); " +
           "      kl.style.cssText = 'position:absolute;top:0;left:0;width:' + W + " +
           "        'px;transform:translateY(-' + starts[p] + 'px);'; " +
+          "      /* kontynuacja tabeli: naglowek (thead) powtorzony u gory strony " +
+          "         jak przy wydruku — tresc strony jest nizej o jego wysokosc */ " +
+          "      if (p > 0) { " +
+          "        for (var g = 0; g < wiersze.length; g++) { " +
+          "          if (wiersze[g].top >= starts[p] - 1 && wiersze[g].top <= starts[p] + 1) { " +
+          "            var tb = wiersze[g].table; " +
+          "            if (rect(tb).top < starts[p] - 1) { " +
+          "              var th = tb.querySelector('thead'); " +
+          "              if (th) { " +
+          "                var hw = theadWys(tb); " +
+          "                var tc = tb.cloneNode(false); " +
+          "                tc.appendChild(th.cloneNode(true)); " +
+          "                var tbr = tb.getBoundingClientRect(); " +
+          "                var mbr = mierz.getBoundingClientRect(); " +
+          "                tc.style.cssText += 'position:absolute;top:0;left:' + " +
+          "                  Math.round(tbr.left - mbr.left) + 'px;width:' + " +
+          "                  Math.round(tbr.width) + 'px;table-layout:fixed;' + " +
+          "                  'margin:0;background:#fff;z-index:5;'; " +
+          "                var zr = th.querySelectorAll('tr'); " +
+          "                var nr = tc.querySelectorAll('tr'); " +
+          "                for (var r2 = 0; r2 < zr.length; r2++) { " +
+          "                  var zc = zr[r2].cells, ncl = nr[r2] ? nr[r2].cells : []; " +
+          "                  for (var c2 = 0; c2 < zc.length; c2++) " +
+          "                    if (ncl[c2]) ncl[c2].style.width = " +
+          "                      Math.round(zc[c2].getBoundingClientRect().width) + 'px'; " +
+          "                } " +
+          "                win.appendChild(tc); " +
+          "                kl.style.transform = 'translateY(-' + starts[p] + " +
+          "                  'px) translateY(' + hw + 'px)'; " +
+          "              } " +
+          "            } " +
+          "            break; " +
+          "          } " +
+          "        } " +
+          "      } " +
           "      win.appendChild(kl); " +
           "      pg.appendChild(win); " +
           "      document.body.appendChild(pg); " +
@@ -627,7 +662,7 @@ class WebBackend(
             if kind == "group":
                 self._fakes_for_controls(c.get("controls") or [])
                 continue
-            if kind in ("path", "text"):
+            if kind in ("path", "text", "textarea"):
                 val = self.get_setting(f"web.{c['id']}", c.get("default", "") or "")
                 self._set_fake(c["attr"], FakeEntry(val))
             elif kind == "check":
@@ -639,7 +674,12 @@ class WebBackend(
                     var = FakeVar(choice == "Wszystkie")
                     self._set_fake(f"{base}.{choice}", var)
             elif kind == "select":
-                self._set_fake(c["attr"], FakeVar(c.get("default", "")))
+                # zapamiętany wybór (np. kategoria zagrożenia, tabela
+                # siedliskowa) przeżywa restart programu
+                val = self.get_setting(f"web.{c['id']}", c.get("default", ""))
+                if isinstance(val, list):
+                    val = val[0] if val else c.get("default", "")
+                self._set_fake(c["attr"], FakeVar(val))
             elif kind == "margins":
                 mode = c["mode"]
                 saved = load_margins().get(mode, {})
@@ -703,7 +743,7 @@ class WebBackend(
             if not c:
                 continue
             kind = c["kind"]
-            if kind in ("path", "text"):
+            if kind in ("path", "text", "textarea"):
                 self._get_fake(c["attr"]).set(val)
             elif kind == "check":
                 self._get_fake(c["attr"]).set(bool(val))

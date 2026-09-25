@@ -104,8 +104,47 @@ class TabWordMixin:
         selected_filters = normalize_filter_selection(file_filter)
         if "WSZYSTKIE" not in selected_filters:
             files = [f for f in files if f.stem.upper() in selected_filters]
+
+        # Nie wciągamy plików z folderów WYNIKOWYCH poprzednich przebiegów,
+        # które leżą w drzewie źródłowym (np. stare 'TXT', 'PDF', 'Word') —
+        # inaczej trafiają do wydruków jako dodatkowy folder "wsi".
+        _WYNIKOWE = {"TXT", "WORD", "PDF", "PDF POLACZONE",
+                     "PDF BEZ PUSTYCH STRON", "Z NAZWISKAMI", "BEZ NAZWISK"}
+        _pomijane = [f for f in files
+                     if any(_p.upper() in _WYNIKOWE
+                            for _p in f.relative_to(in_dir).parts[:-1])]
+        if _pomijane:
+            self.log(f"[TXT] Pomijam {len(_pomijane)} plik(ów) z folderów "
+                     f"wynikowych (TXT/PDF/Word) znalezionych w źródle.")
+            files = [f for f in files if f not in set(_pomijane)]
+
+        # Struktura mietka to <wieś>/PLIK.TXT albo <wieś>/<obręb>.001/PLIK.TXT
+        # (ew. PLIK.TXT, gdy wskazano samą wieś / obręb). TXT-y zagnieżdżone
+        # głębiej to zapasowe kopie po starych biegach (np. "<wieś>/Nowy
+        # folder/") — nie mogą wejść do wydruków jako osobny pakiet "wsi".
+        _glebokie = []
+        for _f in files:
+            _czesci = _f.relative_to(in_dir).parts
+            _ok = (len(_czesci) <= 2
+                   or (len(_czesci) == 3
+                       and (_czesci[1].upper().startswith("WOL")
+                            or _czesci[1].lower().endswith(".001"))))
+            if not _ok:
+                _glebokie.append(_f)
+        if _glebokie:
+            _przykl = ", ".join(sorted({f.parent.name for f in _glebokie})[:4])
+            self.log(f"[TXT] Pomijam {len(_glebokie)} plik(ów) TXT leżących "
+                     f"głębiej niż folder wsi/.001 (folder {_przykl}) — "
+                     f"zapasowe kopie po starych biegach.")
+            files = [f for f in files if f not in set(_glebokie)]
         if not files:
             return 0
+
+        # Zapamiętujemy ORYGINALNE położenie każdego TXT-a — po biegu
+        # wyczyszczone pliki wracają DOKŁADNIE tam, skąd przyszły
+        # (czyli do folderu .001 obok DBF-ów), a nie obok niego.
+        txt_map = {}
+        self._txt_map = txt_map
 
         count = 0
         total = len(files)
@@ -117,6 +156,15 @@ class TabWordMixin:
             rel_path = f.relative_to(in_dir)
             flat_rel_path = flatten_rel_path(rel_path)
             target = out_dir / flat_rel_path
+            from pathlib import Path as _P
+            klucz = os.path.abspath(str(target))
+            stary = txt_map.get(klucz)
+            # gdy ten sam wydruk leży i w .001, i w folderze wsi — wraca do .001
+            def _w001(sciezka):
+                return any(c.lower().endswith(".001")
+                           for c in _P(sciezka).parts)
+            if stary is None or (_w001(f) and not _w001(stary)):
+                txt_map[klucz] = os.path.abspath(str(f))
             target.parent.mkdir(parents=True, exist_ok=True)
             try:
                 with open(f, "rb") as file:

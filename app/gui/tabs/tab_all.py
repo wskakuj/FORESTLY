@@ -728,6 +728,39 @@ class TabAllMixin:
         if self.all_tpl_gmina_var.get() not in lista:
             self.all_tpl_gmina_var.set(lista[0])
 
+    def _og_ustawienia(self):
+        """Edytowalne sekcje opisu ogólnego z kreatora 1-Click.
+
+        Teksty '1. NADZÓR' i '2. WARUNKI PRZYRODNICZE', kategoria zagrożenia
+        pożarowego (I/II/III) i wariant tabeli siedliskowej (mazowiecka/
+        wielkopolska). Brak pól (klasyczne GUI) => wartości domyślne
+        zdefiniowane w tab_opis_og.
+        """
+        from app.gui.tabs import tab_opis_og as _oog
+
+        def _txt(attr, dflt):
+            e = getattr(self, attr, None)
+            try:
+                v = e.get().strip() if e is not None else ""
+            except Exception:
+                v = ""
+            return v if v else dflt
+
+        def _sel(attr, dflt):
+            e = getattr(self, attr, None)
+            try:
+                v = (e.get() or "").strip() if e is not None else ""
+            except Exception:
+                v = ""
+            return v if v else dflt
+
+        return {
+            "nadzor": _txt("all_og_nadzor_entry", _oog.OG_NADZOR_DOMYSLNY),
+            "warunki": _txt("all_og_warunki_entry", _oog.OG_WARUNKI_DOMYSLNE),
+            "kategoria": _sel("all_og_kategoria_var", "I"),
+            "tabela": _sel("all_og_tabela_var", "mazowiecka"),
+        }
+
     def _zbuduj_szablon_str_tyt_dla_all(self):
         """Buduje tymczasowy szablon STR_TYT z ustawień kreatora w 1-Click."""
         def _v(attr, default=""):
@@ -1065,6 +1098,7 @@ class TabAllMixin:
                     word_dir, Path(gdos_raw) if gdos_raw else None,
                     tylko_istniejace=True,
                     skrocony=not _pelny_opis,
+                    **self._og_ustawienia(),
                 )
             except Exception:
                 self.log("[OPIS OG] Błąd generowania opisów ogólnych:"
@@ -1592,6 +1626,41 @@ class TabAllMixin:
             except Exception:
                 pass
 
+    def _posprzataj_stale_pakiety_pdf(self, pdf_dir, txt_dir):
+        """Usuwa z folderu PDF pakiety-wsie, których w TYM biegu nie ma
+        w folderze TXT (śmieci po starych biegach, np. podfolder 'Nowy
+        folder'). Dotyczy tylko folderów z plikami wygenerowanymi przez
+        program (ponumerowane wydruki NN_nazwa.pdf, skroty, mapa) —
+        własne pliki użytkownika zostają nietknięte."""
+        pdf_dir, txt_dir = Path(pdf_dir), Path(txt_dir)
+        if not pdf_dir.exists():
+            return 0
+        usuniete = 0
+        for folder in sorted({q.parent for q in pdf_dir.rglob("*.pdf")}):
+            if folder == pdf_dir:
+                continue
+            rel = folder.relative_to(pdf_dir)
+            if (txt_dir / rel).exists():
+                continue
+            pliki = [q for q in folder.rglob("*") if q.is_file()]
+            if not pliki:
+                continue
+            programowe = all(
+                q.suffix.lower() == ".pdf"
+                and (re.match(r"^\d{2}_", q.name)
+                     or q.name.lower() in ("skroty.pdf", "mapa.pdf"))
+                for q in pliki)
+            if not programowe:
+                self.log(f"[PORZĄDKI] Folder PDF/{rel} nie ma swojego "
+                         f"folderu wsi w tym biegu — zostaje bez zmian.")
+                continue
+            shutil.rmtree(folder)
+            usuniete += 1
+        if usuniete:
+            self.log(f"[PORZĄDKI] Usunięto {usuniete} nieaktualnych "
+                     f"pakiet(ów) z folderu PDF (śmieci po starych biegach).")
+        return usuniete
+
     def run_logic_thread(self, src_str, out_str, mode, remove_names, margins_dict=None, nowe_szablony=False):
         # --- INICJALIZACJA ZMIENNYCH ---
         in_root = None
@@ -1724,6 +1793,7 @@ class TabAllMixin:
                                 dir_02, Path(gdos_raw) if gdos_raw else None,
                                 tylko_istniejace=True,
                                 skrocony=not _pelny_opis,
+                                **self._og_ustawienia(),
                             )
                         except Exception:
                             self.log("[OPIS OG] Błąd generowania opisów ogólnych:\n"
@@ -1753,6 +1823,10 @@ class TabAllMixin:
                 elif _mapa_raw:
                     self.log(f"[MAPA] Nie znaleziono folderu: {_mapa_raw} — pomijam.")
 
+                # porządki w PDF przed scaleniem: pakiety bez folderu wsi
+                # w TYM biegu (śmieci po starych biegach) nie wejdą do scalek
+                self._posprzataj_stale_pakiety_pdf(dir_03, dir_01)
+
                 self.update_status("Scalanie pakietów PDF...", "#0078D7")
                 self.update_dashboard(4, "running", "Scalanie...")
                 self.check_stop()
@@ -1775,22 +1849,48 @@ class TabAllMixin:
                     self.log(f"[PORZĄDKI] Nie udało się usunąć 'PDF Polaczone': {e}")
                 try:
                     if dir_05 and dir_05.exists():
-                        dir_05.rename(out_root / "PDF polaczone")
+                        _cel_r = out_root / "PDF polaczone"
+                        if _cel_r.exists():
+                            shutil.rmtree(_cel_r)
+                        dir_05.rename(_cel_r)
                         self.log("[PORZĄDKI] Folder 'PDF bez pustych stron' "
                                  "przemianowano na 'PDF polaczone'.")
                 except Exception as e:
                     self.log(f"[PORZĄDKI] Nie udało się zmienić nazwy folderu: {e}")
-                # wyczyszczone TXT wracają tam, skąd przyszły — do folderów
-                # .001 danej wsi w źródle mietka; folder 'TXT' w wynikach
-                # nie jest już potrzebny
+                # wyczyszczone TXT wracają tam, skąd przyszły — czyli do
+                # folderów .001 danej wsi (obok DBF-ów mietka); folder 'TXT'
+                # w wynikach nie jest już potrzebny
                 if dir_01 and dir_01.exists():
                     try:
+                        txt_map = getattr(self, "_txt_map", None) or {}
+
+                        def _cel_zapasu(f):
+                            """Gdy brak mapy (np. po przerwanym biegu): TXT wraca
+                            do folderu .001 wsi, a dopiero gdy go nie ma —
+                            do folderu wsi bezpośrednio."""
+                            rel = f.relative_to(dir_01)
+                            pod = in_root
+                            for czesc in rel.parts[:-1]:
+                                pod = pod / czesc
+                            if not pod.exists():
+                                pod = in_root / rel.parts[0] if len(rel.parts) > 1 else in_root
+                            folder_wsi = pod if pod.is_dir() else in_root
+                            kandydaci = sorted(
+                                q for q in folder_wsi.iterdir()
+                                if q.is_dir() and q.name.lower().endswith(".001"))
+                            if len(kandydaci) == 1:
+                                return kandydaci[0] / rel.name
+                            return in_root / rel
+
                         przeniesiono = 0
                         for f in dir_01.rglob("*"):
                             if not (f.is_file() and f.suffix.lower() == ".txt"):
                                 continue
-                            rel = f.relative_to(dir_01)
-                            cel = in_root / rel
+                            cel = txt_map.get(os.path.abspath(str(f)))
+                            if cel is None:
+                                cel = _cel_zapasu(f)
+                            else:
+                                cel = Path(cel)
                             cel.parent.mkdir(parents=True, exist_ok=True)
                             shutil.copyfile(f, cel)
                             przeniesiono += 1
@@ -1803,6 +1903,59 @@ class TabAllMixin:
                             self.log("[PORZĄDKI] Usunięto folder 'TXT'.")
                     except Exception as e:
                         self.log(f"[PORZĄDKI] Nie udało się przenieść TXT do źródeł: {e}")
+                    # Sprzątanie po starym błędzie: TXT-y porozrzucane POZOSTAŁOŚCI
+                    # (na poziomie folderu wsi, obok .001) gdy identyczna kopia
+                    # leży w .001 — zabieramy je, żeby folder wsi był czysty.
+                    try:
+                        usuniete = 0
+                        for dot001 in sorted(in_root.rglob("*")):
+                            if not (dot001.is_dir() and dot001.name.lower().endswith(".001")):
+                                continue
+                            wies = dot001.parent
+                            _kandydaci = [q for q in wies.iterdir()
+                                          if q.is_dir()
+                                          and q.name.lower().endswith(".001")]
+                            # TXT-y na poziomie folderu wsi to zawsze rozsypane
+                            # kopie (raporty mietka należą do .001) — gdy w .001
+                            # leży odpowiednik, wersja z folderu wsi znika
+                            for smietnik in sorted(wies.iterdir()):
+                                if not (smietnik.is_file()
+                                        and smietnik.suffix.lower() == ".txt"):
+                                    continue
+                                wzorcowy = dot001 / smietnik.name
+                                if wzorcowy.exists():
+                                    try:
+                                        smietnik.unlink()
+                                        usuniete += 1
+                                    except OSError:
+                                        pass
+                            # podfoldery zawierające WYŁĄCZNIE kopie wydruków
+                            # TXT (np. 'Nowy folder' po starych biegach) — śmieci
+                            for podf in sorted(list(wies.iterdir())
+                                               + list(dot001.iterdir())):
+                                if not podf.is_dir() or podf == dot001:
+                                    continue
+                                if (podf.name.lower().endswith(".001")
+                                        and podf in _kandydaci):
+                                    continue
+                                zawartosc = list(podf.iterdir())
+                                if not zawartosc:
+                                    continue
+                                if not all(q.is_file() and q.suffix.lower() == ".txt"
+                                           and (dot001 / q.name).exists()
+                                           for q in zawartosc):
+                                    continue
+                                shutil.rmtree(podf)
+                                usuniete += len(zawartosc)
+                                self.log(f"[PORZĄDKI] Usunięto zapasowy folder "
+                                         f"'{podf.name}' z kopiami wydruków TXT "
+                                         f"({wies.name}).")
+                        if usuniete:
+                            self.log(f"[PORZĄDKI] Usunięto łącznie {usuniete} "
+                                     "zdublowanych/zapasowych TXT-ów "
+                                     "z folderów wsi.")
+                    except Exception as e:
+                        self.log(f"[PORZĄDKI] Sprzątanie TXT-ów: {e}")
                 # folder 'Word' — przy nowych szablonach to tylko pliki
                 # przejściowe (STR_TYT i opisy ogólne), finalny jest PDF
                 if nowe_szablony and dir_02 and dir_02.exists():

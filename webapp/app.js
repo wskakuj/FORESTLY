@@ -284,6 +284,7 @@ function renderOneControl(c) {
   switch (c.kind) {
     case "path": return renderPath(c);
     case "text": return renderText(c);
+    case "textarea": return renderTextarea(c);
     case "check": return renderCheck(c);
     case "checks": return renderChecks(c);
     case "select": return renderSelect(c);
@@ -358,8 +359,8 @@ function renderControls(view, tab) {
    Kreator korzysta z PRAWDZIWYCH pól formularza (przenosi je do okna),
    więc zapisywanie i odczyt ustawień działa bez zmian. */
 const WIZ = { open: false, step: 0, home: null, children: [] };
-const WIZ_NAV = ["Lokalizacje", "Strona tytułowa i daty", "Marginesy",
-                 "Nazwiska", "Uruchomienie"];
+const WIZ_NAV = ["Lokalizacje", "Strona tytułowa i daty", "Opis ogólny",
+                 "Marginesy", "Nazwiska", "Uruchomienie"];
 
 function allTabKey() {
   return (SCHEMA.tabs.find(t => t.key.indexOf("Pełny Automat") >= 0) || {}).key || "";
@@ -411,11 +412,41 @@ function closeWizard() {
   showTab(START_KEY);
 }
 
+/* kafle-przyciski sterujące ukrytym selectem (kategoria zagrożenia,
+   wariant tabeli) — pole zostaje w ukrytym formularzu, więc collectValues
+   i zapis ustawień działają bez zmian */
+function wizTiles(f, opcje) {
+  const kafle = el("div", "wiz-tiles");
+  const sel2 = f ? (f.querySelector("select") || f.querySelector("input")) : null;
+  const odswiez = () => {
+    const v = sel2 ? sel2.value : "";
+    Array.from(kafle.children).forEach((k, i) =>
+      k.classList.toggle("sel", opcje[i].v === v));
+  };
+  opcje.forEach(o => {
+    const k = el("div", "wiz-tile");
+    k.innerHTML = '<div class="wiz-tile-t">' + escapeHtml(o.t) + '</div>' +
+                  '<div class="wiz-tile-s">' + escapeHtml(o.s || "") + '</div>';
+    k.onclick = () => {
+      if (sel2) {
+        sel2.value = o.v;
+        sel2.dispatchEvent(new Event("change", { bubbles: true }));
+        sel2.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+      odswiez();
+    };
+    kafle.appendChild(k);
+  });
+  if (sel2) sel2.addEventListener("change", odswiez);
+  odswiez();
+  return kafle;
+}
+
 function renderWizStep() {
   if (!WIZ.open) return;
   /* opuszczamy krok marginesów/czcionek (3) — okno podglądu ma się zamknąć,
      żeby nie wisiało nad kolejnymi krokami kreatora */
-  if (WIZ.lastStep != null && WIZ.lastStep === 3 && WIZ.step !== 3) {
+  if (WIZ.lastStep != null && WIZ.lastStep === 4 && WIZ.step !== 4) {
     try { api().close_preview_window(); } catch (e) { /* już zamknięte */ }
   }
   WIZ.lastStep = WIZ.step;
@@ -435,14 +466,14 @@ function renderWizStep() {
   });
   /* kroki (kółka) chowamy na czas trwania całego procesu — nie mają
      sensu, gdy trwa generowanie (ekran postępu) */
-  dots.classList.toggle("hidden", WIZ.step === 6);
+  dots.classList.toggle("hidden", WIZ.step === 7);
   body.innerHTML = "";
   const st = document.createElement("div");
   st.className = "wiz-step";
   body.appendChild(st);
 
   const back = el("button", "btn secondary", "‹ Wstecz");
-  back.onclick = () => { if (WIZ.step > 0 && WIZ.step < 6) { WIZ.step--; renderWizStep(); mpMaybeClose(); } };
+  back.onclick = () => { if (WIZ.step > 0 && WIZ.step < 7) { WIZ.step--; renderWizStep(); mpMaybeClose(); } };
   const next = el("button", "btn primary wiz-big", "Dalej ›");
   const nav = document.createElement("div");
   nav.className = "wiz-nav";
@@ -456,7 +487,7 @@ function renderWizStep() {
         '<h2>Cały proces jednym kliknięciem</h2>' +
         '<div class="wiz-sub">Halizny → TXT z DBF → pliki Word (ze stronami tytułowymi' +
         ' i opisami ogólnymi) → PDF → scalenie w jeden dokument.<br>' +
-        'Przeprowadzę Cię przez cztery krótkie kroki — potem zrobię wszystko sama.</div>' +
+        'Przeprowadzę Cię przez pięć krótkich kroków — potem zrobię wszystko sama.</div>' +
       '</div>';
     /* przełącznik nowych szablonów (HTML → PDF bez Worda) */
     const nsw = el("label", "check-row wiz-newtpl");
@@ -494,13 +525,41 @@ function renderWizStep() {
       grp.open = true;
       moveTo(grp.parentElement);
     }
-    moveTo(wizField("all_pelny_opis_og"));
-    moveTo(wizField("all_krotki_opis_og"));
-    moveTo(wizField("all_gdos"));
     moveTo(wizField("all_custom_skroty"));
     moveTo(wizField("all_skroty"));
     next.onclick = () => { WIZ.step = 3; renderWizStep(); };
   } else if (WIZ.step === 3) {
+    /* strona DEDYKOWANA opisowi ogólnemu: przełączniki pełny/skrócony,
+       folder GDOŚ oraz edytowalne sekcje 1. NADZÓR i 2. WARUNKI PRZYRODNICZE */
+    st.innerHTML = '<h2>Opis ogólny</h2>' +
+      '<div class="wiz-sub">Zaznacz, jakie opisy ogólne mają powstać, wskaż ' +
+      'wyniki GDOŚ i uzupełnij edytowalne sekcje — wpisane teksty trafią do ' +
+      'opisu ogólnego każdej wsi.</div>';
+    moveTo(wizField("all_pelny_opis_og"));
+    moveTo(wizField("all_krotki_opis_og"));
+    moveTo(wizField("all_gdos"));
+    moveTo(wizField("all_og_nadzor"));
+    moveTo(wizField("all_og_warunki"));
+    const kartaK = el("div", "wiz-check-big");
+    kartaK.innerHTML = '<h2>Kategoria zagrożenia pożarowego</h2>' +
+      '<div class="wiz-sub">Która kategoria zostanie wpisana do opisu ogólnego?</div>';
+    kartaK.appendChild(wizTiles(wizField("all_og_kategoria"), [
+      { v: "I", t: "I kategoria", s: "dużego zagrożenia pożarowego" },
+      { v: "II", t: "II kategoria", s: "średniego zagrożenia pożarowego" },
+      { v: "III", t: "III kategoria", s: "małego zagrożenia pożarowego" },
+    ]));
+    st.appendChild(kartaK);
+    const kartaT = el("div", "wiz-check-big");
+    kartaT.innerHTML = '<h2>Tabela siedliskowa</h2>' +
+      '<div class="wiz-sub">Wariant tabeli w opisie ogólnym — pomiędzy ' +
+      '„położone są w…” a „Materiał używany do zalesień…”.</div>';
+    kartaT.appendChild(wizTiles(wizField("all_og_tabela"), [
+      { v: "Mazowiecka", t: "Mazowiecka", s: "kolumny: Bśw, Bw, Bb, BMśw…" },
+      { v: "Wielkopolska", t: "Wielkopolska", s: "kolumny: Bs, Bśw, BMśw…" },
+    ]));
+    st.appendChild(kartaT);
+    next.onclick = () => { WIZ.step = 4; renderWizStep(); };
+  } else if (WIZ.step === 4) {
     st.innerHTML = '<h2>Marginesy wydruków (cm)</h2>' +
       '<div class="wiz-sub">Odstępy od krawędzi strony dla poszczególnych typów' +
       ' wydruków. Rozwiń listę, jeśli chcesz coś zmienić.</div>';
@@ -511,8 +570,8 @@ function renderWizStep() {
     }
     const cd = WIZ.home.querySelector("details.czcionki-details");
     if (cd) moveTo(cd.parentElement);
-    next.onclick = () => { WIZ.step = 4; renderWizStep(); };
-  } else if (WIZ.step === 4) {
+    next.onclick = () => { WIZ.step = 5; renderWizStep(); };
+  } else if (WIZ.step === 5) {
     /* trzy warianty: z nazwiskami / bez nazwisk / obie wersje (dwa foldery) */
     const big = document.createElement("div");
     big.className = "wiz-check-big";
@@ -651,8 +710,8 @@ function renderWizStep() {
     });
     karta.appendChild(dz);
     st.appendChild(karta);
-    next.onclick = () => { WIZ.step = 5; renderWizStep(); };
-  } else if (WIZ.step === 5) {
+    next.onclick = () => { WIZ.step = 6; renderWizStep(); };
+  } else if (WIZ.step === 6) {
     st.innerHTML = '<h2>Wszystko gotowe!</h2>' +
       '<div class="wiz-sub">Tak uruchomię proces — jeszcze możesz coś zmienić,' +
       ' wracając do poprzednich kroków.</div>';
@@ -693,14 +752,14 @@ function renderWizStep() {
     next.innerHTML = ICON("play") + "<span>Generuj dokumenty</span>";
     next.classList.add("wiz-run");
     next.onclick = async () => {
-      WIZ.step = 6;
+      WIZ.step = 7;
       renderWizStep();
       await runTask("start_pipeline:ALL");
       /* jeśli backend nie wystartował (np. brak ścieżek) — nie czekaj w nieskończoność */
-      setTimeout(() => { if (!RUNNING && WIZ.open && WIZ.step === 6
+      setTimeout(() => { if (!RUNNING && WIZ.open && WIZ.step === 7
                            && !document.getElementById("wiz-done")) wizDone(false); }, 900);
     };
-  } else if (WIZ.step === 6) {
+  } else if (WIZ.step === 7) {
     st.innerHTML =
       '<div class="wiz-prog">' +
         '<div class="wiz-branch" id="wiz-spin"></div>' +
@@ -738,7 +797,7 @@ function renderWizStep() {
 
 /* koniec zadania w kroku postępu — ekran "Ukończono" */
 function wizDone(ok) {
-  if (!WIZ.open || WIZ.step !== 6) return;
+  if (!WIZ.open || WIZ.step !== 7) return;
   const stopBtn = document.getElementById("wiz-stop");
   if (stopBtn) stopBtn.remove();
   const przerwano = (LAST_STATUS_TEXT || "").indexOf("Przerwano") === 0;
@@ -973,6 +1032,20 @@ function renderText(c) {
   input.value = VALUES[c.id] !== undefined ? VALUES[c.id] : (c.default || "");
   input.oninput = scheduleSetValues;
   row.appendChild(input);
+  return row;
+}
+
+/* kontrolka: pole tekstowe wieloliniowe (sekcje opisu ogólnego) */
+function renderTextarea(c) {
+  const row = el("div", "field");
+  row.innerHTML = `<label>${escapeHtml(c.label)}</label>`;
+  const ta = el("textarea");
+  ta.rows = c.rows || 4;
+  ta.placeholder = c.ph || "";
+  ta.dataset.cid = c.id; ta.dataset.kind = "textarea";
+  ta.value = VALUES[c.id] !== undefined ? VALUES[c.id] : (c.default || "");
+  ta.oninput = scheduleSetValues;
+  row.appendChild(ta);
   return row;
 }
 
@@ -1417,6 +1490,41 @@ async function openMarginsPreview(cid, mode) {
           var kl = mierz.cloneNode(true);
           kl.style.cssText = "position:absolute;top:0;left:0;width:" + W +
             "px;transform:translateY(-" + starts[p] + "px);";
+          /* kontynuacja tabeli: nagłówek (thead) powtórzony u góry strony
+             jak przy wydruku — treść strony jest niżej o jego wysokość */
+          if (p > 0) {
+            for (var g = 0; g < wiersze.length; g++) {
+              if (wiersze[g].top >= starts[p] - 1 && wiersze[g].top <= starts[p] + 1) {
+                var tb = wiersze[g].table;
+                if (rect(tb).top < starts[p] - 1) {
+                  var th = tb.querySelector("thead");
+                  if (th) {
+                    var hw = theadWys(tb);
+                    var tc = tb.cloneNode(false);
+                    tc.appendChild(th.cloneNode(true));
+                    var tbr = tb.getBoundingClientRect();
+                    var mbr = mierz.getBoundingClientRect();
+                    tc.style.cssText += "position:absolute;top:0;left:" +
+                      Math.round(tbr.left - mbr.left) + "px;width:" +
+                      Math.round(tbr.width) + "px;table-layout:fixed;" +
+                      "margin:0;background:#fff;z-index:5;";
+                    var zr = th.querySelectorAll("tr");
+                    var nr = tc.querySelectorAll("tr");
+                    for (var r2 = 0; r2 < zr.length; r2++) {
+                      var zc = zr[r2].cells, ncl = nr[r2] ? nr[r2].cells : [];
+                      for (var c2 = 0; c2 < zc.length; c2++)
+                        if (ncl[c2]) ncl[c2].style.width =
+                          Math.round(zc[c2].getBoundingClientRect().width) + "px";
+                    }
+                    win.appendChild(tc);
+                    kl.style.transform = "translateY(-" + starts[p] +
+                      "px) translateY(" + hw + "px)";
+                  }
+                }
+                break;
+              }
+            }
+          }
           win.appendChild(kl);
           pg.appendChild(win);
           document.body.appendChild(pg);
@@ -2008,7 +2116,7 @@ function collectValues() {
   $$("[data-cid]").forEach(node => {
     const cid = node.dataset.cid;
     const kind = node.dataset.kind;
-    if (kind === "path" || kind === "text") {
+    if (kind === "path" || kind === "text" || kind === "textarea") {
       out[cid] = node.value;
     } else if (kind === "check") {
       out[cid] = node.checked;

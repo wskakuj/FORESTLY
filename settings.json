@@ -129,21 +129,20 @@
   "pdf_order.ALL": {
     "order": [
       "TITLE",
+      "WSKAZ1",
+      "OPTAX",
+      "REJESTR1",
+      "WSK_ZB",
       "OPIS",
       "TAB_KLW3",
-      "OPTAX",
-      "WSK_ZB",
       "WYK_NEG",
       "HALIZNY",
-      "REJESTR1",
       "ZEST1",
       "WK_ZM1",
       "SKROTY",
       "MAPA"
     ],
-    "excluded": [
-      "WSKAZ1"
-    ]
+    "excluded": []
   },
   "web.czcionki.ALL": {
     "REJESTR1": {
@@ -232,7 +231,7 @@
         "font": "Arial"
       },
       "tabela": {
-        "pt": 9.5,
+        "pt": 9.0,
         "font": "Arial"
       }
     }
@@ -240,28 +239,37 @@
   "pdf_order.PDF": {
     "order": [
       "TITLE",
+      "WSKAZ1",
+      "OPTAX",
+      "REJESTR1",
+      "WSK_ZB",
       "OPIS",
       "TAB_KLW3",
-      "OPTAX",
-      "WSK_ZB",
       "WYK_NEG",
       "HALIZNY",
-      "REJESTR1",
       "ZEST1",
       "WK_ZM1",
       "SKROTY",
       "MAPA"
     ],
-    "excluded": [
-      "WSKAZ1"
-    ]
+    "excluded": []
   },
-  "web.all_pelny_opis_og": true,
-  "web.all_krotki_opis_og": false,
+  "web.all_tpl_doc": "UPUL",
+  "web.all_tpl_prefix": "położonych na terenie obrębu",
+  "web.all_tpl_woj": "KUJAWSKO-POMORSKIE",
+  "web.all_tpl_powiat": "TUCHOLSKI",
+  "web.all_tpl_gmina": "CEKCYN",
+  "web.all_pelny_opis_og": false,
+  "web.all_krotki_opis_og": true,
+  "web.all_og_nadzor": "Nadzór nad gospodarką leśną lasów nie stanowiących własności Skarbu Państwa sprawuje Starosta Wołomiński w zakresie zadań własnych.sasadasasdassdas",
+  "web.all_og_warunki": "Lasy objęte uproszczonym planem urządzenia lasów położone są w:\nIV Mazowiecko-Podlaskiej krainie przyrodniczo-leśnej\nMezoregion Doliny Dolnego Buguxzczxcczxcadaxzac",
+  "web.all_og_kategoria": "III",
+  "web.all_og_tabela": "Wielkopolska",
   "web.all_obie_wersje": false,
-  "web.all_mapa": "C:\\Users\\niepy\\AppData\\Local\\Temp\\forestly_mapy",
+  "web.all_mapa": "",
   "web.ns_src": "",
   "web.ns_dst": "",
+  "web.ns_typ": "WYK_NEG",
   "web.ns_bez_nazwisk": true,
   "web.czcionki.NS": {
     "REJESTR1": {
@@ -355,6 +363,16 @@
       }
     }
   },
+  "web.tpl_MIETEK_doc": "UPUL",
+  "web.tpl_MIETEK_prefix": "położonych na terenie obrębu",
+  "web.tpl_MIETEK_woj": "KUJAWSKO-POMORSKIE",
+  "web.tpl_MIETEK_powiat": "TUCHOLSKI",
+  "web.tpl_MIETEK_gmina": "CEKCYN",
   "web.opis_og_pelny": true,
-  "web.opis_og_krotki": false
+  "web.opis_og_krotki": false,
+  "web.tpl_TAKSATOR_doc": "UPUL",
+  "web.tpl_TAKSATOR_prefix": "położonych na terenie obrębu",
+  "web.tpl_TAKSATOR_woj": "KUJAWSKO-POMORSKIE",
+  "web.tpl_TAKSATOR_powiat": "TUCHOLSKI",
+  "web.tpl_TAKSATOR_gmina": "CEKCYN"
 }

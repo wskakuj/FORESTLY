@@ -251,6 +251,18 @@ input[type="text"], select {
 }
 input[type="text"]::placeholder { color: #7e8b9c; opacity: 1; }
 [data-theme="light"] input[type="text"]::placeholder { color: #8795a6; }
+/* pole tekstowe wieloliniowe (sekcje opisu ogólnego: 1. NADZÓR,
+   2. WARUNKI PRZYRODNICZE) */
+.field textarea {
+  width: 100%; min-height: 64px; padding: 8px 10px;
+  border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg2, #23262d); color: var(--text, #e8e8e8);
+  font: inherit; line-height: 1.45; resize: vertical;
+  box-sizing: border-box;
+}
+[data-theme="light"] .field textarea { background: #fff; }
+.field textarea:focus { outline: none; border-color: var(--acc, #3f8cff); }
+
 input[type="text"]:focus, select:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3.5px rgba(45, 212, 167, 0.16);

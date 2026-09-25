@@ -35,6 +35,11 @@ def _text(cid, attr, label, default="", ph=""):
             "default": default, "ph": ph, "save": True}
 
 
+def _textarea(cid, attr, label, default="", ph="", rows=4):
+    return {"id": cid, "kind": "textarea", "attr": attr, "label": label,
+            "default": default, "ph": ph, "save": True, "rows": rows}
+
+
 def _check(cid, attr, label, default=False, tooltip=""):
     return {"id": cid, "kind": "check", "attr": attr, "label": label,
             "default": default, "tooltip": tooltip, "save": True}
@@ -52,7 +57,7 @@ def _group(label, controls, tooltip="", collapsed=True):
 
 def _select(cid, attr, label, values, default, free=False):
     return {"id": cid, "kind": "select", "attr": attr, "label": label,
-            "values": values, "default": default, "free": free}
+            "values": values, "default": default, "free": free, "save": True}
 
 
 def _info(text_):
@@ -164,6 +169,24 @@ def build_schema():
                 _path("all_gdos", "all_gdos_entry",
                       "Folder z wynikami GDOŚ (opcjonalny):",
                       "Formy ochrony przyrody (np. NN_WIEŚ_wynik.xlsx) do opisów ogólnych"),
+                _textarea(
+                    "all_og_nadzor", "all_og_nadzor_entry",
+                    "1. NADZÓR — treść (można edytować):",
+                    "Nadzór nad gospodarką leśną lasów nie stanowiących własności "
+                    "Skarbu Państwa sprawuje Starosta Wołomiński w zakresie "
+                    "zadań własnych.", rows=2),
+                _textarea(
+                    "all_og_warunki", "all_og_warunki_entry",
+                    "2. WARUNKI PRZYRODNICZE — treść (można edytować):",
+                    "Lasy objęte uproszczonym planem urządzenia lasów położone są w:\n"
+                    "IV Mazowiecko-Podlaskiej krainie przyrodniczo-leśnej\n"
+                    "Mezoregion Doliny Dolnego Bugu", rows=4),
+                _select("all_og_kategoria", "all_og_kategoria_var",
+                        "Kategoria zagrożenia pożarowego:",
+                        ["I", "II", "III"], "I"),
+                _select("all_og_tabela", "all_og_tabela_var",
+                        "Tabela siedliskowa w opisie ogólnym:",
+                        ["Mazowiecka", "Wielkopolska"], "Mazowiecka"),
                 _check("all_custom_skroty", "all_custom_skroty_var",
                        "Użyj własnego pliku 'Skróty i symbole' (zamiast domyślnego z programu)", False),
                 _path("all_skroty", "all_skroty_entry", "Własny plik:",

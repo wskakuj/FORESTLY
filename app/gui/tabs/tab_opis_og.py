@@ -34,8 +34,25 @@ import threading
 import traceback
 from pathlib import Path
 
-TPL_FILENAME = "opis_og_szablon.docx"            # wariant MIETEK (WSK_ZB)
+TPL_FILENAME = "opis_og_szablon.docx"            # wariant MIETEK (WSK_ZB) — tabela wielkopolska
+TPL_MAZ_FILENAME = "opis_og_szablon_mazowiecka.docx"  # wariant MIETEK — tabela mazowiecka
 TPL_TAKSATOR_FILENAME = "opis_og_szablon_taksator.docx"  # wariant TAKSATOR (raporty)
+
+# domyślne teksty edytowalnych sekcji opisu ogólnego (kreator 1-Click);
+# użytkownik może je nadpisać w polach '1. NADZÓR' i '2. WARUNKI PRZYRODNICZE'
+OG_NADZOR_DOMYSLNY = (
+    "Nadzór nad gospodarką leśną lasów nie stanowiących własności Skarbu "
+    "Państwa sprawuje Starosta Wołomiński w zakresie zadań własnych.")
+OG_WARUNKI_DOMYSLNE = (
+    "Lasy objęte uproszczonym planem urządzenia lasów położone są w:\n"
+    "IV Mazowiecko-Podlaskiej krainie przyrodniczo-leśnej\n"
+    "Mezoregion Doliny Dolnego Bugu")
+# kategoria zagrożenia pożarowego -> opis w zdaniu
+OG_KATEGORIE = {
+    "I": "dużego",
+    "II": "średniego",
+    "III": "małego",
+}
 OCHRONA_MARKER = "[TU WPISZ formy ochrony przyrody — po wpisaniu usuń tę linię]"
 
 
@@ -86,16 +103,100 @@ class TabOpisOgMixin:
 
     # ------------------------------------------------ Wypełnianie szablonu
     @staticmethod
-    def _fill_template(tpl_path, values, out_path, formy=None):
+    def _podmien_akapit(p, tekst):
+        """Ustawia tekst akapitu (zachowując formatowanie pierwszego runa)."""
+        if p.runs:
+            p.runs[0].text = tekst
+            for r in p.runs[1:]:
+                r.text = ""
+        else:
+            p.add_run(tekst)
+
+    @classmethod
+    def _wpisz_linie(cls, p, linie):
+        """Wpisuje wieloliniowy tekst: pierwsza linia w 'p', kolejne jako
+        kopie akapitu wstawione za nim (to samo wcięcie/formatowanie)."""
+        import copy as _copy
+        from docx.text.paragraph import Paragraph
+        if not linie:
+            return p
+        cls._podmien_akapit(p, linie[0])
+        kotwica = p._p
+        for ln in linie[1:]:
+            np_ = _copy.deepcopy(p._p)
+            # w kopii zostaje jeden run z tekstem
+            kotwica.addnext(np_)
+            nowy = Paragraph(np_, p._parent)
+            cls._podmien_akapit(nowy, ln)
+            kotwica = np_
+        return Paragraph(kotwica, p._parent)
+
+    @staticmethod
+    def _podmien_sekcje(doc, nadzor=None, warunki=None, kategoria=None):
+        """Podmienia edytowalne sekcje opisu ogólnego (kreator 1-Click).
+
+        nadzor — tekst pod nagłówkiem '1. NADZÓR' (wieloliniowy);
+        warunki — tekst pod '2. WARUNKI PRZYRODNICZE' (do nagłówka tabeli
+                  siedliskowej, wieloliniowy);
+        kategoria — 'I', 'II' albo 'III' (kategoria zagrożenia pożarowego).
+        None = zostaje treść szablonu.
+        """
+        from docx.oxml.ns import qn as _qn
+        paras = list(doc.paragraphs)
+
+        def _czysty(el):
+            return "".join(t.text or "" for t in el.findall(".//" + _qn("w:t"))).strip()
+
+        if nadzor:
+            for i, p in enumerate(paras):
+                if p.text.strip().startswith("Nadzór nad gospodark"):
+                    TabOpisOgMixin._wpisz_linie(p, [l for l in nadzor.split("\n")])
+                    break
+
+        if warunki:
+            linie = [l for l in warunki.split("\n")]
+            for i, p in enumerate(paras):
+                if "położone są w" in p.text:
+                    ostatni = TabOpisOgMixin._wpisz_linie(p, linie)
+                    # stare akapity sekcji (kraina, mezoregion, puste) — do
+                    # pierwszego niepustego 'Poniżej przedstawiono' / tabeli;
+                    # zaczynamy ZA świeżo wstawionymi liniami
+                    nast = ostatni._p.getnext()
+                    while nast is not None:
+                        if nast.tag != _qn("w:p"):
+                            break
+                        txt = _czysty(nast)
+                        if txt.startswith("Poniżej przedstawiono"):
+                            break
+                        po = nast.getnext()
+                        nast.getparent().remove(nast)
+                        nast = po
+                    break
+
+        if kategoria and str(kategoria).upper() in OG_KATEGORIE:
+            kat = str(kategoria).upper()
+            for p in paras:
+                if "należą do" in p.text and "kategorii" in p.text:
+                    TabOpisOgMixin._podmien_akapit(
+                        p, f"Lasy objęte opracowaniem, należą do {kat} kategorii - "
+                           f"{OG_KATEGORIE[kat]} zagrożenia pożarowego.")
+                    break
+
+    @staticmethod
+    def _fill_template(tpl_path, values, out_path, formy=None,
+                       nadzor=None, warunki=None, kategoria=None):
         """Wypełnia opis_og_szablon.docx liczbami i zapisuje jako .docx.
 
         formy — lista akapitów o formach ochrony przyrody (z wyników GDOŚ);
         None => w tekście zostaje zdanie o braku form ochrony przyrody.
+        nadzor/warunki/kategoria — edytowalne sekcje z kreatora 1-Click.
         """
         from docx import Document
         import copy
 
         doc = Document(str(tpl_path))
+        TabOpisOgMixin._podmien_sekcje(doc, nadzor=nadzor, warunki=warunki,
+                                       kategoria=kategoria)
         vals = dict(values)
         vals["FORMY_OCHRONY"] = (formy[0] if formy
                                  else "Nie zlokalizowano form ochrony przyrody.")
@@ -248,7 +349,8 @@ class TabOpisOgMixin:
                               skrocony=krotki)
 
     def _opis_og_generuj(self, root, gdos_folder=None, tylko_istniejace=False,
-                         skrocony=False):
+                         skrocony=False, nadzor=None, warunki=None,
+                         kategoria=None, tabela=None):
         """Generuje 'opis og_<wieś>.docx' we wszystkich wsiach pod 'root'.
 
         root — folder główny z folderami wsi (albo pojedyncza wieś z WSK_ZB.doc);
@@ -300,7 +402,13 @@ class TabOpisOgMixin:
             self.update_status("Brak wsi", "#D83B01", animate=False)
             return
 
-        tpl = get_resource_path(TPL_FILENAME)
+        # wariant tabeli siedliskowej: mazowiecka (domyślnie) albo wielkopolska
+        if str(tabela or "").strip().lower().startswith("wielk"):
+            tpl = get_resource_path(TPL_FILENAME)
+        else:
+            tpl = get_resource_path(TPL_MAZ_FILENAME)
+            if not Path(tpl).exists():
+                tpl = get_resource_path(TPL_FILENAME)
         if not Path(tpl).exists():
             self.log(f"[OPIS OG BŁĄD] Brak szablonu: {tpl}")
             self.update_status("Brak szablonu", "#D83B01", animate=False)
@@ -380,7 +488,9 @@ class TabOpisOgMixin:
                                  "do ręcznego wpisania form ochrony.")
 
                 try:
-                    self._fill_template(tpl, vals, out_path, formy=formy)
+                    self._fill_template(tpl, vals, out_path, formy=formy,
+                                        nadzor=nadzor, warunki=warunki,
+                                        kategoria=kategoria)
                 except Exception as e:
                     self.log(f"[OPIS OG] {vname}: BŁĄD zapisu — {e}")
                     continue
