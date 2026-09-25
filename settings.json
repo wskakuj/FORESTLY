@@ -119,11 +119,25 @@
   "web.ogt_gdos": "",
   "web.gdos_xlsx": "D:\\download\\Opera\\gdos_obszary.xlsx",
   "web.all_gen_opis_og": true,
-  "web.all_gdos": "D:\\download\\gówno\\Nowy folder (20)\\wyniki gdoś",
+  "web.all_gdos": "D:\\download\\gówno\\Nowy folder (20)\\Nowy folder",
   "last_output_dir": "D:\\download\\gówno\\Nowy folder (20)\\Nowy folder\\PDF polaczone",
-  "web.all_tpl_stan": "15.11.1997 r.",
-  "web.all_tpl_okres": "01.01.1997 – 31.12.1997 r.",
-  "web.all_wsk_od": "01.01.1997",
+  "web.all_tpl_stan": "31.12.1997 r.",
+  "web.all_tpl_okres": "31.12.1997 – 31.12.2036 r.",
+  "web.all_wsk_od": "31.12.1997",
   "web.all_wsk_do": "31.12.1997",
-  "web.nowe_szablony": true
+  "web.nowe_szablony": true,
+  "pdf_order.ALL": {
+    "order": [
+      "REJESTR1",
+      "OPTAX",
+      "TITLE",
+      "OPIS",
+      "WSKAZ1",
+      "TAB_KLW3",
+      "WSK_ZB",
+      "ZEST1",
+      "SKROTY"
+    ],
+    "excluded": []
+  }
 }

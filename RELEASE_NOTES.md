@@ -1,3 +1,3 @@
-# Co nowego w v2.0.55
-- poprawki do nowego szablonu
+# Co nowego w v2.0.56
+- fixy
 

@@ -93,12 +93,17 @@ def meta_z_pliku(path):
         head = wczytaj(path)[:1200]
     except OSError:
         return "", "", ""
-    m = re.search(r"(?:Obiekt|dla obiektu):\s*(\S+)", head)
+    m = re.search(r"Obiekt:\s*(\S+)", head) or re.search(r"dla obiektu\s+(\S+)", head)
     obiekt = m.group(1).upper() if m else ""
     m = re.search(r"Stan na:\s*(\S+)", head)
     stan = m.group(1) if m else ""
     m = re.search(r"na okres od (.*? do .*?)(?:\s{2,}|\r|\n|$)", head)
-    okres = m.group(1).strip() if m else ""
+    if not m:
+        # WSK_ZB: "w 10-leciu od 01-01-2027 do 31-12-2036 wg. wskazań..."
+        m = re.search(r"w 10-leciu od (\S+) do (\S+)", head)
+        okres = f"{m.group(1)} do {m.group(2)}" if m else ""
+    else:
+        okres = m.group(1).strip()
     return obiekt, stan, okres
 
 
@@ -109,8 +114,29 @@ def razem_z_optax(path):
 
 # --------------------------------------------------------------- REJESTR1
 
+def _wiersz_rejestru(k):
+    """Pojedynczy wiersz danych rejestru (wydzielenie + wskazanie)."""
+    return {"dz": k[2], "pod": k[3], "gat": k[4], "w": k[5], "bon": k[6],
+            "zal": k[7], "odn": k[8], "poz": k[9], "inne": k[10],
+            "razem": k[11] if len(k) > 11 else "",
+            "rodzaj": k[14] if len(k) > 14 else "",
+            "pow_z": k[15] if len(k) > 15 else "",
+            "miaz_z": k[16] if len(k) > 16 else ""}
+
+
+def _ma_dane(k):
+    """Czy wiersz niesie dane (wydzielenie lub wskazanie)? Pomija separatory '-'."""
+    return any(c and not set(c) <= set("-") for c in k[2:17])
+
+
 def parse_rejestr1(path):
-    """Pozycja = grupa wierszy jednego nr rejestru (współwłaściciele razem)."""
+    """Pozycja = grupa wierszy jednego nr rejestru (współwłaściciele razem).
+
+    Struktura pliku mietka: wiersz właściciela (nr rej. + nazwisko z udziałem
+    + ew. pierwsze wydzielenie/wskazanie), potem wiersze adresu (kolumna
+    nazwiska) i dalszych zabiegów (Rodzaj/Pow), kolejni właściciele w tej
+    samej pozycji, a na końcu wiersze „Razem dzialka/pozycja/obiekt".
+    """
     lines = wczytaj(path).split("\n")
     pozycje, cur = [], None
     for ln in lines:
@@ -124,18 +150,14 @@ def parse_rejestr1(path):
         a = k[0]
         if a and re.match(r"^\d+(/\d+)?$", a):
             if cur is None or cur["nr"] != a:
-                cur = {"nr": a, "wiersze": [], "razem_d": "", "razem_p": None,
-                       "razem_ob": False, "razem_d_nr": ""}
+                cur = {"nr": a, "wlasciciele": [], "razem_d": "",
+                       "razem_p": None, "razem_ob": False, "razem_d_nr": ""}
                 pozycje.append(cur)
-            if k[1]:
-                cur["wiersze"].append(
-                    {"nazw": k[1], "adres": "", "dz": k[2], "pod": k[3],
-                     "gat": k[4], "w": k[5], "bon": k[6], "zal": k[7],
-                     "odn": k[8], "poz": k[9], "inne": k[10],
-                     "razem": k[11] if len(k) > 11 else "",
-                     "rodzaj": k[14] if len(k) > 14 else "",
-                     "pow_z": k[15] if len(k) > 15 else "",
-                     "miaz_z": k[16] if len(k) > 16 else ""})
+            if k[1]:                                         # nowy właściciel
+                cur["wlasciciele"].append(
+                    {"nazw": k[1], "adres": "", "wiersze": []})
+            if _ma_dane(k) and cur["wlasciciele"]:
+                cur["wlasciciele"][-1]["wiersze"].append(_wiersz_rejestru(k))
             continue
         if cur is None:
             continue
@@ -153,18 +175,15 @@ def parse_rejestr1(path):
             cur["razem_d"] = m.group(1) if m else ""
             cur["razem_ob_v"] = [k[7], k[8], k[9], k[10],
                                  k[11] if len(k) > 11 else ""]
-        elif k[1] and not any(k[2:]):                     # adres
-            if cur["wiersze"]:
-                cur["wiersze"][-1]["adres"] = k[1]
-        elif k[2] or (len(k) > 14 and k[14]):             # kolejne wydzielenie
-            cur["wiersze"].append(
-                {"nazw": "", "adres": "", "dz": k[2], "pod": k[3], "gat": k[4],
-                 "w": k[5], "bon": k[6], "zal": k[7], "odn": k[8],
-                 "poz": k[9], "inne": k[10],
-                 "razem": k[11] if len(k) > 11 else "",
-                 "rodzaj": k[14] if len(k) > 14 else "",
-                 "pow_z": k[15] if len(k) > 15 else "",
-                 "miaz_z": k[16] if len(k) > 16 else ""})
+        else:
+            # wiersz adresu (nazwisko wypełnione, brak danych działki)
+            # i/lub kolejny zabieg (Rodzaj/Pow/Miąż) tego samego właściciela
+            if k[1] and cur["wlasciciele"]:
+                wl = cur["wlasciciele"][-1]
+                if not wl["adres"]:
+                    wl["adres"] = k[1]
+            if _ma_dane(k) and cur["wlasciciele"]:
+                cur["wlasciciele"][-1]["wiersze"].append(_wiersz_rejestru(k))
     return pozycje
 
 # --------------------------------------------------------------- OPTAX
@@ -420,32 +439,41 @@ def html_rejestr1(path, obiekt, stan, bez_nazwisk=False, marginesy=None):
     pozycje = parse_rejestr1(path)
     tr = []
     for p in pozycje:
-        nw = len(p["wiersze"])
-        pierwsza = True
-        for w in p["wiersze"]:
-            wl = ""
-            if w["nazw"]:
-                wl = f'<div class="nazw">{w["nazw"]}</div>'
-                if w["adres"]:
-                    wl += f'<div class="opis adr">{w["adres"]}</div>'
-            elif w["adres"]:
-                wl = f'<div class="opis adr">{w["adres"]}</div>'
-            kom = (f'<td class="c">{w["dz"]}</td><td class="c">{w["pod"]}</td>'
-                   f'<td class="c">{w["gat"]}</td><td class="n">{w["w"]}</td>'
-                   f'<td class="c">{w["bon"]}</td><td class="n">{w["zal"]}</td>'
-                   f'<td class="n">{w["odn"]}</td><td class="n">{w["poz"]}</td>'
-                   f'<td class="n">{w["inne"]}</td><td class="n">{w["razem"]}</td>'
-                   f'<td>{w["rodzaj"]}</td><td class="n">{w["pow_z"]}</td>'
-                   f'<td class="n">{w["miaz_z"]}</td>')
-            if pierwsza:
-                wl_td = "" if bez_nazwisk else (
-                    f'<td rowspan="{max(nw,1)}" class="wlasc">{wl}</td>')
-                tr.append('<tr class="grupa">'
-                          f'<td rowspan="{max(nw,1)}">{p["nr"]}</td>' + wl_td
-                          + kom + "</tr>")
-                pierwsza = False
-            else:
-                tr.append("<tr>" + kom + "</tr>")
+        wlasciciele = p["wlasciciele"] or [{"nazw": "", "adres": "",
+                                            "wiersze": []}]
+        n_rows = sum(max(len(wl["wiersze"]), 1) for wl in wlasciciele)
+        nr_first = True
+        for wl in wlasciciele:
+            wiersze = wl["wiersze"] or [None]      # właściciel bez własnych wierszy
+            wl_first = True
+            for w in wiersze:
+                if w is not None:
+                    kom = (f'<td class="c">{w["dz"]}</td><td class="c">{w["pod"]}</td>'
+                           f'<td class="c">{w["gat"]}</td><td class="n">{w["w"]}</td>'
+                           f'<td class="c">{w["bon"]}</td><td class="n">{w["zal"]}</td>'
+                           f'<td class="n">{w["odn"]}</td><td class="n">{w["poz"]}</td>'
+                           f'<td class="n">{w["inne"]}</td><td class="n">{w["razem"]}</td>'
+                           f'<td>{w["rodzaj"]}</td><td class="n">{w["pow_z"]}</td>'
+                           f'<td class="n">{w["miaz_z"]}</td>')
+                else:
+                    kom = "<td></td>" * 13
+                wl_td = ""
+                if wl_first and not bez_nazwisk:
+                    tresc_wl = ""
+                    if wl["nazw"]:
+                        tresc_wl += f'<div class="nazw">{wl["nazw"]}</div>'
+                    if wl["adres"]:
+                        tresc_wl += f'<div class="opis adr">{wl["adres"]}</div>'
+                    wl_td = (f'<td rowspan="{max(len(wl["wiersze"]), 1)}" '
+                             f'class="wlasc">{tresc_wl}</td>')
+                if nr_first:
+                    tr.append('<tr class="grupa">'
+                              f'<td rowspan="{n_rows}">{p["nr"]}</td>'
+                              + wl_td + kom + "</tr>")
+                    nr_first = False
+                else:
+                    tr.append("<tr>" + wl_td + kom + "</tr>")
+                wl_first = False
         cd = 12 if bez_nazwisk else 13
         if p["razem_d"] and not p["razem_ob"]:
             nr_d = p.get("razem_d_nr") or ""
@@ -627,8 +655,8 @@ def html_wskzb(path, obiekt, stan, bez_nazwisk=False, marginesy=None):
                       '<table class="gl"><tbody>' + pozycje(p["poz"], p.get("suma"))
                       + "</tbody></table>")
         czesci.append(f'<div class="sekcja"><h2>{s["nr"]} {s["tyt"]}</h2>{inner}</div>')
-    tresc = (f'<div class="podtyt">w 10-leciu od {stan} wg. wskazań gospodarczych'
-             f'<br>dla obiektu {obiekt}</div>' + "".join(czesci))
+    tresc = (f'<div class="podtyt">w 10-leciu od {stan} wg. wskazań gospodarczych</div>'
+             + "".join(czesci))
     extra = """
   .podtyt { text-align: center; font-size: 9.5pt; margin: 0 0 5mm; }
   .sekcja h2 { font-size: 10.5pt; border-bottom: 1pt solid #333;
@@ -657,7 +685,8 @@ def html_halizny(path, obiekt, stan, bez_nazwisk=False, marginesy=None):
     tr = []
     for k in parse_halizny(path):
         if k[0].startswith("R.oddz"):
-            tr.append(f'<tr class="sub"><td>R. oddz.</td><td class="n">{k[1]}</td>'
+            tr.append(f'<tr class="sub"><td><b>R. oddz.</b></td>'
+                      f'<td class="n"><b>{k[1]}</b></td>'
                       f'<td>{k[2]}</td></tr>')
         elif k[0].startswith("Razem"):
             tr.append(f'<tr class="razem"><td>Razem</td><td class="n">{k[1]}</td>'

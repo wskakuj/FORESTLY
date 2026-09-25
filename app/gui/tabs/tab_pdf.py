@@ -13,7 +13,7 @@ import win32com.client
 from app.config import (
     get_saved_excluded_templates,
     PDF_ORDER_TEMPLATES, build_ordered_pdfs_from_templates, get_saved_template_order, is_file_locked, template_matches,
-    set_saved_template_order, set_saved_excluded_templates,
+    load_order_store, set_saved_excluded_templates, set_saved_template_order,
 )
 
 class TabPdfMixin:
@@ -197,6 +197,24 @@ class TabPdfMixin:
         total_dirs = len(pdf_dirs)
         self.last_output_dir = Path(out_dir)
         self.start_progress_tracking(total_dirs, "Scalanie PDF")
+        # [UKŁAD] gdy ten folder nie ma własnego układu (np. nowy folder wyników),
+        # użyj globalnie zapamiętanej kolejności z ustawień programu
+        _store = load_order_store(Path(in_dir))
+        if not (isinstance(_store.get(mode_key), list) and _store.get(mode_key)):
+            _glob = None
+            _gs = getattr(self, "get_setting", None)
+            if _gs is not None:
+                try:
+                    _glob = _gs(f"pdf_order.{mode_key}", None)
+                except Exception:
+                    _glob = None
+            if isinstance(_glob, dict) and isinstance(_glob.get("order"), list) \
+                    and _glob["order"]:
+                set_saved_template_order(Path(in_dir), mode_key, _glob["order"])
+                if isinstance(_glob.get("excluded"), list):
+                    set_saved_excluded_templates(Path(in_dir), mode_key,
+                                                 _glob["excluded"])
+                self.log("[UKŁAD] Użyto zapamiętanej kolejności PDF z ustawień.")
         template_keys = get_saved_template_order(in_dir, mode_key)
         excluded_keys = get_saved_excluded_templates(in_dir, mode_key)
         # od v2.0.32: 'Opis ogólny' to stała część zestawienia (generuje go

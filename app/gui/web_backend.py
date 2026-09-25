@@ -27,7 +27,8 @@ import subprocess
 from collections import deque
 from pathlib import Path
 
-from app.config import (CURRENT_VERSION, SETTINGS_FILE, HISTORY_FILE,
+from app.config import (
+    load_order_store,CURRENT_VERSION, SETTINGS_FILE, HISTORY_FILE,
                         load_margins, save_margins,
                         get_saved_template_order, set_saved_template_order,
                         get_saved_excluded_templates, set_saved_excluded_templates,
@@ -924,6 +925,14 @@ class WebBackend(
         config_folder.mkdir(parents=True, exist_ok=True)
         order = get_saved_template_order(config_folder, mode)
         excluded = get_saved_excluded_templates(config_folder, mode)
+        # gdy ten folder nie ma jeszcze własnego układu — pokaż globalny
+        _store = load_order_store(config_folder)
+        if not (isinstance(_store.get(mode), list) and _store.get(mode)):
+            _glob = (self.load_settings() or {}).get(f"pdf_order.{mode}")
+            if isinstance(_glob, dict) and isinstance(_glob.get("order"), list) \
+                    and _glob["order"]:
+                order = _glob["order"]
+                excluded = _glob.get("excluded") or []
         # od v2.0.32: 'Opis ogólny' jest stałą częścią zestawienia (1-Click go
         # generuje) — gdyby był wykluczony, przywracamy go na pozycję za stroną tytułową
         if "OPIS" in excluded:
@@ -946,6 +955,14 @@ class WebBackend(
         config_folder.mkdir(parents=True, exist_ok=True)
         set_saved_template_order(config_folder, mode, list(order or []))
         set_saved_excluded_templates(config_folder, mode, list(excluded or []))
+        # zapas globalny — używany, gdy wyniki trafią do innego folderu
+        # (kolejność i wykluczenia są wtedy stosowane też tam)
+        try:
+            self.set_setting(f"pdf_order.{mode}",
+                             {"order": list(order or []),
+                              "excluded": list(excluded or [])})
+        except Exception:
+            pass
         msg = f"[UKŁAD] Zapisano kolejność PDF dla trybu {mode}."
         if excluded:
             _lbl = ", ".join(t["label"] for t in PDF_ORDER_TEMPLATES
