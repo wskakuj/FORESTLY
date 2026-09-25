@@ -358,6 +358,10 @@ class WebBackend(
             elif kind == "margins":
                 mode = c["mode"]
                 saved = load_margins().get(mode, {})
+                # 'Nowe Szablony': przy pierwszym otwarciu pokaż wartości
+                # kreatora Pełnego Automatu, żeby tabela nie kłamała
+                if not saved and mode == "NS":
+                    saved = load_margins().get("ALL", {})
                 for ftype in MARGIN_FILE_TYPES:
                     fsaved = saved.get(ftype, {})
                     for side, dflt in (("T", "1.5"), ("B", "1.5"),
@@ -637,6 +641,7 @@ class WebBackend(
             "start_pipeline:WORD": lambda: self.start_pipeline("WORD"),
             "start_pipeline:PDF": lambda: self.start_pipeline("PDF"),
             "start_wydruki_all": self.start_wydruki_all,
+            "start_nowe_szablony": self.start_nowe_szablony,
             "start_halizny": self.start_halizny_pipeline,
             "generate_template:MIETEK": lambda: self.generate_template_now("MIETEK"),
             "generate_template:TAKSATOR": lambda: self.generate_template_now("TAKSATOR"),
@@ -901,6 +906,8 @@ class WebBackend(
                     values[cid] = {ch: (ch == "Wszystkie") for ch in c["choices"]}
                 elif kind == "margins":
                     saved = load_margins().get(c["mode"], {})
+                    if not saved and c["mode"] == "NS":
+                        saved = load_margins().get("ALL", {})
                     values[cid] = {
                         ftype: {s: str(saved.get(ftype, {}).get(s, d))
                                 for s, d in (("T", "1.5"), ("B", "1.5"),
@@ -911,6 +918,125 @@ class WebBackend(
                         f"web.font.{f['sheet']}", f["default"])) for f in c["fonts"]}
         return {"schema": self.schema, "values": values,
                 "running": self.running}
+
+    # ------------------------------------------------ nowe szablony (pojedynczy raport)
+
+    def start_nowe_szablony(self):
+        """NOWE SZABLONY: jeden typ raportu TXT → HTML → PDF (bez Worda).
+
+        Skrót do nowych szablonów z Pełnego Automatu — np. do dogenerowania
+        samych WYK_NEG albo sprawdzenia wyglądu jednego raportu.
+        """
+        from tkinter import messagebox
+        src = (self.entries.get("NS", {}).get("src") or FakeEntry("")).get().strip()
+        dst = (self.entries.get("NS", {}).get("dst") or FakeEntry("")).get().strip()
+        typ = str(self.ns_typ_var.get() or "WYK_NEG").strip().upper()
+        bez_nazwisk = bool(self.ns_bez_nazwisk_var.get())
+        if not src or not Path(src).exists():
+            messagebox.showwarning("Błąd", "Wybierz istniejący folder z Mietkami (obręby).")
+            return
+        if not dst:
+            messagebox.showwarning("Błąd", "Wskaż folder docelowy (PDF).")
+            return
+        if self.running:
+            return
+        self.last_output_dir = Path(dst)
+        self._disable_ui_for_process()
+        self.log(f"[NOWE SZABLONY] {typ} — Mietki: {src} → PDF: {dst}"
+                 + (" (bez nazwisk)" if bez_nazwisk else ""))
+        threading.Thread(target=self._nowe_szablony_thread,
+                         args=(src, dst, typ, bez_nazwisk), daemon=True).start()
+
+    def _nowe_szablony_thread(self, src, dst, typ, bez_nazwisk):
+        try:
+            from app.core import szablony
+            from app.core.wydruki import (generuj_wszystkie_po_przeniesieniu,
+                                           generuj_halizny_txt, czytaj_agencje)
+            from app.gui.tabs.tab_wydruki import AGENCJA_NAGLOWKA
+            if typ not in szablony.RENDERERY:
+                raise RuntimeError(f"Nieznany typ raportu: {typ}")
+            self.update_status(f"Nowe szablony: {typ} — TXT z DBF, potem PDF...",
+                               "#0078D7")
+            src_p, dst_p = Path(src), Path(dst)
+            obraby = sorted([d for d in src_p.iterdir() if d.is_dir()])
+            if not obraby:
+                raise RuntimeError("Brak podfolderów obrębów we wskazanym folderze.")
+            # marginesy: własne dla tej zakładki (tryb NS); gdy użytkownik
+            # nie ruszał tabeli — przejmujemy zapamiętane z Pełnego Automatu.
+            # Na dysku marginesy leżą jako {T,B,L,R} — szablony.py chce listę
+            # [góra, dół, lewo, prawo] (konwersja jak w torze 1-Click)
+            def _ns_marginesy():
+                for tryb in ("NS", "ALL"):
+                    saved = load_margins().get(tryb) or {}
+                    out = {}
+                    for ftype, poz in saved.items():
+                        try:
+                            out[ftype] = [
+                                float(str(poz.get("T", "1.5")).replace(",", ".")),
+                                float(str(poz.get("B", "1.5")).replace(",", ".")),
+                                float(str(poz.get("L", "2.5")).replace(",", ".")),
+                                float(str(poz.get("R", "1.5")).replace(",", "."))]
+                        except (TypeError, ValueError, AttributeError):
+                            continue
+                    if out:
+                        return out
+                return None
+            margins = _ns_marginesy()
+            self.start_progress_tracking(len(obraby), f"Nowe szablony: {typ}")
+            ok, blad, pominiete = 0, 0, []
+            for i, obr in enumerate(obraby, 1):
+                self.check_stop()
+                try:
+                    # 1) TXT z DBF-ów (tylko wybrany raport), tak jak w zakładce
+                    #    'MIETEK -> TXT' — plik powstaje obok plików DBF obrębu
+                    ag = czytaj_agencje(obr) or AGENCJA_NAGLOWKA
+                    if typ == "HALIZNY":
+                        try:
+                            hp, _hn = generuj_halizny_txt(obr, agencja=ag or None)
+                        except TypeError:   # starsza sygnatura bez 'agencja'
+                            hp = generuj_halizny_txt(obr)
+                        txt = Path(hp) if hp else None
+                    else:
+                        out = generuj_wszystkie_po_przeniesieniu(
+                            obr, agencja=ag or None, tylko={f"{typ}.TXT"})
+                        txt = Path(out[f"{typ}.TXT"]) if out.get(f"{typ}.TXT") else None
+                    if txt is None or not txt.exists() or txt.stat().st_size < 100:
+                        pominiete.append(obr.name)
+                        self.log(f"  ℹ️ {obr.name}: {typ}.txt nie powstał (brak danych) — pomijam.")
+                    else:
+                        # 2) TXT → HTML → PDF nowym wyglądem
+                        pdf = dst_p / obr.name / f"{typ}.pdf"
+                        pdf.parent.mkdir(parents=True, exist_ok=True)
+                        szablony.generuj_raport_pdf(
+                            typ, txt, pdf,
+                            bez_nazwisk=bool(bez_nazwisk and typ in szablony.USUWA_NAZWISKA),
+                            margins=margins)
+                        ok += 1
+                        self.log(f"  ✅ {obr.name}: {typ}.txt + PDF → {pdf}")
+                except Exception as e:
+                    blad += 1
+                    self.log(f"  ✗ {obr.name}: {e}")
+                self.set_progress(i / len(obraby), current_file=obr.name)
+            self.set_progress(1.0)
+            self.last_output_dir = dst_p
+            if blad:
+                self.update_status(f"Zakończono z błędami ({ok} OK / {blad} błędów)",
+                                   "#D83B01", animate=False)
+            else:
+                self.update_status(f"Gotowość: {ok} × {typ}.pdf", "#107C10", animate=False)
+            self.log(f"[NOWE SZABLONY] Zrobione: {ok} PDF"
+                     + (f", błędy: {blad}" if blad else "")
+                     + (f", pominięte (brak danych): {', '.join(pominiete)}"
+                        if pominiete else "")
+                     + f". Folder: {dst}")
+        except InterruptedError:
+            self.update_status("Zatrzymano", "#D83B01", animate=False)
+            self.log("[STOP] Przerwano generowanie nowych szablonów.")
+        except Exception:
+            self.log(traceback.format_exc())
+            self.update_status("Błąd", "#D83B01", animate=False)
+        finally:
+            self.restore_all_buttons()
 
     # ---------------------------------------------- układ PDF (kolejność)
 

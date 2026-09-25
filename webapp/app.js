@@ -750,7 +750,7 @@ function renderChecks(c) {
     input.dataset.cid = c.id; input.dataset.kind = "checks-item"; input.dataset.choice = choice;
     const st = (VALUES[c.id] || {});
     input.checked = !!st[choice];
-    input.onchange = () => onGroupChange(c, grid);
+    input.onchange = () => onGroupChange(c, grid, input);
     row.appendChild(input);
     row.appendChild(el("span", null, escapeHtml(choice)));
     grid.appendChild(row);
@@ -761,17 +761,21 @@ function renderChecks(c) {
   return wrap;
 }
 
-function onGroupChange(c, grid) {
+function onGroupChange(c, grid, changedInput) {
+  /* changedInput — input, na którym odpalił onchange (a nie document.activeElement,
+     bo w PyWebView focus nie zawsze trafia w checkbox); NodeList nie ma .some,
+     więc stary zapis 'list.some ? ... : false' zawsze zwracał false i po zaznaczeniu
+     np. HALIZNY opcja 'Wszystkie' wracała sama z powrotem */
   const all = grid.querySelector('[data-choice="Wszystkie"] input');
-  const changed = document.activeElement && document.activeElement.dataset.choice
-    ? document.activeElement.dataset.choice : null;
+  const changed = changedInput && changedInput.dataset.choice
+    ? changedInput.dataset.choice : null;
   if (changed === "Wszystkie" && all.checked) {
     grid.querySelectorAll("input").forEach(i => { if (i.dataset.choice !== "Wszystkie") i.checked = false; });
   } else if (changed !== "Wszystkie") {
     if (all.checked) all.checked = false;
     if (AUTO_RETURN_ALL[c.id]) {
-      const any = grid.querySelectorAll("input").some ? Array.from(grid.querySelectorAll("input"))
-        .some(i => i.checked && i.dataset.choice !== "Wszystkie") : false;
+      const any = Array.from(grid.querySelectorAll("input"))
+        .some(i => i.checked && i.dataset.choice !== "Wszystkie");
       if (!any) all.checked = true;
     }
   }

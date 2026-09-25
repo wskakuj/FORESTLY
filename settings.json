@@ -24,8 +24,8 @@
   "web.all_skroty": "",
   "web.remove_names": false,
   "web.wydruki_src": "D:\\download\\gówno\\Nowy folder (16)\\Nowy folder (4)",
-  "web.word_src": "D:\\download\\gówno\\Nowy folder (20)",
-  "web.word_dst": "D:\\download\\gówno\\Nowy folder (20)",
+  "web.word_src": "D:\\download\\gówno\\Nowy folder (16)\\Nowy folder (4)",
+  "web.word_dst": "D:\\download\\gówno\\Nowy folder (16)\\Nowy folder (4)",
   "web.word_remove_names": false,
   "web.tpl_MIETEK_stan": "30.06.2026 r.",
   "web.tpl_MIETEK_okres": "01.01.2027 – 31.12.2036 r.",
@@ -119,28 +119,28 @@
   "web.ogt_gdos": "",
   "web.gdos_xlsx": "D:\\download\\Opera\\gdos_obszary.xlsx",
   "web.all_gen_opis_og": true,
-  "web.all_gdos": "D:\\download\\gówno\\Nowy folder (20)\\wyniki gdoś",
-  "last_output_dir": "D:\\download\\gówno\\Nowy folder (20)",
+  "web.all_gdos": "D:\\download\\gówno\\Nowy folder (20)\\Nowy folder",
+  "last_output_dir": "D:\\download\\gówno\\Nowy folder (20)\\Nowy folder\\PDF polaczone",
   "web.all_tpl_stan": "31.12.1997 r.",
-  "web.all_tpl_okres": "31.12.1997 – 31.12.2036 r.",
-  "web.all_wsk_od": "31.12.1997",
-  "web.all_wsk_do": "31.12.1997",
-  "web.nowe_szablony": false,
+  "web.all_tpl_okres": "01.01.2027 – 31.12.2036 r.",
+  "web.all_wsk_od": "01.01.2027",
+  "web.all_wsk_do": "31.12.2036",
+  "web.nowe_szablony": true,
   "pdf_order.ALL": {
     "order": [
+      "REJESTR1",
+      "OPTAX",
       "TITLE",
       "OPIS",
       "WSKAZ1",
       "TAB_KLW3",
-      "OPTAX",
       "WSK_ZB",
-      "HALIZNY",
-      "WYK_NEG",
-      "REJESTR1",
       "ZEST1",
-      "SKROTY",
-      "WK_ZM1"
+      "SKROTY"
     ],
     "excluded": []
-  }
+  },
+  "web.ns_src": "D:\\download\\gówno\\Nowy folder (20)",
+  "web.ns_dst": "D:\\download\\gówno\\Nowy folder (20)",
+  "web.ns_bez_nazwisk": false
 }

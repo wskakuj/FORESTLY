@@ -155,6 +155,32 @@ def build_schema():
             ],
         },
         {
+            "key": "MIETEK|Nowe Szablony",
+            "tooltip": ("Pojedynczy raport nowym wyglądem (TXT → HTML → PDF, bez Worda) — "
+                        "ten sam styl, co Pełny Automat z włączonymi nowymi szablonami."),
+            "controls": [
+                _path("ns_src", "entries.NS.src", "Folder z Mietkami (obręby):",
+                      "Folder, w którym leżą foldery obrębów (np. CHORZEWO\\WOL.001\\...DBF)"),
+                _path("ns_dst", "entries.NS.dst", "Folder docelowy (PDF):", "Wskaż lokalizację..."),
+                _select("ns_typ", "ns_typ_var", "Raport do wygenerowania:",
+                        ["WYK_NEG", "REJESTR1", "OPTAX", "TAB_KLW3", "WSKAZ1",
+                         "WSK_ZB", "ZEST1", "HALIZNY"],
+                        "WYK_NEG"),
+                _check("ns_bez_nazwisk", "ns_bez_nazwisk_var",
+                       "Bez nazwisk (dotyczy REJESTR1 i WSKAZ1)", True,
+                       "Działa tak samo jak opcja 'Usuwaj nazwiska' w Pełnym Automacie."),
+                _margins("NS"),
+                _info("Program sam wygeneruje pliki TXT wybranego raportu z DBF-ów "
+                      "każdego obrębu (jak zakładka 'MIETEK -> TXT'; pliki TXT powstaną "
+                      "obok DBF-ów) i zamieni je na PDF-y nowym wyglądem. "
+                      "Styl — jak w Pełnym Automacie; marginesy własne dla tej zakładki "
+                      "(na start przejmują ustawienia z kreatora Pełnego Automatu)."),
+            ],
+            "buttons": [
+                _button("run", "▶  Generuj PDF", "start_nowe_szablony"),
+            ],
+        },
+        {
             "key": "MIETEK|Generowanie: MIETEK -> TXT",
             "tooltip": "Generuje pliki wydrukowe MIETEKA bezpośrednio z plików DBF.",
             "controls": [
