@@ -1,3 +1,3 @@
-# Co nowego w v2.0.54
-- nowy szablon
+# Co nowego w v2.0.55
+- poprawki do nowego szablonu
 

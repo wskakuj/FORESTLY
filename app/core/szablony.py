@@ -186,7 +186,8 @@ def parse_optax(path):
             cur = {"oddz": k[0], "pow": k[1], "opis": [k[2]], "el": k[3:11],
                    "wsk": k[11:14],
                    "wyk": [k[14] if len(k) > 14 else "",
-                           k[15] if len(k) > 15 else ""]}
+                           k[15] if len(k) > 15 else "",
+                           k[16] if len(k) > 16 else ""]}
         elif cur is not None and (k[2] or k[1]):
             cur["opis"].append(k[2] if k[2] else k[1])
     if cur:
@@ -381,6 +382,7 @@ CSS = """
   tr.razem td { font-weight: 600; background: #f7f7f7; }
   tr.razem.ob td { border-top: 1.6pt solid #111; font-weight: 700; }
   tr.sub td { font-style: italic; background: #fbfbfb; }
+  td.rl { text-align: right; white-space: nowrap; }
   tr.rdz td { background: none; border-top-color: transparent; border-bottom-color: transparent; }
   tr.rdz td.rl { text-align: right; font-style: italic; font-weight: 600;
                  white-space: nowrap; color: #1a1a1a; }
@@ -447,21 +449,21 @@ def html_rejestr1(path, obiekt, stan, bez_nazwisk=False, marginesy=None):
         cd = 12 if bez_nazwisk else 13
         if p["razem_d"] and not p["razem_ob"]:
             nr_d = p.get("razem_d_nr") or ""
-            tr.append(f'<tr class="rdz"><td></td>'
-                      f'<td class="rl">Razem działka {nr_d} — {p["razem_d"]} ha</td>'
+            tr.append(f'<tr class="rdz">'
+                      f'<td class="rl" colspan="2">Razem działka {nr_d} — {p["razem_d"]} ha</td>'
                       f'<td colspan="{cd}"></td></tr>')
         cp_ = 4 if bez_nazwisk else 5
         if p["razem_p"]:
             rp = p["razem_p"]
-            tr.append(f'<tr class="sub"><td></td><td>Razem pozycja</td>'
+            tr.append(f'<tr class="sub"><td class="rl" colspan="2">Razem pozycja</td>'
                       f'<td colspan="{cp_}"></td>'
                       f'<td class="n">{rp[0]}</td><td class="n">{rp[1]}</td>'
                       f'<td class="n">{rp[2]}</td><td class="n">{rp[3]}</td>'
                       f'<td class="n">{rp[4]}</td><td colspan="3"></td></tr>')
         if p["razem_ob"]:
             rv = p.get("razem_ob_v") or ["", "", "", "", ""]
-            tr.append(f'<tr class="razem ob"><td></td>'
-                      f'<td>Razem obiekt — {p["razem_d"]} ha</td>'
+            tr.append(f'<tr class="razem ob">'
+                      f'<td class="rl" colspan="2">Razem obiekt — {p["razem_d"]} ha</td>'
                       f'<td colspan="{cp_}"></td>'
                       f'<td class="n">{rv[0]}</td><td class="n">{rv[1]}</td>'
                       f'<td class="n">{rv[2]}</td><td class="n">{rv[3]}</td>'
@@ -502,24 +504,26 @@ def html_optax(path, obiekt, stan, bez_nazwisk=False, marginesy=None):
                   f'<td class="n">{el[6]}</td><td class="n">{el[7]}</td>'
                   f'<td>{wsk[0]}</td><td class="n">{wsk[1]}</td>'
                   f'<td class="n">{wsk[2]}</td>'
-                  f'<td>{wyk[0]}</td><td class="n">{wyk[1]}</td></tr>')
+                  f'<td>{wyk[0]}</td><td class="n">{wyk[1]}</td>'
+                  f'<td class="n">{wyk[2]}</td></tr>')
     tresc = """<table>
 <thead><tr>
-<th rowspan="3" style="width:5%">Oddział<br>poddz.</th>
-<th rowspan="3" class="n" style="width:6%">Pow.<br>[ha]</th>
-<th rowspan="3" style="width:30%">Opis taksacyjny lasu, gruntu<br>
+<th rowspan="2" style="width:5%">Oddział<br>poddz.</th>
+<th rowspan="2" class="n" style="width:6%">Pow.<br>[ha]</th>
+<th rowspan="2" style="width:30%">Opis taksacyjny lasu, gruntu<br>
 przeznaczonego do zalesienia</th>
 <th colspan="8">Elementy taksacyjne</th>
-<th rowspan="3" style="width:11%">Rodzaj wskazania</th>
-<th rowspan="3" class="n" style="width:6%">Pow.<br>[ha]</th>
-<th rowspan="3" class="n" style="width:5%">Maks.<br>miąż. do<br>pozysk.<br>[m3]</th>
-<th colspan="2">Wykonanie</th></tr>
-<tr><th colspan="5" style="width:26%">Drzewostan</th><th rowspan="2">Zad.</th><th colspan="2">Miąż. na pow.</th>
-<th rowspan="2">Czynn.</th><th rowspan="2" class="n" style="width:4%">[ha]</th></tr>
-<tr><th style="width:5%">Gat. gł.</th><th class="n" style="width:4%">Wiek</th>
+<th colspan="3">Wskazania gospodarcze</th>
+<th colspan="3">Wykonanie</th></tr>
+<tr>
+<th style="width:5%">Gat. gł.</th><th class="n" style="width:4%">Wiek</th>
 <th style="width:5%">Klasa wieku</th><th class="n" style="width:4%">Wys. [m]</th>
-<th class="n" style="width:5%">Pierw. [cm]</th><th class="n" style="width:4%">Bon.</th>
-<th class="n" style="width:4%">[m3]</th><th class="n" style="width:4%">[m3]</th></tr></thead>
+<th class="n" style="width:4%">Pierw. [cm]</th><th class="n" style="width:4%">Bon.</th>
+<th>Zad.</th><th class="n">Miąż.<br>na pow.<br>[m3]</th>
+<th style="width:11%">Rodzaj wskazania</th><th class="n" style="width:6%">Pow.<br>[ha]</th>
+<th class="n" style="width:5%">Maks.<br>miąż. do<br>pozysk.<br>[m3]</th>
+<th>Czynn.</th><th class="n" style="width:4%">[ha]</th><th class="n" style="width:4%">[m3]</th>
+
 <tbody>""" + "".join(tr) + "</tbody></table>"
     return _strona("Opis lasów i gruntów przeznaczonych do zalesienia",
                    obiekt, stan, tresc, poziom=True, marginesy=marginesy)

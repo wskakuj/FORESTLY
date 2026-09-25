@@ -881,27 +881,14 @@ class TabAllMixin:
             daemon=True,
         ).start()
 
-    def _str_tyt_wartosci(self):
-        """Wartości strony tytułowej z pól kreatora (wspólne dla obu wariantów)."""
-        def _v(attr, default=""):
-            e = getattr(self, attr, None)
-            return e.get().strip() if e is not None else default
-        return {
-            "doc_type": _v("all_tpl_doc_var", "UPUL") or "UPUL",
-            "prefix": _v("all_tpl_prefix_var") or "położonych na terenie obrębu",
-            "woj": _v("all_tpl_woj_var").upper(),
-            "powiat": _v("all_tpl_powiat_var").upper(),
-            "gmina": _v("all_tpl_gmina_var").upper(),
-            "stan_na": _v("all_tpl_stan_na_entry"),
-            "okres": _v("all_tpl_okres_entry"),
-        }
-
     def _szablony_html_etap(self, txt_dir, pdf_dir, remove_names, margins_dict):
-        """NOWE SZABLONY: TXT mietka → HTML → PDF + strona tytułowa + opisy ogólne — bez Worda.
+        """NOWE SZABLONY: raporty TXT mietka → HTML → PDF, bez Worda.
 
-        Zastępuje w Pełnym Automacie kroki: Word → STR_TYT → opisy ogólne →
-        konwersja na PDF. Marginesy i „usuń nazwiska" działają jak dotychczas
-        (te same źródła), a daty są już nadpisane w TXT przez _zamien_daty_txt.
+        Generuje wyłącznie raporty (REJESTR1, OPTAX, ...). Strona tytułowa,
+        opisy ogólne i skróty powstają starą ścieżką (Word) — patrz
+        _szablony_str_tyt_opis_og_wordem. Marginesy i „usuń nazwiska" działają
+        jak dotychczas (te same źródła), a daty są już nadpisane w TXT
+        przez _zamien_daty_txt.
         """
         from app.core import szablony
 
@@ -914,7 +901,6 @@ class TabAllMixin:
         self.log(f"[SZABLONY] Nowy wygląd wydruków: {total} wsi "
                  f"(TXT → HTML → PDF, bez Worda).")
 
-        vals = self._str_tyt_wartosci()
         n_done = 0
         for optax_path in optaxy:
             self.check_stop()
@@ -940,25 +926,62 @@ class TabAllMixin:
                     margins=margins_dict)
                 n_plik += 1
 
-            # strona tytułowa (odpowiednik STR_TYT.docx — z pól kreatora)
-            if vals:
-                with tempfile.TemporaryDirectory(prefix="forestly_st_") as tmp:
-                    html_t = Path(tmp) / "STR_TYT.html"
-                    szablony.generuj_str_tyt_html(
-                        html_t, village=obiekt or "NIEZNANA_WIES", **vals)
-                    szablony.html_na_pdf(html_t, out_dir / "STR_TYT.pdf")
-                n_plik += 1
-
             n_done += 1
             self.set_progress(0.15 + 0.45 * n_done / total,
                                current_file=f"Szablony: {obiekt or str(rel)}")
             self.log(f"[SZABLONY] {str(rel) or '.'}: {n_plik} plików PDF.")
 
-        # === OPISY OGÓLNE: czytają WSK_ZB.TXT (bez Worda), docx → HTML → PDF ===
+    def _szablony_str_tyt_opis_og_wordem(self, txt_dir, word_dir, pdf_dir):
+        """STR_TYT i opisy ogólne przy nowych szablonach — STARA ścieżka (Word).
+
+        Te dokumenty mają zachować wygląd znany ze starego toru, więc powstają
+        dokładnie jak dotychczas: STR_TYT.docx z pól kreatora (nazwa wsi z
+        OPTAX.TXT zamiast z OPTAX.doc przez Worda), opis og_<wieś>.docx czyta
+        WSK_ZB.TXT (bez uruchamiania Worda), a PDF robi Word — jak zawsze.
+        """
+        from app.core import szablony
+
+        txt_dir, word_dir, pdf_dir = Path(txt_dir), Path(word_dir), Path(pdf_dir)
+        optaxy = sorted(txt_dir.rglob("OPTAX*.TXT"))
+
+        # 1) struktura Word/<wieś>/ + WSK_ZB.TXT dla generatora opisu ogólnego
+        for optax_path in optaxy:
+            rel = optax_path.parent.relative_to(txt_dir)
+            (word_dir / rel).mkdir(parents=True, exist_ok=True)
+            wsk_txt = optax_path.parent / "WSK_ZB.TXT"
+            if wsk_txt.exists() and not (word_dir / rel / "WSK_ZB.TXT").exists():
+                shutil.copy2(wsk_txt, word_dir / rel / "WSK_ZB.TXT")
+
+        # 2) STR_TYT.docx — z pól kreatora (1-Click), nazwa wsi z OPTAX.TXT
+        tpl_tmp = self._zbuduj_szablon_str_tyt_dla_all()
+        if tpl_tmp:
+            try:
+                self.update_status(
+                    "Generowanie stron tytułowych (STR_TYT)...", "#0078D7")
+                self.check_stop()
+                for optax_path in optaxy:
+                    self.check_stop()
+                    obiekt, _stan, _okres = szablony.meta_z_pliku(optax_path)
+                    rel = optax_path.parent.relative_to(txt_dir)
+                    doc = Document(tpl_tmp)
+                    self.replace_text_robust(
+                        doc, "NAZWA WSI", obiekt or "NIEZNANA_WIES")
+                    doc.save(str(word_dir / rel / "STR_TYT.docx"))
+                    self.log(f"[STR_TYT] Utworzono: {word_dir / rel}/STR_TYT.docx"
+                             f" (Wieś: {obiekt or 'NIEZNANA_WIES'})")
+            finally:
+                try:
+                    Path(tpl_tmp).unlink()
+                except OSError:
+                    pass
+
+        # 3) opisy ogólne — jak w starym torze (WSK_ZB czytane bez Worda)
         if (getattr(self, "all_gen_opis_og_var", None) is None
                 or self.all_gen_opis_og_var.get()):
-            self.update_status("Generowanie opisów ogólnych (z WSK_ZB)...",
-                               "#0078D7")
+            self.update_status(
+                "Generowanie opisów ogólnych (opis og_<wieś>.docx)...",
+                "#0078D7",
+            )
             self.check_stop()
             gdos_raw = ""
             ent = getattr(self, "all_gdos_entry", None)
@@ -966,20 +989,19 @@ class TabAllMixin:
                 gdos_raw = ent.get().strip()
             try:
                 self._opis_og_generuj(
-                    txt_dir, Path(gdos_raw) if gdos_raw else None,
+                    word_dir, Path(gdos_raw) if gdos_raw else None,
                     tylko_istniejace=True,
                 )
             except Exception:
                 self.log("[OPIS OG] Błąd generowania opisów ogólnych:"
                          "\n" + traceback.format_exc())
-            for docx_path in sorted(txt_dir.rglob("opis og_*.docx")):
-                self.check_stop()
-                target = pdf_dir / docx_path.relative_to(txt_dir).with_suffix(".pdf")
-                try:
-                    szablony.docx_na_pdf(docx_path, target, margins=margins_dict)
-                    self.log(f"[OPIS OG] {target.parent.name}/{target.name} → PDF")
-                except Exception as e:
-                    self.log(f"[OPIS OG] Błąd konwersji {docx_path.name}: {e}")
+
+        # 4) konwersja STR_TYT + opisów ogólnych na PDF — Word, jak dotychczas
+        self.update_status(
+            "Konwersja stron tytułowych i opisów na PDF (Word)...", "#0078D7")
+        self.check_stop()
+        c = self.task_convert_to_pdf(word_dir, pdf_dir)
+        self.log(f"[STR_TYT/OPIS OG] Przekonwertowano {c} plik(ów) Word na PDF.")
 
     def task_generate_str_tyt(self, word_dir, template_path, village_ph, area_ph):
         word_dir = Path(word_dir)
@@ -1083,17 +1105,17 @@ class TabAllMixin:
             domyslne = get_resource_path("Skroty.docx")
         return str(domyslne) if domyslne.exists() else None
 
-    def _inject_skroty_step(self, pdf_dir, nowe=False):
+    def _inject_skroty_step(self, pdf_dir):
         """Dołącza 'Skróty i symbole' (skroty.pdf) do każdego folderu z PDF-ami."""
         skroty_path = self._resolve_skroty_path()
         if skroty_path and Path(skroty_path).exists():
-            c = self.task_inject_skroty(pdf_dir, skroty_path, nowe=nowe)
+            c = self.task_inject_skroty(pdf_dir, skroty_path)
             self.log(f"[SKROTY] Dodano plik do {c} folderów wsi.")
             return c
         self.log("[UWAGA] Nie znaleziono pliku ze skrótami (ani domyślnego, ani własnego). Pomijam.")
         return 0
 
-    def task_inject_skroty(self, pdf_dir, skroty_source_path, nowe=False):
+    def task_inject_skroty(self, pdf_dir, skroty_source_path):
         pdf_dir = Path(pdf_dir)
         skroty_source_path = Path(skroty_source_path)
 
@@ -1109,19 +1131,7 @@ class TabAllMixin:
         temp_skroty_pdf = None
         skroty_pdf_to_copy = None
 
-        # Nowe szablony: .docx konwertujemy bez Worda (HTML → PDF przez Edge)
-        if nowe and ext == ".docx":
-            try:
-                from app.core import szablony
-                temp_skroty_pdf = Path(tempfile.gettempdir()) / "skroty_temp.pdf"
-                szablony.docx_na_pdf(skroty_source_path, temp_skroty_pdf)
-                skroty_pdf_to_copy = temp_skroty_pdf
-                self.log("[SKROTY] Skonwertowano bez Worda (nowe szablony).")
-            except Exception as e:
-                self.log(f"[SKROTY] Konwersja bez Worda nie udała się ({e}) "
-                         "— próbuję przez Worda...")
-
-        if skroty_pdf_to_copy is None and ext in {".doc", ".docx"}:
+        if ext in {".doc", ".docx"}:
             self.log("[SKROTY] Konwertuję plik Word na PDF...")
             word_app = None
             _word_pid = None
@@ -1166,9 +1176,9 @@ class TabAllMixin:
                         office_guard.unregister(_word_pid)
                     except Exception:
                         pass
-        elif ext == ".pdf" and skroty_pdf_to_copy is None:
+        elif ext == ".pdf":
             skroty_pdf_to_copy = skroty_source_path
-        elif skroty_pdf_to_copy is None:
+        else:
             self.log(f"[SKROTY] Nieobsługiwany format: {ext}")
             return 0
 
@@ -1278,7 +1288,7 @@ class TabAllMixin:
                 self._zamien_daty_txt(dir_01)
 
                 if nowe_szablony:
-                    # === NOWE SZABLONY: TXT → HTML → PDF (bez Worda i COM) ===
+                    # === NOWE SZABLONY: raporty TXT → HTML → PDF (bez Worda) ===
                     self.update_status(
                         "Nowe szablony: generowanie wydruków (bez Worda)...",
                         "#0078D7",
@@ -1288,7 +1298,19 @@ class TabAllMixin:
                     self._szablony_html_etap(dir_01, dir_03, remove_names,
                                              margins_dict)
                     self.update_dashboard(2, "done", "Gotowe")
-                    self.update_dashboard(3, "done", "pominięto (bez Worda)")
+                    self.set_progress(0.45)
+
+                    # === STR_TYT + OPISY OGÓLNE — STARA ŚCIEŻKA (Word),
+                    #     wygląd identyczny jak przy starych szablonach ===
+                    self.update_status(
+                        "Strony tytułowe i opisy ogólne (Word)...",
+                        "#0078D7",
+                    )
+                    self.update_dashboard(3, "running", "STR_TYT + opis...")
+                    self.check_stop()
+                    self._szablony_str_tyt_opis_og_wordem(dir_01, dir_02, dir_03)
+                    self._flatten_001_subfolders(dir_03)
+                    self.update_dashboard(3, "done", "Gotowe")
                     self.set_progress(0.60)
                 else:
                     self.update_status("Generowanie plików Word...", "#0078D7")
@@ -1346,7 +1368,7 @@ class TabAllMixin:
 
                     # === WSTRZYKIWANIE SKROTÓW (ZAWSZE WŁĄCZONE) ===
                 self.update_status("Dołączanie 'Skrótów i symboli' do pakietów...", "#0078D7")
-                self._inject_skroty_step(dir_03, nowe=nowe_szablony)
+                self._inject_skroty_step(dir_03)
 
                 self.update_status("Scalanie pakietów PDF...", "#0078D7")
                 self.update_dashboard(4, "running", "Scalanie...")
