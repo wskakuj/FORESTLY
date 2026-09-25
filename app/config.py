@@ -18,7 +18,7 @@ from pathlib import Path
 import customtkinter as ctk
 
 # --- WERSJA I AKTUALIZACJA ---
-CURRENT_VERSION = "v2.0.64"
+CURRENT_VERSION = "v2.0.65"
 GITHUB_USER = "wskakuj"
 GITHUB_REPO = "FORESTLY"
 
@@ -101,6 +101,9 @@ FILTER_ALIASES = {
     "ZEST1": {"ZEST1"},
     "WK_ZM1": {"WK_ZM1"},
 }
+
+# prefiks numeru pozycji w ustawionym układzie PDF (np. "03_OPTAX.pdf")
+RE_PREFIX_UKLADU = re.compile(r"^\d{2}_")
 
 PDF_ORDER_TEMPLATES = [
     {"key": "TITLE", "label": "Strona Tytułowa", "aliases": ["upul", "str_tyt", "strtyt"]},
@@ -203,7 +206,9 @@ def normalize_name(name: str) -> str:
 
 
 def template_matches(template, pdf_name: str) -> bool:
-    name = normalize_name(pdf_name)
+    # pomijamy prefiks pozycji w układzie (np. "04_OPTAX.pdf" -> "OPTAX.pdf") —
+    # dodawany przez scalanie, nie może psuć rozpoznawania przy ponownym biegu
+    name = normalize_name(RE_PREFIX_UKLADU.sub("", pdf_name))
     for alias in template["aliases"]:
         alias = normalize_name(alias)
         if alias.endswith(".pdf"):

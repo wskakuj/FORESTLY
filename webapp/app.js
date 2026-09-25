@@ -115,10 +115,14 @@ function renderAll(cfg) {
    (oba odznaczone = opisy ogólne pomijane); folder GDOŚ potrzebny w obu
    wariantach, więc pokazujemy go przy każdym z nich */
 function wireOpisOgExclusive() {
-  const pelny = document.querySelector('[data-cid="all_pelny_opis_og"]');
-  const krotki = document.querySelector('[data-cid="all_krotki_opis_og"]');
-  const gdos = document.querySelector('[data-cid="all_gdos"]');
-  if (!pelny || !krotki) return;
+  /* kreator 1-Click + zakładka Opisy ogólne — ta sama para przełączników */
+  const pary = [["all_pelny_opis_og", "all_krotki_opis_og", "all_gdos"],
+                ["opis_og_pelny", "opis_og_krotki", "opis_og_gdos"]];
+  for (const [pid, kid, gid] of pary) {
+  const pelny = document.querySelector(`[data-cid="${pid}"]`);
+  const krotki = document.querySelector(`[data-cid="${kid}"]`);
+  const gdos = document.querySelector(`[data-cid="${gid}"]`);
+  if (!pelny || !krotki) continue;
   const odswiez = () => {
     if (gdos) {
       const row = gdos.closest(".field") || gdos;
@@ -135,6 +139,7 @@ function wireOpisOgExclusive() {
     odswiez();
   });
   odswiez();
+  }
 }
 
 /* ------------------------------------------- nawigacja: Start, grupy, szukajka */
@@ -839,7 +844,6 @@ let MP_CID = null;          /* cid tabeli marginesów, którą podgląd słucha 
 function closeMarginsPreview() {
   const d = document.getElementById("mp-dock");
   if (d) d.remove();
-  document.body.classList.remove("mp-open");
   if (MP_CLEANUP) { MP_CLEANUP(); MP_CLEANUP = null; }
   MP_CID = null;
 }
@@ -867,6 +871,32 @@ async function openMarginsPreview(cid, mode) {
   const dock = el("div", "mp-dock");
   dock.id = "mp-dock";
 
+  /* wolne, pływające okno: pozycję i rozmiar można zmieniać ręcznie
+     (przeciąganie za pasek tytułowy + uchwyt w prawym dolnym rogu);
+     ustawienia zapamiętujemy między otwarciami */
+  let pos = null;
+  try { pos = JSON.parse(localStorage.getItem("mpWindow") || "null"); } catch (e) {}
+  if (!pos || !pos.w || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) {
+    const w = Math.min(640, Math.round(window.innerWidth * 0.42));
+    const h = Math.min(window.innerHeight - 48, 980);
+    pos = { x: window.innerWidth - w - 16, y: 24, w, h };
+  }
+  pos.w = Math.max(340, Math.min(pos.w, window.innerWidth - 20));
+  pos.h = Math.max(320, Math.min(pos.h, window.innerHeight - 20));
+  pos.x = Math.max(0, Math.min(pos.x, window.innerWidth - 120));
+  pos.y = Math.max(0, Math.min(pos.y, window.innerHeight - 60));
+  dock.style.left = pos.x + "px";
+  dock.style.top = pos.y + "px";
+  dock.style.width = pos.w + "px";
+  dock.style.height = pos.h + "px";
+  const zapiszOkno = () => {
+    try {
+      localStorage.setItem("mpWindow", JSON.stringify({
+        x: dock.offsetLeft, y: dock.offsetTop,
+        w: dock.offsetWidth, h: dock.offsetHeight }));
+    } catch (e) { /* prywatny tryb przeglądarki — trudno */ }
+  };
+
   const head = el("div", "mp-head");
   head.appendChild(el("h3", null, "Podgląd marginesów"));
   const sel = el("select", "mp-typ");
@@ -886,6 +916,29 @@ async function openMarginsPreview(cid, mode) {
   zamknij.onclick = closeMarginsPreview;
   head.appendChild(zamknij);
   dock.appendChild(head);
+  /* przeciąganie za pasek tytułowy (przyciski i lista nie ruszają okna) */
+  let drag = null;
+  head.addEventListener("mousedown", e => {
+    if (dock.classList.contains("full")) return;
+    if (e.target.closest("button, select, input")) return;
+    drag = { dx: e.clientX - dock.offsetLeft, dy: e.clientY - dock.offsetTop };
+    document.body.classList.add("mp-dragging");
+    e.preventDefault();
+  });
+  const onDragMove = e => {
+    if (!drag) return;
+    dock.style.left = Math.max(-40, e.clientX - drag.dx) + "px";
+    dock.style.top = Math.max(0, e.clientY - drag.dy) + "px";
+  };
+  const onDragUp = () => {
+    if (!drag) return;
+    drag = null;
+    document.body.classList.remove("mp-dragging");
+    zapiszOkno();
+  };
+  document.addEventListener("mousemove", onDragMove);
+  document.addEventListener("mouseup", onDragUp);
+
 
   const info = el("div", "mp-note",
     "Podgląd 1. strony A4 (tak, jak wyjdzie z druku). Zmieniaj marginesy " +
@@ -916,10 +969,17 @@ async function openMarginsPreview(cid, mode) {
   }
   const onResize = () => { if (document.getElementById("mp-dock")) ustawSkale(); };
   window.addEventListener("resize", onResize);
+  /* ręczna zmiana rozmiaru okna (uchwyt w rogu) też przelicza skalę.
+     MutationObserver na atrybucie style łapie zmiany szerokości/wysokości
+     (uchwyt "resize" ustawia style inline), ResizeObserver — pozostałe */
+  const poZmianieRozmiaru = () => { ustawSkale(); zapiszOkno(); };
+  const ro = new ResizeObserver(poZmianieRozmiaru);
+  ro.observe(dock);
+  const mo = new MutationObserver(poZmianieRozmiaru);
+  mo.observe(dock, { attributes: true, attributeFilter: ["style"] });
 
   function ustawPelnyEkran(on) {
     dock.classList.toggle("full", on);
-    document.body.classList.toggle("mp-full-open", on);
     ustawSkale();
   }
   const onKey = e => {
@@ -928,7 +988,6 @@ async function openMarginsPreview(cid, mode) {
   document.addEventListener("keydown", onKey);
 
   document.body.appendChild(dock);
-  document.body.classList.add("mp-open");
 
   /* każde wpisanie w prawdziwej tabeli marginesów odświeża podgląd */
   const czcCid = "czcionki_" + mode;
@@ -940,8 +999,12 @@ async function openMarginsPreview(cid, mode) {
   MP_CLEANUP = () => {
     document.removeEventListener("input", onInput);
     window.removeEventListener("resize", onResize);
-    document.removeEventListener("keydown", onKey);
-    document.body.classList.remove("mp-full-open");
+    window.removeEventListener("keydown", onKey);
+    document.removeEventListener("mousemove", onDragMove);
+    document.removeEventListener("mouseup", onDragUp);
+    document.body.classList.remove("mp-dragging");
+    ro.disconnect();
+    mo.disconnect();
   };
 
   function schedule() {

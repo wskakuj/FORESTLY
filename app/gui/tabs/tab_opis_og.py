@@ -231,7 +231,21 @@ class TabOpisOgMixin:
             return
         gdos_entry = getattr(self, "opis_og_gdos_entry", None)
         gdos_raw = gdos_entry.get().strip() if gdos_entry is not None else ""
-        self._opis_og_generuj(Path(raw), Path(gdos_raw) if gdos_raw else None)
+        # przełączniki pełne/skrócone (wzajemnie się wykluczają; oba odznaczone
+        # = opisy pomijane) — tak samo jak w kreatorze Pełnego Automatu
+        pelny_v = getattr(self, "opis_og_pelny_var", None)
+        krotki_v = getattr(self, "opis_og_krotki_var", None)
+        pelny = bool(pelny_v.get()) if pelny_v is not None else True
+        krotki = bool(krotki_v.get()) if krotki_v is not None else False
+        if pelny and krotki:            # obrona przed starym zapisem obu
+            krotki = False
+        if not pelny and not krotki:
+            self.log("[OPIS OG] Oba przełączniki (pełne / skrócone) są odznaczone "
+                     "— opisy ogólne nie powstaną.")
+            self.update_status("Opisy ogólne pominięte", "#D83B01", animate=False)
+            return
+        self._opis_og_generuj(Path(raw), Path(gdos_raw) if gdos_raw else None,
+                              skrocony=krotki)
 
     def _opis_og_generuj(self, root, gdos_folder=None, tylko_istniejace=False,
                          skrocony=False):
@@ -550,9 +564,9 @@ class TabOpisOgMixin:
             return ["W obszarze objętym opracowaniem nie zlokalizowano "
                     "żadnych form ochrony przyrody."]
 
-        # wersja skrócona: zwykłe zdania bez nagłówka, myślników i PZO,
-        # np. „Obszar Natura 2000 SOO Ostoja Międzychodzko-Sierakowska
-        # PLH300032 w pododdziałach 1a, 1b (w części: 1a, 1b)."
+        # wersja skrócona: zwykłe zdania bez nagłówka, myślników, PZO i KODU
+        # obszaru, np. „Obszar Natura 2000 SOO Ostoja Międzychodzko-Sierakowska
+        # w pododdziałach 1a, 1b (w części: 1a, 1b)."
         par = [] if skrocony else ["Zlokalizowano następujące formy ochrony przyrody"]
         for z in obszary:
             typ, nazwa, kbe = z["typ"], z["nazwa"], z["kb"]
@@ -566,9 +580,9 @@ class TabOpisOgMixin:
                     gdzie += f" (w części: {', '.join(czesc)})"
             if skrocony:
                 if typ in ("OSO", "SOO"):
-                    kod = f" {kbe['kod']}" if (kbe and kbe.get("kod")) else ""
-                    par.append((f"Obszar Natura 2000 {typ} {nazwa}{kod} {gdzie}"
-                                if gdzie else f"Obszar Natura 2000 {typ} {nazwa}{kod}") + ".")
+                    # bez kodu obszaru — samo „OSO/SOO + nazwa"
+                    par.append((f"Obszar Natura 2000 {typ} {nazwa} {gdzie}"
+                                if gdzie else f"Obszar Natura 2000 {typ} {nazwa}") + ".")
                 else:
                     par.append((f"{nazwa} {gdzie}" if gdzie else nazwa) + ".")
                 continue

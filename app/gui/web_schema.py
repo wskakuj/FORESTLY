@@ -296,6 +296,21 @@ def build_schema():
                 _path("opis_og_root", "opis_og_root_entry",
                       "Folder główny (z folderami wsi) albo folder pojedynczej wsi:",
                       "np. folder \u201eu\u0142o\u017cone\u201d albo folder jednej wsi"),
+                _check("opis_og_pelny", "opis_og_pelny_var",
+                       "Pełne opisy ogólne (z powiązaniami z gospodarką leśną "
+                       "i opisami form)", True,
+                       "Pełny opis ogólny (opis og_<wieś>.docx) — z powiązaniami "
+                       "obszarów Natura 2000 z gospodarką leśną i opisami "
+                       "pozostałych form ochrony przyrody.\n"
+                       "Dane liczbowe pochodzą z WSK_ZB.doc wsi."),
+                _check("opis_og_krotki", "opis_og_krotki_var",
+                       "Skrócone opisy ogólne (sama lista form ochrony przyrody)", False,
+                       "Opis ogólny w wersji skróconej — same zdania typu "
+                       "„Obszar Natura 2000 SOO … w pododdziałach …”, "
+                       "bez powiązań z gospodarką leśną, bez opisów form "
+                       "i bez kodów obszarów.\n"
+                       "Zaznacz ALBO to, ALBO pełne (wzajemnie się wykluczają); "
+                       "oba odznaczone = opisy ogólne nie powstają."),
                 _path("opis_og_gdos", "opis_og_gdos_entry",
                       "Folder z wynikami GDOŚ (opcjonalnie):",
                       "np. folder z plikami *_wynik.xlsx — formy ochrony przyrody "

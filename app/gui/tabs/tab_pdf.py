@@ -3,6 +3,7 @@ Forestly — Mixin: TabPdfMixin
 """
 
 import customtkinter as ctk
+import re
 import time
 from pathlib import Path
 
@@ -133,6 +134,17 @@ class TabPdfMixin:
         return count
 
     def task_merge_pdfs(self, in_dir, out_dir, mode_key="ALL"):
+        # [NUMERACJA] po poprzednim biegu pliki mają prefiksy pozycji
+        # ("04_OPTAX.pdf"); jeśli świeży przebieg wygenerował już czystą
+        # nazwę ("OPTAX.pdf"), stary duplikat usuwamy, żeby nie wchodził
+        # do scalanki podwójnie
+        for f in in_dir.rglob("[0-9][0-9]_*.pdf"):
+            base = f.with_name(f.name[3:])
+            if base.exists():
+                f.unlink()
+                self.log(f"  [NUMERACJA] Usunięto duplikat z poprzedniego "
+                         f"przebiegu: {f.name}")
+
         # INTELIGENTNY WYBÓR TRYBU: Jedna wieś vs Wiele wsi
         direct_pdfs = list(in_dir.glob("*.pdf"))
         pdf_dirs = set()
@@ -252,7 +264,8 @@ class TabPdfMixin:
                 continue
 
             target_dir.mkdir(parents=True, exist_ok=True)
-            target = target_dir / f"{village_name}_scalony.pdf"
+            # nazwa pliku: UPUL/ISL wg wyboru z kreatora strony tytułowej
+            target = target_dir / f"{village_name}_{self._nazwa_dokumentu()}.pdf"
 
             writer = PdfWriter()
             current_page = 0
@@ -289,7 +302,58 @@ class TabPdfMixin:
                 self.log(f"Błąd przy {target.name}: {e}")
             finally:
                 writer.close()
+
+        # [NUMERACJA] pliki w folderze PDF dostają prefiks z pozycją
+        # w ustawionym układzie scalania (np. "03_OPTAX.pdf")
+        try:
+            self._numeruj_pdfy_wg_ukladu(pdf_dirs, in_dir, template_keys)
+        except Exception as e:
+            self.log(f"[NUMERACJA] Nie udało się dodać prefiksów: {e}")
         return count
+
+    def _nazwa_dokumentu(self):
+        """UPUL albo ISL — wg 'Typ dokumentu' z kreatora strony tytułowej.
+
+        Używane w nazwie scalonego PDF (np. 'CHORZEWO_UPUL.pdf') zamiast
+        dawnego przyrostka '_scalony'.
+        """
+        v = getattr(self, "all_tpl_doc_var", None)
+        try:
+            t = str(v.get()).strip().upper()
+        except Exception:
+            t = ""
+        return t if t in ("UPUL", "ISL") else "UPUL"
+
+    def _numeruj_pdfy_wg_ukladu(self, pdf_dirs, in_dir, template_keys):
+        """Prefiks numeru pozycji z ustawionego układu PDF w nazwach plików.
+
+        "OPTAX.pdf" -> "03_OPTAX.pdf", gdy OPTAX jest 3. pozycją układu.
+        Pliki niedopasowane do żadnego szablonu zostają bez zmian;
+        powtórne uruchomienie nie podwaja prefiksu (stary "NN_" zdejmujemy).
+        """
+        pozycje = {k: i + 1 for i, k in enumerate(template_keys)}
+        wzorce = [t for t in PDF_ORDER_TEMPLATES if t["key"] in pozycje]
+        if not wzorce:
+            return
+        for folder in pdf_dirs:
+            pliki = (in_dir.glob("*.pdf") if folder == in_dir
+                     else (p2 for p2 in folder.iterdir()
+                           if p2.suffix.lower() == ".pdf"))
+            for f in sorted(pliki):
+                if not f.is_file():
+                    continue
+                klucz = None
+                for t in wzorce:
+                    if template_matches(t, f.name):
+                        klucz = t["key"]
+                        break
+                if klucz is None:
+                    continue
+                czysta = re.sub(r"^\d\d_", "", f.name)
+                docel = f.with_name(f"{pozycje[klucz]:02d}_{czysta}")
+                if docel != f and not docel.exists():
+                    f.rename(docel)
+                    self.log(f"  [NUMERACJA] {f.name} → {docel.name}")
 
     def task_remove_blank_pages(self, in_dir, out_dir):
         pdfs = list(in_dir.rglob("*.pdf"))

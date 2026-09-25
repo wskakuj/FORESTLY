@@ -42,11 +42,11 @@
   "web.pdf_src": "D:\\download\\gówno\\Nowy folder (18)\\OPISY_OGOLNE_POPRAWIONE_2026\\Nowy folder\\bez nazwisk",
   "web.pdf_dst": "D:\\download\\gówno\\Nowy folder (18)\\OPISY_OGOLNE_POPRAWIONE_2026\\Nowy folder\\bez nazwisk",
   "web.pdf_merge": true,
-  "web.mm_src": "",
-  "web.mm_dst": "",
-  "web.rozb_mietki": "",
-  "web.rozb_excel": "",
-  "web.rozb_out": "",
+  "web.mm_src": "D:\\download\\gówno\\Nowy folder (20)\\Nowy folder\\PDF\\DĄBRÓWKA",
+  "web.mm_dst": "D:\\download\\gówno\\Nowy folder (20)\\Nowy folder\\PDF\\DĄBRÓWKA",
+  "web.rozb_mietki": "D:\\download\\gówno\\Nowy folder (20)\\Nowy folder\\Nowy folder",
+  "web.rozb_excel": "D:\\download\\gówno\\Nowy folder (20)\\Nowy folder\\Nowy folder",
+  "web.rozb_out": "D:\\download\\gówno\\Nowy folder (20)\\Nowy folder\\Nowy folder",
   "web.nm_base": "",
   "web.nm_out": "",
   "web.nm_wojew": "10",
@@ -147,8 +147,8 @@
         "font": ""
       },
       "tabela": {
-        "pt": 10.0,
-        "font": "Times New Roman"
+        "pt": 6.0,
+        "font": "Verdana"
       }
     },
     "OPTAX": {
@@ -222,8 +222,8 @@
       }
     }
   },
-  "web.all_pelny_opis_og": false,
-  "web.all_krotki_opis_og": true,
+  "web.all_pelny_opis_og": true,
+  "web.all_krotki_opis_og": false,
   "web.ns_src": "",
   "web.ns_dst": "",
   "web.ns_bez_nazwisk": true,
@@ -308,5 +308,7 @@
         "font": ""
       }
     }
-  }
+  },
+  "web.opis_og_pelny": true,
+  "web.opis_og_krotki": false
 }

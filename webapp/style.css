@@ -994,20 +994,27 @@ details.czcionki-details[open] > summary {
 .order-item.drag-over { outline: 2px dashed var(--accent, #2dd4a7); outline-offset: -2px; }
 
 /* ---- podgląd marginesów — DOK po prawej (aplikacja się zwęża, nic nie zasłania) ---- */
-body.mp-open { --mp-w: min(600px, 55vw); padding-right: var(--mp-w); }
-body.mp-open #wizard { right: var(--mp-w); }
+/* podgląd = WOLNE pływające okno: przeciągane za pasek tytułowy,
+   rozciągane uchwytem w prawym dolnym rogu (resize) */
 .mp-dock {
-  position: fixed; top: 0; right: 0; bottom: 0;
-  width: var(--mp-w, 600px);
+  position: fixed;
   background: var(--panel-solid, #23262d);
-  border-left: 1px solid var(--border-strong, #444);
+  border: 1px solid var(--border-strong, #444);
+  border-radius: 10px;
+  box-shadow: 0 12px 44px rgba(0, 0, 0, .5);
   z-index: 350;                    /* nad kreatorem (300), pod modalami (400) */
   display: flex; flex-direction: column;
   padding: 14px 16px; gap: 8px;
+  resize: both; overflow: hidden;
+  min-width: 340px; min-height: 320px;
   animation: mpslide .18s ease-out;
 }
 @keyframes mpslide { from { transform: translateX(36px); opacity: 0; } }
-.mp-head { display: flex; align-items: center; gap: 10px; }
+.mp-head { display: flex; align-items: center; gap: 10px;
+           cursor: move; user-select: none; }
+/* podczas przeciągania iframe nie łapie myszki */
+body.mp-dragging .mp-sheet-wrap { pointer-events: none; }
+body.mp-dragging { cursor: move; }
 .mp-head h3 { margin: 0; flex: 1 1 auto; font-size: 15px; }
 .mp-typ { padding: 6px 8px; border: 1px solid var(--border, #444);
           border-radius: 6px; background: var(--bg2, #23262d);
@@ -1021,7 +1028,8 @@ body.mp-open #wizard { right: var(--mp-w); }
 .mp-error { font-size: 13px; line-height: 1.5; padding: 16px 12px;
             border: 1px dashed #d83b01; border-radius: 8px; white-space: pre-wrap; }
 /* podgląd na cały ekran — pasek z przyciskami (⛶ / ✕) zawsze widoczny */
-#mp-dock.full { top: 0; right: 0; bottom: 0; left: 0; width: auto; z-index: 460; }
-body.mp-full-open { padding-right: 0 !important; }
-body.mp-full-open #wizard { right: 0 !important; }
+#mp-dock.full { top: 0 !important; left: 0 !important; right: 0 !important;
+                bottom: 0 !important; width: auto !important;
+                height: auto !important; border-radius: 0;
+                resize: none; z-index: 460; }
 [data-theme="light"] .mp-typ { background: #fff; }

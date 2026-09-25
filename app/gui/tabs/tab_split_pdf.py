@@ -281,7 +281,8 @@ class TabSplitPdfMixin:
                             writer = PdfWriter()
                             for pdf_path in pdfy_wsi:
                                 writer.append(str(pdf_path))
-                            scalony_path = village_out_dir / f"{village_name}_scalony.pdf"
+                            scalony_path = (village_out_dir /
+                                            f"{village_name}_{self._nazwa_dokumentu()}.pdf")
                             with open(scalony_path, "wb") as f:
                                 writer.write(f)
                             self.log(f"  [SCALONY] {scalony_path.name} "
