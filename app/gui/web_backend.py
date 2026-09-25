@@ -92,6 +92,10 @@ _PV_OKNO_HTML = """<!DOCTYPE html>
   header strong { font-size: 14px; }
   select { background: #333; color: #eee; border: 1px solid #555;
            border-radius: 6px; padding: 5px 9px; font: inherit; }
+  #drukuj { background: #33553f; color: #e8f0ea; border: 1px solid #567a63;
+            border-radius: 6px; padding: 5px 12px; font: inherit;
+            cursor: pointer; }
+  #drukuj:hover { background: #3f6850; }
   #info { color: #98a0aa; font-size: 12px; white-space: nowrap;
           overflow: hidden; text-overflow: ellipsis; flex: 1; }
   #wrap { flex: 1; overflow: auto; padding: 8px 16px 16px; }
@@ -102,6 +106,7 @@ _PV_OKNO_HTML = """<!DOCTYPE html>
 <header>
   <strong>Podgląd</strong>
   <select id="typ"></select>
+  <button id="drukuj" title="Wydrukuj jedną stronę testową — na aktualnych czcionkach i marginesach">Drukuj</button>
   <span id="info"></span>
 </header>
 <div id="wrap"><div id="sheet"><iframe id="frame"></iframe></div></div>
@@ -110,7 +115,7 @@ _PV_OKNO_HTML = """<!DOCTYPE html>
   const TYPY = ["OPTAX", "REJESTR1", "WSKAZ1", "TAB_KLW3", "WSK_ZB",
                 "ZEST1", "HALIZNY", "WYK_NEG", "WK_ZM1", "SKROTY"];
   const MP_WIERSZ = { REJESTR1: "REJESTR1", TAB_KLW3: "TAB_KLW3" };
-  let typ = "OPTAX", lastHtml = "", poziom = false;
+  let typ = "OPTAX", lastHtml = "", poziom = false, ileStron = 1;
   const sel = document.getElementById("typ");
   TYPY.forEach(t => {
     const o = document.createElement("option");
@@ -121,14 +126,19 @@ _PV_OKNO_HTML = """<!DOCTYPE html>
   function dopasuj() {
     const szer = poziom ? 1123 : 794, wys = poziom ? 794 : 1123;
     const w = document.getElementById("wrap");
-    const sk = Math.max(.1, Math.min((w.clientWidth - 32) / szer,
-                                    (w.clientHeight - 24) / wys));
+    /* wiele stron (SKROTY): kartka dopasowana szerokością, resztę
+       przewija się w dół — widać, co na którą stronę się przesunęło */
+    const total = wys * ileStron + (ileStron > 1 ? 18 * (ileStron - 1) : 0);
+    const sk = ileStron > 1
+      ? Math.max(.1, Math.min((w.clientWidth - 32) / szer, 1))
+      : Math.max(.1, Math.min((w.clientWidth - 32) / szer,
+                              (w.clientHeight - 24) / wys));
     const sh = document.getElementById("sheet");
-    sh.style.width = szer + "px"; sh.style.height = wys + "px";
+    sh.style.width = szer + "px"; sh.style.height = total + "px";
     sh.style.transform = "scale(" + sk + ")";
     sh.style.transformOrigin = "top left";
+    sh.style.marginBottom = (total * (sk - 1)) + "px";
   }
-
   document.getElementById("info").textContent = "Ładowanie podglądu…";
   async function odswiez() {
     try {
@@ -155,26 +165,66 @@ _PV_OKNO_HTML = """<!DOCTYPE html>
         const css = "<style>html, body { background:#fff !important; " +
           "max-width:none !important; margin:0 !important; padding:0 " +
           "important; overflow:hidden !important; } " +
-          "#mp-page { position:relative; width:" + szer + "px; height:" +
-          wys + "px; } " +
-          "#mp-win { position:absolute; left:" + L + "cm; top:" + T + "cm; " +
-          "right:" + R + "cm; bottom:" + B + "cm; overflow:hidden; }" +
+          ".mp-page { position:relative; width:" + szer + "px; height:" +
+          wys + "px; margin:0 0 18px; } " +
+          ".mp-page:last-child { margin-bottom:0; } " +
+          ".mp-win { position:absolute; left:" + L + "cm; top:" + T + "cm; " +
+          "right:" + R + "cm; bottom:" + B + "cm; overflow:hidden; } " +
           "</style>" +
-          "<scr" + "ipt>(function () { function mpWrap() { " +
-          "if (document.getElementById('mp-win')) return; " +
-          "var p = document.createElement('div'); p.id = 'mp-page'; " +
-          "var w = document.createElement('div'); w.id = 'mp-win'; " +
-          "p.appendChild(w); " +
-          "while (document.body.firstChild) w.appendChild(document.body.firstChild); " +
-          "document.body.appendChild(p); } " +
+          "<scr" + "ipt>(function () { " +
+          "function mpStrona(dzieci) { " +
+          "var p = document.createElement('div'); p.className = 'mp-page'; " +
+          "var w = document.createElement('div'); w.className = 'mp-win'; " +
+          "for (var i = 0; i < dzieci.length; i++) w.appendChild(dzieci[i]); " +
+          "p.appendChild(w); document.body.appendChild(p); } " +
+          "function mpWrap() { " +
+          "if (document.body.getAttribute('data-mp') === 'done') return; " +
+          "document.body.setAttribute('data-mp', 'done'); " +
+          "var wszystkie = Array.prototype.slice.call(document.body.children); " +
+          "var nodes = wszystkie.filter(function (n) { " +
+          "return n.tagName !== 'STYLE' && n.tagName !== 'SCRIPT'; }); " +
+          "var pierwsza = -1; " +
+          "for (var i = 0; i < nodes.length; i++) { " +
+          "if (nodes[i].classList && nodes[i].classList.contains('sk-strona')) { " +
+          "pierwsza = i; break; } } " +
+          "if (pierwsza < 0) { mpStrona(nodes); return; } " +
+          "mpStrona(nodes.slice(0, pierwsza + 1)); " +
+          "for (var j = pierwsza + 1; j < nodes.length; j++) mpStrona([nodes[j]]); } " +
           "if (document.readyState === 'loading') " +
           "document.addEventListener('DOMContentLoaded', mpWrap); " +
           "else mpWrap(); })();</scr" + "ipt>";
-        document.getElementById("frame").srcdoc = r.html + css;
+        const fr = document.getElementById("frame");
+        fr.onload = function () {
+          try {
+            const n = Math.max(1,
+              fr.contentDocument.querySelectorAll(".mp-page").length);
+            if (n !== ileStron) { ileStron = n; dopasuj(); }
+          } catch (e) { /* iframe niedostępny */ }
+        };
+        fr.srcdoc = r.html + css;
       }
       dopasuj();
     } catch (e) { /* okno się zamyka */ }
   }
+
+  /* wydruk JEDNEJ strony testowej — dokładnie te czcionki i marginesy,
+     które widać w podglądzie (pierwsza kartka) */
+  document.getElementById("drukuj").onclick = function () {
+    var fr = document.getElementById("frame");
+    try {
+      var doc = fr.contentDocument;
+      if (!doc || !doc.body || !doc.querySelector(".mp-page")) return;
+      var st = doc.getElementById("mp-print");
+      if (!st) {
+        st = doc.createElement("style"); st.id = "mp-print";
+        doc.head.appendChild(st);
+      }
+      st.textContent = "@page { size: A4 " + (poziom ? "landscape" : "portrait")
+                     + "; margin: 0 }"
+                     + " @media print { .mp-page + .mp-page { display: none } }";
+      fr.contentWindow.print();
+    } catch (e) { /* okno się zamyka */ }
+  };
 
   window.odswiezNatychmiast = () => { lastHtml = ""; odswiez(); };
   window.addEventListener("resize", dopasuj);
@@ -1373,7 +1423,8 @@ class WebBackend(
             cz = (czcionki or {}).get("SKROTY") if isinstance(czcionki, dict) else None
             mg = szablony._marginesy(_marginesy_z_slownika(margins), "SKROTY")
             try:
-                html = szablony.html_skroty(sk, czcionki=cz, marginesy=mg)
+                html = szablony.skroty_html_dopasowany(
+                    sk, czcionki=cz, marginesy=mg)
             except Exception:
                 return {"ok": False, "error": traceback.format_exc(limit=1)}
             return {"ok": True, "html": html, "poziom": False,

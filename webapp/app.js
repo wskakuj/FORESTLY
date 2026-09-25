@@ -1139,6 +1139,24 @@ async function openMarginsPreview(cid, mode) {
   }
   sel.onchange = () => { typ = sel.value; schedule(); };
   head.appendChild(sel);
+  const drukuj = el("button", "btn secondary small", "Drukuj");
+  drukuj.title = "Wydrukuj jedną stronę testową — na aktualnych czcionkach i marginesach";
+  drukuj.onclick = () => {
+    try {
+      const doc = frame.contentDocument;
+      if (!doc || !doc.body || !doc.querySelector(".mp-page")) return;
+      let st = doc.getElementById("mp-print");
+      if (!st) {
+        st = doc.createElement("style"); st.id = "mp-print";
+        doc.head.appendChild(st);
+      }
+      st.textContent = "@page { size: A4 " + (mpPoziom ? "landscape" : "portrait")
+                     + "; margin: 0 }"
+                     + " @media print { .mp-page + .mp-page { display: none } }";
+      frame.contentWindow.print();
+    } catch (e) { /* iframe niedostępny */ }
+  };
+  head.appendChild(drukuj);
   const pelny = el("button", "btn secondary small", "⛶");
   pelny.title = "Podgląd na cały ekran (ESC lub ⛶ wraca)";
   pelny.onclick = () => ustawPelnyEkran(!dock.classList.contains("full"));
@@ -1173,9 +1191,10 @@ async function openMarginsPreview(cid, mode) {
 
 
   const info = el("div", "mp-note",
-    "Podgląd 1. strony A4 (tak, jak wyjdzie z druku). Zmieniaj marginesy " +
-    "w tabeli po lewej — podgląd odświeża się na żywo. " +
-    "Drugi raz kliknięty przycisk podglądu zamyka panel.");
+    "Podgląd stron A4 (tak, jak wyjdzie z druku). Zmieniaj marginesy " +
+    "i czcionki w tabeli po lewej — podgląd odświeża się na żywo; " +
+    "przy wielu stronach przewijaj w dół. Przycisk Drukuj wydaje jedną " +
+    "stronę testową. Drugi raz kliknięty przycisk podglądu zamyka panel.");
   dock.appendChild(info);
 
   const wrap = el("div", "mp-sheet-wrap");
@@ -1190,7 +1209,7 @@ async function openMarginsPreview(cid, mode) {
   dock.appendChild(errMsg);
 
   /* skalowanie arkusza A4 do szerokości panelu (także po pełnym ekranie) */
-  let mpSzer = 794, mpWys = 1123;
+  let mpSzer = 794, mpWys = 1123, mpPoziom = false;
   function ustawSkale() {
     const dostepne = Math.max(200, wrap.clientWidth - 12);
     const skala = Math.min(1, dostepne / mpSzer);
@@ -1283,30 +1302,64 @@ async function openMarginsPreview(cid, mode) {
        (strona minus marginesy) i jest przycinana po jego krawędziach —
        dzięki temu KAŻDY margines (także dół i prawo) widać na podglądzie,
        a zbyt szeroka tabela jest przycinana jak przy druku. */
+    mpPoziom = !!r.poziom;
     const css = `<style>
       html, body { background: #fff !important; max-width: none !important;
                   margin: 0 !important; padding: 0 !important;
                   overflow: hidden !important; }
-      #mp-page { position: relative; width: ${szer}px; height: ${wys}px; }
-      #mp-win { position: absolute; left: ${L}cm; top: ${T}cm;
+      .mp-page { position: relative; width: ${szer}px; height: ${wys}px;
+                 margin: 0 0 18px; }
+      .mp-page:last-child { margin-bottom: 0; }
+      .mp-win { position: absolute; left: ${L}cm; top: ${T}cm;
                 right: ${R}cm; bottom: ${B}cm; overflow: hidden; }
     </style>
     <script>
     (function () {
-      function mpWrap() {
-        if (document.getElementById("mp-win")) return;
-        var p = document.createElement("div"); p.id = "mp-page";
-        var w = document.createElement("div"); w.id = "mp-win";
+      function mpStrona(dzieci) {
+        var p = document.createElement("div"); p.className = "mp-page";
+        var w = document.createElement("div"); w.className = "mp-win";
+        for (var i = 0; i < dzieci.length; i++) w.appendChild(dzieci[i]);
         p.appendChild(w);
-        while (document.body.firstChild) w.appendChild(document.body.firstChild);
         document.body.appendChild(p);
+      }
+      function mpWrap() {
+        if (document.body.getAttribute("data-mp") === "done") return;
+        document.body.setAttribute("data-mp", "done");
+        var wszystkie = Array.prototype.slice.call(document.body.children);
+        var nodes = wszystkie.filter(function (n) {
+          return n.tagName !== "STYLE" && n.tagName !== "SCRIPT";
+        });
+        var pierwsza = -1;
+        for (var i = 0; i < nodes.length; i++) {
+          if (nodes[i].classList && nodes[i].classList.contains("sk-strona")) {
+            pierwsza = i; break;
+          }
+        }
+        if (pierwsza < 0) { mpStrona(nodes); return; }
+        /* dokument wielostronicowy (SKROTY): nagłówek + 1. układ sekcji
+           na pierwszej kartce, każda kolejna .sk-strona — osobna kartka */
+        mpStrona(nodes.slice(0, pierwsza + 1));
+        for (var j = pierwsza + 1; j < nodes.length; j++) mpStrona([nodes[j]]);
       }
       if (document.readyState === "loading")
         document.addEventListener("DOMContentLoaded", mpWrap);
       else mpWrap();
     })();
     <\/script>`;
-    frame.onload = () => sheet.classList.remove("loading");
+    frame.onload = () => {
+      sheet.classList.remove("loading");
+      /* więcej kartek niż jedna (SKROTY) — arkusz rośnie, w doku scroll */
+      try {
+        const n = Math.max(1, frame.contentDocument.querySelectorAll(".mp-page").length);
+        if (n > 1) {
+          const gap = 18, total = wys * n + gap * (n - 1);
+          sheet.style.height = total + "px";
+          frame.style.height = total + "px";
+          mpWys = total;
+          ustawSkale();
+        }
+      } catch (e) { /* iframe niedostępny */ }
+    };
     frame.srcdoc = (r.html || "") + css;
     ustawSkale();
   }

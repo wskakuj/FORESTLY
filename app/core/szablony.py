@@ -839,45 +839,8 @@ def _skroty_sekcje(docx_path):
                     sekcje.append((aktualny, pary))
     return sekcje
 
-def html_skroty(docx_path, obiekt="", stan="", bez_nazwisk=False,
-                marginesy=None, czcionki=None):
-    """'Skróty i symbole' nowym wyglądem — HTML → PDF, bez uruchamiania Worda.
-
-    Czyta sekcje wprost z pliku .docx (domyślnego albo własnego użytkownika),
-    więc własne wersje też dostają nowy wygląd. Gdy struktura pliku jest
-    inna (brak rozpoznanych sekcji) — zgłaszamy błąd i wywołujący ma wrócić
-    do konwersji przez Worda.
-    """
-    import html as _html
-
-    def _e(x):
-        return _html.escape(str(x), quote=False)
-
-    sekcje = _skroty_sekcje(docx_path)
-    if not sekcje:
-        raise ValueError(f"Nie rozpoznano sekcji skrótów w {docx_path}")
-    # każda PARA sekcji dostaje WŁASNĄ STRONĘ — cała tabela zawsze mieści
-    # się w całości na jednej stronie (nic nie przechodzi na kolejną):
-    # strona 1: siedliskowe typy lasu | nazwy drzew,
-    # strona 2: skróty w opisie drzewostanu | wskazówki gospodarcze.
-    # Kolumny rozdziela pionowa kreska.
-    strony = []
-    for i in range(0, len(sekcje), 2):
-        komorki = []
-        for tytul, pary in sekcje[i:i + 2]:
-            tr = "".join(
-                f'<tr><td class="sk">{_e(skr)}</td><td>{_e(zn)}</td></tr>'
-                for skr, zn in pary)
-            komorki.append('<div class="sk-kol">'
-                           f'<h2>{_e(tytul)}</h2>'
-                           f'<table class="skroty"><tbody>{tr}</tbody></table>'
-                           '</div>')
-        prawa = komorki[1] if len(komorki) > 1 else ""
-        if prawa:
-            prawa = prawa.replace('class="sk-kol"', 'class="sk-kol sk-prawa"', 1)
-        strony.append('<div class="sk-strona">' + komorki[0] + prawa + '</div>')
-    czesci = strony
-    # czcionka tekstu tabel (wiersz SKROTY w kreatorze) — domyślnie 8,4 pt
+def _skroty_czcionki_dekl(czcionki):
+    """Deklaracja CSS fontu komórek tabel skrótów (wiersz SKROTY w kreatorze)."""
     czc = czcionki if isinstance(czcionki, dict) else {}
     tcz = czc.get("tabela") if isinstance(czc.get("tabela"), dict) else {}
     td_dekl = "font-size: 8.4pt"
@@ -889,7 +852,22 @@ def html_skroty(docx_path, obiekt="", stan="", bez_nazwisk=False,
     fam = str(tcz.get("font") or "").replace("'", "").strip()
     if fam:
         td_dekl += f"; font-family: '{fam}', Arial, sans-serif"
-    extra_css = """
+    tyt = czc.get("tytul") if isinstance(czc.get("tytul"), dict) else None
+    return td_dekl, tyt
+
+
+def _skroty_kolumna(tytul, pary):
+    """Wnętrze jednej sekcji skrótów (nagłówek h2 + tabela par)."""
+    import html as _html
+    tr = "".join(
+        f'<tr><td class="sk">{_html.escape(str(skr), quote=False)}</td>'
+        f'<td>{_html.escape(str(zn), quote=False)}</td></tr>'
+        for skr, zn in pary)
+    return (f'<h2>{_html.escape(str(tytul), quote=False)}</h2>'
+            f'<table class="skroty"><tbody>{tr}</tbody></table>')
+
+
+_SKROTY_CSS = """
   h2 { font-size: 9.6pt; text-transform: uppercase; letter-spacing: .8px;
        color: #1f3d2b; margin: 3.5mm 0 1.2mm; padding-bottom: .7mm;
        border-bottom: 1pt solid #1f3d2b; font-weight: 700; }
@@ -903,18 +881,131 @@ def html_skroty(docx_path, obiekt="", stan="", bez_nazwisk=False,
                        white-space: nowrap; }
   table.skroty tr:last-child td { border-bottom: .5pt solid #999; }
   .sk-strona { display: table; width: 100%; table-layout: fixed;
-               break-after: page; }
+               break-after: page; break-inside: avoid;
+               page-break-inside: avoid; }
   .sk-strona:last-child { break-after: auto; }
   .sk-kol { display: table-cell; vertical-align: top; padding-right: 4mm; }
   .sk-prawa { border-left: .6pt solid #9aa89b; padding-left: 4.5mm;
               padding-right: 0; }
 """
-    extra_css = extra_css.replace("__TD__", td_dekl)
-    _czc_tytul = czc.get("tytul") if isinstance(czc.get("tytul"), dict) else None
-    return _strona("Wykaz skrótów i symboli", obiekt, stan, "".join(czesci),
-                   extra_css=extra_css, marginesy=marginesy,
-                   czcionki={"tytul": _czc_tytul} if _czc_tytul else None,
+
+
+def html_skroty(docx_path, obiekt="", stan="", bez_nazwisk=False,
+                marginesy=None, czcionki=None, pary=None):
+    """'Skróty i symbole' nowym wyglądem — HTML → PDF, bez uruchamiania Worda.
+
+    Czyta sekcje wprost z pliku .docx (domyślnego albo własnego użytkownika),
+    więc własne wersje też dostają nowy wygląd. Gdy struktura pliku jest
+    inna (brak rozpoznanych sekcji) — zgłaszamy błąd i wywołujący ma wrócić
+    do konwersji przez Worda.
+
+    pary — lista krotek indeksów sekcji, które mają iść razem na jedną
+    stronę (domyślnie po dwie kolejne: siedliska|drzewa,
+    drzewostan|wskazówki). Każda sekcja jest cała na jednej stronie —
+    patrz skroty_html_dopasowany, który dobiera pary pomiarem.
+    """
+    sekcje = _skroty_sekcje(docx_path)
+    if not sekcje:
+        raise ValueError(f"Nie rozpoznano sekcji skrótów w {docx_path}")
+    if pary is None:
+        pary = [tuple(range(i, min(i + 2, len(sekcje))))
+                for i in range(0, len(sekcje), 2)]
+    td_dekl, czc_tytul = _skroty_czcionki_dekl(czcionki)
+    strony = []
+    for para in pary:
+        komorki = ['<div class="sk-kol">' + _skroty_kolumna(*sekcje[j]) + '</div>'
+                   for j in para]
+        if len(komorki) > 1:
+            komorki[1] = komorki[1].replace('class="sk-kol"',
+                                            'class="sk-kol sk-prawa"', 1)
+        strony.append('<div class="sk-strona">' + "".join(komorki) + '</div>')
+    return _strona("Wykaz skrótów i symboli", obiekt, stan, "".join(strony),
+                   extra_css=_SKROTY_CSS.replace("__TD__", td_dekl),
+                   marginesy=marginesy,
+                   czcionki={"tytul": czc_tytul} if czc_tytul else None,
                    bez_obiektu=True)
+
+
+_SKROTY_DOPAS_CACHE = {}
+
+
+def skroty_html_dopasowany(docx_path, marginesy=None, czcionki=None):
+    """SKROTY z układem stron dobranym tak, by ŻADNA sekcja nie była
+    dzielona między strony (o ile w ogóle mieści się na jednej stronie).
+
+    Najpierw sonda: każda sekcja osobno, na szerokości kolumny, każda
+    od nowej strony — z licznikiem stron wiadomo, które mieszczą się
+    w całości. Sekcje spjęte w pary jadą parami (kolumny obok siebie),
+    a sekcja, która się nie mieści, dostaje własną stronę, żeby nie
+    ciągnąć za sobą drugiej kolumny (tej części, która się mieści).
+    Gdy sonda się nie uda (brak przeglądarki itp.) — układ domyślny.
+    """
+    import json
+    import tempfile
+    # pomiar (Chromium) trwa kilka sekund, a okno podglądu odpytuje
+    # wielokrotnie — cacheujemy ostatni wynik na (
+    # plik+mtime+czcionki+marginesy)
+    try:
+        _mt = os.path.getmtime(docx_path)
+    except OSError:
+        _mt = 0
+    _mg = marginesy or _DOMYSLNE_MARGINESY
+    _klucz = (str(docx_path), round(_mt, 3), json.dumps(czcionki, sort_keys=True),
+              tuple(_mg))
+    if _klucz in _SKROTY_DOPAS_CACHE:
+        return _SKROTY_DOPAS_CACHE[_klucz]
+    sekcje = _skroty_sekcje(docx_path)
+    if not sekcje:
+        raise ValueError(f"Nie rozpoznano sekcji skrótów w {docx_path}")
+    td_dekl, _ = _skroty_czcionki_dekl(czcionki)
+    t, r, b, l = _mg
+    # szerokość wnętrza kolumny (zapasowo węższa — jak prawa kolumna)
+    kol_mm = (210.0 - float(l) - float(r)) / 2.0 - 4.5
+    czesci = "".join(
+        f'<div class="sk-probe" style="width: {kol_mm:g}mm">'
+        + _skroty_kolumna(tytul, pary)
+        + f'<div class="sk-marker">SKPROBE{i}</div></div>'
+        for i, (tytul, pary) in enumerate(sekcje))
+    css = (_SKROTY_CSS.replace("__TD__", td_dekl)
+           + """
+  .sk-probe { break-before: page; break-after: page; break-inside: avoid; }
+  .sk-marker { font-size: 1pt; color: #fff; line-height: 1; }
+""")
+    probe = _strona("Wykaz skrótów i symboli", "", "", czesci,
+                    extra_css=css, marginesy=marginesy, bez_obiektu=True)
+    pary_idx = None
+    try:
+        from pypdf import PdfReader
+        with tempfile.TemporaryDirectory(prefix="forestly_sk_") as tmpd:
+            hp, pp = Path(tmpd) / "probe.html", Path(tmpd) / "probe.pdf"
+            hp.write_text(probe, encoding="utf-8")
+            html_na_pdf(hp, pp)
+            strony = [(pg.extract_text() or "").replace("\n", " ")
+                      for pg in PdfReader(str(pp)).pages]
+        koniec = []
+        for i in range(len(sekcje)):
+            zn = [k for k, s in enumerate(strony) if f"SKPROBE{i}" in s]
+            koniec.append(zn[-1] if zn else 0)
+        miesci, poprzed = [], 0
+        for k in range(len(sekcje)):
+            miesci.append(koniec[k] - poprzed <= 1)
+            poprzed = koniec[k]
+        pary_idx, i = [], 0
+        while i < len(sekcje):
+            if i + 1 < len(sekcje) and miesci[i] and miesci[i + 1]:
+                pary_idx.append((i, i + 1))
+                i += 2
+            else:
+                pary_idx.append((i,))
+                i += 1
+    except Exception:
+        pary_idx = None
+    html = html_skroty(docx_path, marginesy=marginesy, czcionki=czcionki,
+                       pary=pary_idx)
+    _SKROTY_DOPAS_CACHE.clear()          # wystarczy ostatni wynik
+    _SKROTY_DOPAS_CACHE[_klucz] = html
+    return html
+
 
 # --------------------------------------------------------------- HTML: strona tytułowa
 

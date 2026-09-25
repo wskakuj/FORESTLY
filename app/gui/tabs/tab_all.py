@@ -1480,7 +1480,7 @@ class TabAllMixin:
                 from app.core import szablony as _sz
                 with tempfile.TemporaryDirectory(prefix="forestly_skroty_") as _tmp:
                     _hp = Path(_tmp) / "skroty.html"
-                    _hp.write_text(_sz.html_skroty(
+                    _hp.write_text(_sz.skroty_html_dopasowany(
                         skroty_source_path,
                         czcionki=czcionki if isinstance(czcionki, dict) else None,
                         marginesy=_sz._marginesy(margins, "SKROTY")),
