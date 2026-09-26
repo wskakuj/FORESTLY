@@ -7,6 +7,9 @@ w polu OP_TAX plików O*.DBF dostaje +N lat do wszystkich trzech liczb
 (np. /65-75/80l  ->  /75-85/90l). Domyślnie przetwarzane jest też pole OP_TAX1,
 jeśli w nim również występują zakresy wieku.
 
+Wskazujemy FOLDER MIETKA (np. z podfolderem WOL.001) — program sam znajduje
+pliki O*.DBF w całym drzewie (w podfolderach *.001).
+
 Funkcje read_dbf/write_dbf to kopie z tab_tworzenie_mietkow — zakładka jest
 samodzielna (nie zależy od innych mixinów) i w pełni testowalna bez GUI.
 """
@@ -14,7 +17,7 @@ samodzielna (nie zależy od innych mixinów) i w pełni testowalna bez GUI.
 import customtkinter as ctk
 from tkinter import messagebox
 from pathlib import Path
-import threading
+import os
 import re
 import struct
 import datetime
@@ -36,6 +39,26 @@ def przesun_wiek_w_tekscie(tekst, lata):
         return "/%d-%d/%d%s" % (n1, n2, n3, m.group(4))
 
     return WZORZEC_WIEKU.sub(_zamien, tekst)
+
+
+def znajdz_pliki_o(folder_mietka):
+    """Szuka plików O*.DBF w drzewie folderu mietka (np. <mietek>/WOL.001/O0011019.DBF).
+
+    Zwraca posortowaną listę Path — działa też, gdy wskazany zostanie
+    bezpośrednio folder *.001 albo folder z plikami DBF na wierzchu.
+    Pomija kopie zapasowe (.BAK).
+    """
+    root = Path(folder_mietka)
+    trafienia = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames.sort()
+        for fn in sorted(filenames):
+            if fn[:1].upper() == "O" and fn.upper().endswith(".DBF"):
+                p = Path(dirpath) / fn
+                if p.suffix.upper() == ".BAK":
+                    continue
+                trafienia.append(p)
+    return sorted(trafienia)
 
 
 def read_dbf(filename):
@@ -173,7 +196,7 @@ def przesun_wiek_w_pliku(path, lata, zapisz=False, backup=True, pola=("OP_TAX", 
 
 
 class TabMietekPlus10Mixin:
-    """Mixin dla ModernApp — zakładka przesuwania wieku w mietkach (O*.DBF)."""
+    """Mixin dla ModernApp/WebBackend — zakładka przesuwania wieku w mietkach (O*.DBF)."""
 
     def setup_mietek_plus10_tab(self, parent):
         parent.grid_columnconfigure(0, weight=1)
@@ -192,12 +215,13 @@ class TabMietekPlus10Mixin:
         card.grid(row=0, column=0, padx=20, pady=(15, 15), sticky="new")
         card.grid_columnconfigure(1, weight=1)
 
-        # 1. Folder z mietkami
-        ctk.CTkLabel(card, text="1. Folder z mietkami (pliki O*.DBF):",
+        # 1. Folder z mietkiem
+        ctk.CTkLabel(card, text="1. Folder z mietkiem (np. z podfolderem WOL.001):",
                      font=font_label, text_color="#E0E0E0").grid(
             row=0, column=0, padx=15, pady=(15, 8), sticky="w")
         self.plus10_folder_entry = ctk.CTkEntry(
-            card, placeholder_text="Folder, w którym leżą O0011019.DBF itd...", height=36)
+            card, placeholder_text="Program sam znajdzie pliki O*.DBF w podfolderach .001...",
+            height=36)
         _saved = self.get_setting("folder_plus10_entry")
         if _saved:
             self.plus10_folder_entry.insert(0, _saved)
@@ -213,7 +237,8 @@ class TabMietekPlus10Mixin:
                      font=font_label, text_color="#E0E0E0").grid(
             row=1, column=0, padx=15, pady=8, sticky="w")
         self.plus10_lata_entry = ctk.CTkEntry(card, width=90, height=36, justify="center")
-        self.plus10_lata_entry.insert(0, "10")
+        _saved_l = self.get_setting("plus10_lata")
+        self.plus10_lata_entry.insert(0, _saved_l if _saved_l else "10")
         self.plus10_lata_entry.grid(row=1, column=1, padx=5, pady=8, sticky="w")
 
         # 3. Opcje
@@ -244,7 +269,8 @@ class TabMietekPlus10Mixin:
         info = ctk.CTkLabel(scroll_frame,
                             text="Zamiana dawnego makra VBA: każde /65-75/80 (lub /65-75/80l)\n"
                                  "w opisach taksacyjnych (OP_TAX) dostaje +N lat do wszystkich trzech liczb,\n"
-                                 "np. /65-75/80l → /75-85/90l. Przetwarzane są wszystkie pliki O*.DBF w folderze.",
+                                 "np. /65-75/80l → /75-85/90l. Wskaż folder mietka — program sam znajdzie\n"
+                                 "pliki O*.DBF w podfolderach (np. WOL.001) i przetworzy je wszystkie.",
                             font=font_small, text_color="#9E9E9E", justify="left")
         info.grid(row=1, column=0, padx=25, pady=(0, 20), sticky="w")
 
@@ -254,7 +280,7 @@ class TabMietekPlus10Mixin:
         """Waliduje wejście i zwraca (folder_path, lata, pliki, pola) albo None."""
         folder = self.plus10_folder_entry.get().strip()
         if not folder or not Path(folder).exists():
-            messagebox.showwarning("Błąd", "Wybierz folder z mietkami (pliki O*.DBF).")
+            messagebox.showwarning("Błąd", "Wybierz folder z mietkiem (np. folder z WOL.001 w środku).")
             return None
         try:
             lata = int(self.plus10_lata_entry.get().strip())
@@ -265,13 +291,12 @@ class TabMietekPlus10Mixin:
             return None
 
         folder_path = Path(folder)
-        pliki = sorted([p for p in folder_path.iterdir()
-                        if p.is_file() and p.name.upper().startswith("O")
-                        and p.suffix.upper() == ".DBF"])
+        pliki = znajdz_pliki_o(folder_path)
         if not pliki:
-            messagebox.showwarning("Błąd",
-                                   "W tym folderze nie ma żadnych plików O*.DBF.\n"
-                                   "(szukam plików zaczynających się od litery O, np. O0011019.DBF)")
+            messagebox.showwarning(
+                "Błąd",
+                "W wybranym folderze (i jego podfolderach, np. WOL.001)\n"
+                "nie znaleziono żadnych plików O*.DBF.")
             return None
 
         pola = ["OP_TAX"] + (["OP_TAX1"] if self.plus10_tax1_var.get() else [])
@@ -287,7 +312,7 @@ class TabMietekPlus10Mixin:
         self.set_setting("folder_plus10_entry", str(folder_path))
         self.set_setting("plus10_lata", str(lata))
 
-        # --- Przebieg próbny (odczyt + podgląd) — pliki są małe, robimy w wątku GUI ---
+        # --- Przebieg próbny (odczyt + podgląd) ---
         wyniki = {}
         total_zmienionych = 0
         blad = None
@@ -311,9 +336,11 @@ class TabMietekPlus10Mixin:
 
         # Log podglądu
         tryba = "PODGLĄD" if not zapisz else "ZAPIS"
-        self.log(f"[MIETKI +{lata} LAT] {tryba} — folder: {folder_path.name}")
+        self.log(f"[MIETKI +{lata} LAT] {tryba} — folder: {folder_path.name} "
+                 f"({len(pliki)} plików O*.DBF)")
         for p, w in wyniki.items():
-            self.log(f"  {p.name}: {w['zmienionych']}/{w['rekordow']} rekordów ze zmianą")
+            wzgledna = p.relative_to(folder_path)
+            self.log(f"  {wzgledna}: {w['zmienionych']}/{w['rekordow']} rekordów ze zmianą")
             for przed, po in w["przyklady"]:
                 self.log(f"     {przed.strip()}  →  {po.strip()}")
 
@@ -331,20 +358,18 @@ class TabMietekPlus10Mixin:
             self.log(f"[MIETKI +{lata} LAT] Anulowano przez użytkownika.")
             return
 
-        # --- Zapis w tle ---
-        def _zapisz():
-            try:
-                zrobione = 0
-                for p in pliki:
-                    w = przesun_wiek_w_pliku(
-                        p, lata, zapisz=True,
-                        backup=self.plus10_backup_var.get(), pola=pola)
-                    if w["zmienionych"]:
-                        zrobione += 1
-                        self.log(f"  ✔ {p.name}: przesunięto wiek w {w['zmienionych']} rekordach"
-                                 + (f" (kopia: {p.name}.bak)" if self.plus10_backup_var.get() else ""))
-                self.log(f"[MIETKI +{lata} LAT] Gotowe — zmieniono {zrobione} plików.")
-            except Exception as e:
-                self.log(f"[MIETKI +{lata} LAT] BŁĄD: {e}")
-
-        threading.Thread(target=_zapisz, daemon=True).start()
+        # --- Zapis ---
+        try:
+            zrobione = 0
+            for p in pliki:
+                w = przesun_wiek_w_pliku(
+                    p, lata, zapisz=True,
+                    backup=self.plus10_backup_var.get(), pola=pola)
+                if w["zmienionych"]:
+                    zrobione += 1
+                    wzgledna = p.relative_to(folder_path)
+                    self.log(f"  ✔ {wzgledna}: przesunięto wiek w {w['zmienionych']} rekordach"
+                             + (f" (kopia: {p.name}.bak)" if self.plus10_backup_var.get() else ""))
+            self.log(f"[MIETKI +{lata} LAT] Gotowe — zmieniono {zrobione} plików.")
+        except Exception as e:
+            self.log(f"[MIETKI +{lata} LAT] BŁĄD: {e}")

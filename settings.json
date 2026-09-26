@@ -374,5 +374,11 @@
   "web.tpl_TAKSATOR_prefix": "położonych na terenie obrębu",
   "web.tpl_TAKSATOR_woj": "KUJAWSKO-POMORSKIE",
   "web.tpl_TAKSATOR_powiat": "TUCHOLSKI",
-  "web.tpl_TAKSATOR_gmina": "CEKCYN"
+  "web.tpl_TAKSATOR_gmina": "CEKCYN",
+  "web.plus10_folder": "D:\\download\\gówno\\Nowy folder (21)",
+  "web.plus10_lata": "10",
+  "web.plus10_backup": true,
+  "web.plus10_tax1": true,
+  "folder_plus10_entry": "D:\\download\\gówno\\Nowy folder (21)",
+  "plus10_lata": "10"
 }

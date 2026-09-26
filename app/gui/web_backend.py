@@ -56,6 +56,7 @@ from app.gui.tabs.tab_excel_z_mdb import TabExcelZMdbMixin
 from app.gui.tabs.tab_tworzenie_mietkow import TabTworzenieMietkowMixin
 from app.gui.tabs.tab_nazwiska_mietek import TabNazwiskaMietekMixin
 from app.gui.tabs.tab_mietek_rozbieznosci import TabMietekRozbieznosciMixin
+from app.gui.tabs.tab_mietek_plus10 import TabMietekPlus10Mixin
 from app.updater import UpdaterMixin
 
 # Filtry plików dla przeglądarek (id kontrolki → file_types dla pywebview)
@@ -442,7 +443,7 @@ class WebBackend(
     TabLayoutExcelMixin, TabSplitPdfMixin, TabMdbUpdateMixin,
     TabPdfConverterMixin, TabRozliczanieMixin, TabHaliznyMixin,
     TabWydrukiMixin, TabExcelZMdbMixin, TabTworzenieMietkowMixin,
-    TabNazwiskaMietekMixin, TabMietekRozbieznosciMixin, UpdaterMixin,
+    TabNazwiskaMietekMixin, TabMietekRozbieznosciMixin, TabMietekPlus10Mixin, UpdaterMixin,
 ):
     """Logika aplikacji bez CustomTkinter — z mostkiem do PyWebView."""
 
@@ -985,6 +986,12 @@ class WebBackend(
 
     # ---------------------------------------------------------- uruchamianie
 
+    def plus10_podglad_task(self):
+        self._plus10_start(zapisz=False)
+
+    def plus10_zastosuj_task(self):
+        self._plus10_start(zapisz=True)
+
     def _task_map(self):
         return {
             "start_pipeline:ALL": lambda: self.start_pipeline("ALL"),
@@ -1015,6 +1022,8 @@ class WebBackend(
             "start_zestawienie_mietki": self.start_zestawienie_mietki,
             "start_tworzenie_mietkow": self.start_tworzenie_mietkow_pipeline,
             "start_mietki_krzyzowki": self.start_mietki_i_krzyzowki_pipeline,
+            "plus10_podglad": self.plus10_podglad_task,
+            "plus10_zastosuj": self.plus10_zastosuj_task,
         }
 
     def run(self, task_id):

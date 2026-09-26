@@ -370,6 +370,28 @@ def build_schema():
             ],
         },
         {
+            "key": "MIETEK|Mietki +10 lat",
+            "tooltip": "Przesuwa wiek w opisach taksacyjnych (zastępuje makro VBA).",
+            "controls": [
+                _path("plus10_folder", "plus10_folder_entry",
+                      "1. Folder z mietkiem (np. z podfolderem WOL.001):",
+                      "Program sam znajdzie pliki O*.DBF w podfolderach .001"),
+                _text("plus10_lata", "plus10_lata_entry",
+                      "2. Przesunięcie wieku (lata):", default="10"),
+                _check("plus10_backup", "plus10_backup_var",
+                       "Kopia zapasowa przed zapisem (plik .BAK)", default=True),
+                _check("plus10_tax1", "plus10_tax1_var",
+                       "Przetwarzaj również pole OP_TAX1", default=True),
+                _info("Każde /65-75/80 (lub /65-75/80l) w opisach taksacyjnych (OP_TAX) "
+                      "dostaje +N lat do wszystkich trzech liczb, np. /65-75/80l → /75-85/90l. "
+                      "Najpierw podgląd zmian, dopiero potem zapis."),
+            ],
+            "buttons": [
+                _button("plus10_podglad", "🔍 Podgląd zmian", "plus10_podglad", "secondary"),
+                _button("plus10_zastosuj", "✅ Zastosuj przesunięcie wieku", "plus10_zastosuj"),
+            ],
+        },
+        {
             "key": "MIETEK|NAZWISKA -> MIETEK",
             "tooltip": "Klonuje strukturę MS-DOS i generuje W*.DBF na podstawie Ewidencji XLS.",
             "controls": [
