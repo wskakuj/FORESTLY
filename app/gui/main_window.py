@@ -58,6 +58,7 @@ from app.gui.tabs.tab_excel_z_mdb import TabExcelZMdbMixin
 from app.gui.tabs.tab_tworzenie_mietkow import TabTworzenieMietkowMixin
 from app.gui.tabs.tab_nazwiska_mietek import TabNazwiskaMietekMixin
 from app.gui.tabs.tab_mietek_rozbieznosci import TabMietekRozbieznosciMixin
+from app.gui.tabs.tab_mietek_plus10 import TabMietekPlus10Mixin
 from app.gui.tabs.tab_opis_og import TabOpisOgMixin
 
 
@@ -80,6 +81,7 @@ class ModernApp(
     TabTworzenieMietkowMixin,
     TabNazwiskaMietekMixin,
     TabMietekRozbieznosciMixin,
+    TabMietekPlus10Mixin,
     TabOpisOgMixin,
     UpdaterMixin,
     ctk.CTk,
@@ -635,6 +637,11 @@ class ModernApp(
             "MIETEK", "Opisy og\u00f3lne",
             "Tworzy \u201eopis og_<wie\u015b>.docx\u201d w folderach wsi \u2014 z Worda (WSK_ZB.doc) lub z danych MIETEKA (tymczasowo).")
         tab_mietek_rozb = _nowa_zakladka("MIETEK", "Wykaz Rozbieżności")
+        tab_mietek_plus10 = _nowa_zakladka(
+            "MIETEK", "Mietki +10 lat",
+            "Przesuwa wiek w opisach taksacyjnych: każde /65-75/80l w plikach "
+            "O*.DBF dostaje +N lat (np. /75-85/90l). Zastępuje makro VBA.")
+
         tab_nazwiska_mietek = _nowa_zakladka(
             "MIETEK", "NAZWISKA -> MIETEK",
             "Klonuje strukturę MS-DOS i generuje W*.DBF pobierając nazwiska "
@@ -683,6 +690,7 @@ class ModernApp(
         _naglowek("ROZLICZANIE")
         tab_rozl_main = _nowa_zakladka("ROZLICZANIE", "Rozliczanie powierzchni")
         tab_tworzenie_mietkow = _nowa_zakladka("ROZLICZANIE", "Tworzenie i wpisywanie mietków")
+
         tab_halizny = _nowa_zakladka("ROZLICZANIE", "Halizny")
         tab_zestawienie = _nowa_zakladka(
             "ROZLICZANIE", "Zestawienie zbiorcze",
@@ -741,6 +749,7 @@ class ModernApp(
         self.setup_rozliczanie_tab(tab_rozl_main)
         self.setup_zestawienie_tab(tab_zestawienie)
         self.setup_tworzenie_mietkow_tab(tab_tworzenie_mietkow)
+        self.setup_mietek_plus10_tab(tab_mietek_plus10)
         self.setup_halizny_tab(tab_halizny)
         self.setup_excel_z_mdb_tab(tab_excel_z_mdb)
         self.setup_pdf_converter_tab(tab_pdfconv)
