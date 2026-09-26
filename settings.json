@@ -120,7 +120,7 @@
   "web.gdos_xlsx": "D:\\download\\Opera\\gdos_obszary.xlsx",
   "web.all_gen_opis_og": true,
   "web.all_gdos": "D:\\download\\gówno\\Nowy folder (20)\\Nowy folder",
-  "last_output_dir": "D:\\download\\gówno\\Nowy folder (20)\\Nowy folder\\PDF polaczone",
+  "last_output_dir": "D:\\download\\gówno\\Nowy folder (21)",
   "web.all_tpl_stan": "31.12.1997 r.",
   "web.all_tpl_okres": "01.01.2027 – 31.12.2036 r.",
   "web.all_wsk_od": "01.01.2027",
@@ -374,5 +374,13 @@
   "web.tpl_TAKSATOR_prefix": "położonych na terenie obrębu",
   "web.tpl_TAKSATOR_woj": "KUJAWSKO-POMORSKIE",
   "web.tpl_TAKSATOR_powiat": "TUCHOLSKI",
-  "web.tpl_TAKSATOR_gmina": "CEKCYN"
+  "web.tpl_TAKSATOR_gmina": "CEKCYN",
+  "web.plus10_folder": "D:\\download\\gówno\\Nowy folder (21)",
+  "web.plus10_lata": "10",
+  "web.plus10_wys": "1",
+  "web.plus10_piers": "2",
+  "folder_plus10_entry": "D:\\download\\gówno\\Nowy folder (21)",
+  "plus10_lata": "10",
+  "plus10_wys": "1",
+  "plus10_piers": "2"
 }

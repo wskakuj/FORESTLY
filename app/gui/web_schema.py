@@ -378,9 +378,13 @@ def build_schema():
                       "Program sam znajdzie pliki O*.DBF w podfolderach .001"),
                 _text("plus10_lata", "plus10_lata_entry",
                       "2. Przesunięcie wieku (lata):", default="10"),
+                _text("plus10_wys", "plus10_wys_entry",
+                      "3. Wysokość WYS w R*.DBF (+):", default="1"),
+                _text("plus10_piers", "plus10_piers_entry",
+                      "4. Pierśnica PIERS w R*.DBF (+):", default="2"),
                 _info("O*.DBF: każde /65-75/80 (lub /65-75/80l) w opisach taksacyjnych (OP_TAX) "
                       "dostaje +N lat do wszystkich trzech liczb, np. /65-75/80l → /75-85/90l. "
-                      "R*.DBF: pole WIEK +N lat, klasa wieku przesuwana o pół klasy (IIa→IIb, IIb→IIIa). "
+                      "R*.DBF: pole WIEK +N lat, klasa wieku o pół klasy (IIa→IIb), WYS i PIERS o podane wartości (0 = bez zmian). "
                       "Zawsze: kopia zapasowa .BAK przed zapisem, pola OP_TAX i OP_TAX1. "
                       "Najpierw podgląd zmian, dopiero potem zapis."),
             ],

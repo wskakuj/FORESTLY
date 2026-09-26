@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """
-Forestly — Punkt wejścia
+Forestly — punkt wejścia (jedyny)
 ===================================
-Uruchamia aplikację GUI. Cała logika znajduje się w pakiecie `app/`.
 
-Podwójna osobowość — tak jak oryginalny guipia.py:
-  1. python main.py                         → aplikacja GUI
+Uruchamia aplikację GUI w wersji web (PyWebView). Wersja CustomTkinter
+została wycofana w v2.0.78 — plik main_web.py scalony tutaj w v2.0.82.
+
+  1. python main.py                          → aplikacja GUI (web)
   2. python main.py --word-worker IN OUT ... → proces w tle (Word COM worker)
 
-Po skompilowaniu przez PyInstaller, ten plik staje się .exe.
+Po skompilowaniu przez PyInstaller ten plik staje się .exe.
 """
 
 import sys
 import os
 import warnings
 
-# Wyciszanie ostrzeżeń z bibliotek xlrd/openpyxl przy czytaniu starych plików .xls
-# (niegroźne "OLE2 inconsistency" i "file size not multiple of sector size")
+# Wyciszenie ostrzeżeń z bibliotek xlrd/openpyxl przy czytaniu starych plików .xls
 warnings.filterwarnings("ignore", message=".*OLE2 inconsistency.*")
 warnings.filterwarnings("ignore", message=".*file size.*not.*sector size.*")
 warnings.filterwarnings("ignore", message=".*SSCS size.*")
@@ -26,6 +26,14 @@ logging.getLogger("openpyxl").setLevel(logging.ERROR)
 
 # Dodaj katalog projektu do ścieżki Pythona, aby `app` był importowalny
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+
+def get_index_html():
+    """Ścieżka do webapp/index.html (działa też po zamrożeniu PyInstaller)."""
+    base = os.path.dirname(os.path.abspath(__file__))
+    if getattr(sys, "frozen", False):
+        return os.path.join(sys._MEIPASS, "webapp", "index.html")
+    return os.path.join(base, "webapp", "index.html")
 
 
 def run_word_worker_cli():
@@ -99,16 +107,35 @@ def run_word_worker_cli():
     sys.exit(0)
 
 
+
 def main():
     # Tryb procesu w tle: python main.py --word-worker IN OUT [opcje]
     if "--word-worker" in sys.argv:
         run_word_worker_cli()
         return
 
-    # Tryb normalny: aplikacja GUI (WEB — wersja CustomTkinter wycofana)
-    from main_web import main as web_main
+    import webview
 
-    web_main()
+    from app.config import kill_orphan_office_processes
+    from app.gui.web_backend import WebBackend
+
+    kill_orphan_office_processes()
+
+    backend = WebBackend()
+
+    window = webview.create_window(
+        "Forestly",
+        get_index_html(),
+        js_api=backend,
+        width=1520,
+        height=960,
+        min_size=(1100, 720),
+        text_select=True,
+    )
+    # po załadowaniu okna włączamy natywne przeciąganie plików/folderów
+    # (prawdziwe ścieżki z Windows — patrz WebBackend.set_pv_window)
+    window.events.loaded += lambda *a: backend.set_pv_window(window)
+    webview.start()
 
 
 if __name__ == "__main__":

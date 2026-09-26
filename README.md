@@ -74,11 +74,11 @@ git clone https://github.com/wskakuj/FORESTLY.git
 cd FORESTLY
 pip install -r requirements.txt
 
-python main_web.py    # nowe GUI (zalecane)
+python main.py    # nowe GUI (zalecane)
 python main.py        # klasyczne GUI (CustomTkinter)
 ```
 
-> **Ważne:** `main.py` **i** `main_web.py` obsługują flagę `--word-worker`
+> **Ważne:** `main.py` obsługuje flagę `--word-worker`
 > (proces pomocniczy Word COM, uruchamiany wewnętrznie przez oba GUI — także
 > z wnętrza EXE, gdzie workerem jest sam plik `Forestly.exe`).
 > Nie usuwać tego trybu — odpowiada za etap Word w Pełnym Automacie.
@@ -111,7 +111,7 @@ Konwerter PDF, scalanie z segregowaniem wsi, wykluczanie stron.
 
 Program ma **dwa interfejsy ze wspólną logiką**:
 
-- **Nowe GUI (web)** — `python main_web.py` — nowoczesny interfejs HTML/CSS/JS
+- **Nowe GUI (web)** — `python main.py` — nowoczesny interfejs HTML/CSS/JS
   w oknie aplikacji (PyWebView + WebView2, preinstalowany na Windows 10/11).
   Ekran Start z kartami kategorii, strony przeglądowe kategorii, zwijane grupy
   w menu, motyw ciemny/jasny, dziennik zdarzeń, dashboard kroków 1-Click.
@@ -172,7 +172,7 @@ sortowanie wg indeksów NTX nie jest w pełni odtwarzalne bez silnika MS-DOS.
 ```
 FORESTLY/
 ├── main.py                      # Klasyczne GUI (CTk) + tryb --word-worker
-├── main_web.py                  # Nowe GUI (PyWebView) — punkt wejścia
+├── main.py                      # Punkt wejścia — GUI web (PyWebView)
 ├── webapp/                      # Interfejs nowego GUI
 │   ├── index.html               # Szkielet strony
 │   ├── style.css                # Wygląd (motywy ciemny/jasny)

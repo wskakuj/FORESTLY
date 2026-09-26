@@ -10,7 +10,7 @@ który działał w wersji CustomTkinter. Zmieniła się tylko warstwa wyglądu.
 
 Oba interfejsy działają równolegle i korzystają z tych samych ustawień:
   - main.py     → stare GUI (CustomTkinter)   [awaryjne wyjście]
-  - main_web.py → NOWE GUI (PyWebView)        [zalecane]
+  - main.py → GUI (PyWebView)
 
 Uruchomienie
 -----------
@@ -18,8 +18,8 @@ Uruchomienie
    .venv\Scripts\pip install pywebview
 
 2. Uruchom nowe GUI:
-   .venv\Scripts\python main_web.py
-   (w PyCharm: kliknij prawym na main_web.py → Run 'main_web')
+   .venv\Scripts\python main.py
+   (w PyCharm: kliknij prawym na main_web.py → Run 'main')
 
 Windows 10/11 ma WebView2 preinstalowany — nic więcej nie trzeba.
 
@@ -40,7 +40,7 @@ Co nowego w GUI
 
 Struktura plików
 ----------------
-main_web.py             — punkt wejścia nowego GUI
+main.py                 — punkt wejścia (jedyny — wersja web)
 webapp/index.html       — szkielet strony
 webapp/style.css        — wygląd
 webapp/app.js           — renderowanie zakładek + mostek do Pythona

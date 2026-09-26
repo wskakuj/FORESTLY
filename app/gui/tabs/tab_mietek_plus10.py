@@ -233,8 +233,26 @@ def przesun_wiek_w_pliku(path, lata, zapisz=False, backup=True, pola=("OP_TAX", 
     return {"rekordow": len(records), "zmienionych": zmienione, "przyklady": przyklady}
 
 
-def przesun_wiek_w_pliku_r(path, lata, zapisz=False, backup=True, przesuwaj_klase=True):
-    """Przesuwa wiek w pliku R*.DBF (pole WIEK + klasa KL_WIEK).
+def _dodaj_do_pola_liczbowego(rec, pole, dodaj, dlugosc, nazwa_pliku):
+    """Dodaje `dodaj` do wartości pola N (tekstowo). Zwraca (stara, nowa) lub None.
+
+    Pomija puste i zerowe wartości (np. WYS=0 przy haliznach).
+    """
+    stara = rec.get(pole, "").strip()
+    if not stara or not stara.isdigit() or int(stara) == 0 or dodaj == 0:
+        return None
+    nowa = str(int(stara) + dodaj)
+    if len(nowa) > dlugosc:
+        raise Exception(
+            f"Nowa wartość ({nowa}) nie mieści się w polu {pole} "
+            f"({dlugosc} znaków) w pliku {nazwa_pliku}. Nie zapisano."
+        )
+    rec[pole] = nowa
+    return (stara, nowa)
+
+
+def przesun_wiek_w_pliku_r(path, lata, zapisz=False, backup=True, wys=0, piers=0):
+    """Przesuwa wiek w pliku R*.DBF: WIEK + klasa KL_WIEK, oraz WYS i PIERS.
 
     Rekordy z WIEK=0 lub pustym są pomijane (halizny/zrąb).
     Zwraca słownik jak przesun_wiek_w_pliku.
@@ -260,15 +278,25 @@ def przesun_wiek_w_pliku_r(path, lata, zapisz=False, backup=True, przesuwaj_klas
             )
         rec["WIEK"] = nowy
         stara_kl = rec.get("KL_WIEK", "").strip()
-        nowa_kl = nastepna_klasa_wieku(stara_kl) if (przesuwaj_klase and stara_kl) else stara_kl
+        nowa_kl = nastepna_klasa_wieku(stara_kl) if stara_kl else stara_kl
         if nowa_kl and len(nowa_kl) > dlugosci.get("KL_WIEK", 4):
             nowa_kl = stara_kl  # nie zmieści się — zostaw starą
         rec["KL_WIEK"] = nowa_kl
+        opis_przed = f"{rec.get('ODDZIAL', '?')}: w{stary_wiek} {stara_kl}"
+        opis_po = f"{rec.get('ODDZIAL', '?')}: w{nowy} {nowa_kl}"
+        if "WYS" in nazwy_pol:
+            z = _dodaj_do_pola_liczbowego(rec, "WYS", wys, dlugosci["WYS"], path.name)
+            if z:
+                opis_przed += f", h{z[0]}"
+                opis_po += f", h{z[1]}"
+        if "PIERS" in nazwy_pol:
+            z = _dodaj_do_pola_liczbowego(rec, "PIERS", piers, dlugosci["PIERS"], path.name)
+            if z:
+                opis_przed += f", d{z[0]}"
+                opis_po += f", d{z[1]}"
         zmienione += 1
         if len(przyklady) < 3:
-            przyklady.append(
-                (f"{rec.get('ODDZIAL', '?')}: wiek {stary_wiek} {stara_kl}",
-                 f"{rec.get('ODDZIAL', '?')}: wiek {nowy} {nowa_kl}"))
+            przyklady.append((opis_przed, opis_po))
 
     if zapisz and zmienione:
         _zapisz_z_backupem(path, fields, records, backup)
@@ -322,11 +350,25 @@ class TabMietekPlus10Mixin:
         self.plus10_lata_entry.insert(0, _saved_l if _saved_l else "10")
         self.plus10_lata_entry.grid(row=1, column=1, padx=5, pady=8, sticky="w")
 
+        # 3. Wysokość i pierśnica (R*.DBF)
+        ctk.CTkLabel(card, text="3. Wysokość (WYS, +):",
+                     font=font_label, text_color="#E0E0E0").grid(
+            row=2, column=0, padx=15, pady=8, sticky="w")
+        self.plus10_wys_entry = ctk.CTkEntry(card, width=90, height=36, justify="center")
+        self.plus10_wys_entry.insert(0, self.get_setting("plus10_wys") or "1")
+        self.plus10_wys_entry.grid(row=2, column=1, padx=5, pady=8, sticky="w")
+        ctk.CTkLabel(card, text="4. Pierśnica (PIERS, +):",
+                     font=font_label, text_color="#E0E0E0").grid(
+            row=3, column=0, padx=15, pady=8, sticky="w")
+        self.plus10_piers_entry = ctk.CTkEntry(card, width=90, height=36, justify="center")
+        self.plus10_piers_entry.insert(0, self.get_setting("plus10_piers") or "2")
+        self.plus10_piers_entry.grid(row=3, column=1, padx=5, pady=8, sticky="w")
+
         # (kopia .BAK, pola OP_TAX/OP_TAX1 i przetwarzanie R*.DBF — zawsze włączone)
 
-        # 3. Przyciski
+        # 5. Przyciski
         btn_frame = ctk.CTkFrame(card, fg_color="transparent")
-        btn_frame.grid(row=2, column=0, columnspan=3, padx=15, pady=(4, 15), sticky="w")
+        btn_frame.grid(row=4, column=0, columnspan=3, padx=15, pady=(4, 15), sticky="w")
         ctk.CTkButton(btn_frame, text="🔍 Podgląd zmian",
                       command=lambda: self._plus10_start(zapisz=False),
                       height=38, font=font_btn,
@@ -359,8 +401,15 @@ class TabMietekPlus10Mixin:
             lata = int(self.plus10_lata_entry.get().strip())
             if lata < 1 or lata > 100:
                 raise ValueError
+            wys = int((self.plus10_wys_entry.get().strip() or "0"))
+            piers = int((self.plus10_piers_entry.get().strip() or "0"))
+            if wys < 0 or wys > 99 or piers < 0 or piers > 99:
+                raise ValueError
         except ValueError:
-            messagebox.showwarning("Błąd", "Przesunięcie wieku musi być liczbą od 1 do 100.")
+            messagebox.showwarning(
+                "Błąd",
+                "Przesunięcie wieku musi być liczbą od 1 do 100,\n"
+                "a wysokość i pierśnica od 0 do 99 (0 = bez zmian).")
             return None
 
         folder_path = Path(folder)
@@ -374,7 +423,7 @@ class TabMietekPlus10Mixin:
             return None
 
         pola = ["OP_TAX", "OP_TAX1"]
-        return folder_path, lata, pliki_o, pliki_r, pola
+        return folder_path, lata, pliki_o, pliki_r, pola, wys, piers
 
     def _plus10_koniec(self, tekst, kolor="#108C4C", folder_wynikow=None):
         """Standardowe domknięcie zadania: status, folder wyników, odblokowanie przycisków.
@@ -394,15 +443,21 @@ class TabMietekPlus10Mixin:
             self.restore_all_buttons()
 
     def _plus10_start(self, zapisz):
+        # sygnalizacja startu (running=True) — dzięki temu frontend widzi
+        # przejście na koniec i pokazuje dźwięk + „Zakończono” + „Otwórz folder”
+        if hasattr(self, "disable_all_buttons"):
+            self.disable_all_buttons()
         dane = self._plus10_zbierz_dane()
         if not dane:
             self._plus10_koniec("Przerwano — brak danych.", "#D83B01")
             return
-        folder_path, lata, pliki_o, pliki_r, pola = dane
+        folder_path, lata, pliki_o, pliki_r, pola, wys, piers = dane
 
         # Zapamiętaj folder i opcje
         self.set_setting("folder_plus10_entry", str(folder_path))
         self.set_setting("plus10_lata", str(lata))
+        self.set_setting("plus10_wys", str(wys))
+        self.set_setting("plus10_piers", str(piers))
 
         # --- Przebieg próbny (odczyt + podgląd) ---
         wyniki = {}
@@ -414,7 +469,7 @@ class TabMietekPlus10Mixin:
                 wyniki[p] = ("O", w)
                 total_zmienionych += w["zmienionych"]
             for p in pliki_r:
-                w = przesun_wiek_w_pliku_r(p, lata, zapisz=False)
+                w = przesun_wiek_w_pliku_r(p, lata, zapisz=False, wys=wys, piers=piers)
                 wyniki[p] = ("R", w)
                 total_zmienionych += w["zmienionych"]
         except Exception as e:
@@ -452,7 +507,9 @@ class TabMietekPlus10Mixin:
                 "Potwierdź zmiany",
                 f"Przesunięcie wieku o +{lata} lat zmieni {total_zmienionych} rekordów "
                 f"w {len(pliki_o) + len(pliki_r)} plikach(ach).\n\n"
-                f"(O*.DBF: opisy — /x-y/z; R*.DBF: WIEK i klasa wieku)\n\n"
+                f"(O*.DBF: opisy — /x-y/z; R*.DBF: WIEK, klasa wieku"
+                + (f", WYS +{wys}" if wys else "")
+                + (f", PIERS +{piers}" if piers else "") + ")\n\n"
                 f"Przed zapisem każdorazowo powstaje kopia zapasowa .BAK.\n\n"
                 f"Kontynuować?"):
             self.log(f"[MIETKI +{lata} LAT] Anulowano przez użytkownika.")
@@ -466,7 +523,7 @@ class TabMietekPlus10Mixin:
                 if rodzaj == "O":
                     w = przesun_wiek_w_pliku(p, lata, zapisz=True, backup=True, pola=pola)
                 else:
-                    w = przesun_wiek_w_pliku_r(p, lata, zapisz=True, backup=True)
+                    w = przesun_wiek_w_pliku_r(p, lata, zapisz=True, backup=True, wys=wys, piers=piers)
                 if w["zmienionych"]:
                     zrobione += 1
                     wzgledna = p.relative_to(folder_path)
