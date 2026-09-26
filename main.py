@@ -105,13 +105,10 @@ def main():
         run_word_worker_cli()
         return
 
-    # Tryb normalny: aplikacja GUI
-    from app.gui.main_window import ModernApp
-    from app.config import kill_orphan_office_processes
+    # Tryb normalny: aplikacja GUI (WEB — wersja CustomTkinter wycofana)
+    from main_web import main as web_main
 
-    kill_orphan_office_processes()
-    app = ModernApp()
-    app.mainloop()
+    web_main()
 
 
 if __name__ == "__main__":

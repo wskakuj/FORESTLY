@@ -1,5 +1,3 @@
-# Co nowego w v2.0.78
-
- dodano zakładkę +10lat
- 
+# Co nowego w v2.0.80
+- +10 lat w obu plikach
 

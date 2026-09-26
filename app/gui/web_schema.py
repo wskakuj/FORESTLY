@@ -378,12 +378,10 @@ def build_schema():
                       "Program sam znajdzie pliki O*.DBF w podfolderach .001"),
                 _text("plus10_lata", "plus10_lata_entry",
                       "2. Przesunięcie wieku (lata):", default="10"),
-                _check("plus10_backup", "plus10_backup_var",
-                       "Kopia zapasowa przed zapisem (plik .BAK)", default=True),
-                _check("plus10_tax1", "plus10_tax1_var",
-                       "Przetwarzaj również pole OP_TAX1", default=True),
-                _info("Każde /65-75/80 (lub /65-75/80l) w opisach taksacyjnych (OP_TAX) "
+                _info("O*.DBF: każde /65-75/80 (lub /65-75/80l) w opisach taksacyjnych (OP_TAX) "
                       "dostaje +N lat do wszystkich trzech liczb, np. /65-75/80l → /75-85/90l. "
+                      "R*.DBF: pole WIEK +N lat, klasa wieku przesuwana o pół klasy (IIa→IIb, IIb→IIIa). "
+                      "Zawsze: kopia zapasowa .BAK przed zapisem, pola OP_TAX i OP_TAX1. "
                       "Najpierw podgląd zmian, dopiero potem zapis."),
             ],
             "buttons": [
