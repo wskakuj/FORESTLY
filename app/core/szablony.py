@@ -207,6 +207,9 @@ def parse_rejestr1(path):
 # --------------------------------------------------------------- OPTAX
 
 def parse_optax(path):
+    """Parsuje OPTAX.TXT. Wydzielenie może mieć wiele wskaźników (WSK1..WSK6)
+    — każdy leży w osobnym wierszu tabeli, więc zbieramy je wszystkie:
+    r["wsk"] i r["wyk"] to LISTY trójek (rodzaj, pow, maks)."""
     lines = wczytaj(path).split("\n")
     rek, cur = [], None
     for ln in lines:
@@ -217,16 +220,23 @@ def parse_optax(path):
             continue
         if k[0].isdigit() and k[1].isdigit():
             continue
+        wsk3 = [k[11], k[12] if len(k) > 12 else "", k[13] if len(k) > 13 else ""]
+        wyk3 = [k[14] if len(k) > 14 else "",
+                k[15] if len(k) > 15 else "",
+                k[16] if len(k) > 16 else ""]
         if k[0]:
             if cur:
                 rek.append(cur)
             cur = {"oddz": k[0], "pow": k[1], "opis": [k[2]], "el": k[3:11],
-                   "wsk": k[11:14],
-                   "wyk": [k[14] if len(k) > 14 else "",
-                           k[15] if len(k) > 15 else "",
-                           k[16] if len(k) > 16 else ""]}
-        elif cur is not None and (k[2] or k[1]):
-            cur["opis"].append(k[2] if k[2] else k[1])
+                   "wsk": [wsk3] if any(wsk3) else [],
+                   "wyk": [wyk3] if any(wyk3) else []}
+        elif cur is not None and (k[2] or k[1] or any(wsk3) or any(wyk3)):
+            if k[2] or k[1]:
+                cur["opis"].append(k[2] if k[2] else k[1])
+            if any(wsk3):
+                cur["wsk"].append(wsk3)   # WSK2..WSK6 z wierszy kontynuacji
+            if any(wyk3):
+                cur["wyk"].append(wyk3)
     if cur:
         rek.append(cur)
     return rek
@@ -587,8 +597,11 @@ def html_optax(path, obiekt, stan, bez_nazwisk=False, marginesy=None, czcionki=N
     for r in rek:
         opis = "<br>".join(r["opis"])
         el = r["el"]
-        wsk = r["wsk"]
-        wyk = r["wyk"]
+        wsk = r["wsk"] or [["", "", ""]]
+        wyk = r["wyk"] or [["", "", ""]]
+        # wiele wskaźników (WSK1..WSK6) — każdy w osobnej linii komórek
+        wsk_k = ["<br>".join(w[i] for w in wsk) for i in range(3)]
+        wyk_k = ["<br>".join(w[i] for w in wyk) for i in range(3)]
         tr.append("<tr>"
                   f'<td class="c" style="font-weight:600">{r["oddz"]}</td>'
                   f'<td class="n">{r["pow"]}</td>'
@@ -597,10 +610,10 @@ def html_optax(path, obiekt, stan, bez_nazwisk=False, marginesy=None, czcionki=N
                   f'<td class="c">{el[2]}</td><td class="n">{el[3]}</td>'
                   f'<td class="n">{el[4]}</td><td class="c">{el[5]}</td>'
                   f'<td class="n">{el[6]}</td><td class="n">{el[7]}</td>'
-                  f'<td>{wsk[0]}</td><td class="n">{wsk[1]}</td>'
-                  f'<td class="n">{wsk[2]}</td>'
-                  f'<td>{wyk[0]}</td><td class="n">{wyk[1]}</td>'
-                  f'<td class="n">{wyk[2]}</td></tr>')
+                  f'<td>{wsk_k[0]}</td><td class="n">{wsk_k[1]}</td>'
+                  f'<td class="n">{wsk_k[2]}</td>'
+                  f'<td>{wyk_k[0]}</td><td class="n">{wyk_k[1]}</td>'
+                  f'<td class="n">{wyk_k[2]}</td></tr>')
     tresc = """<table>
 <thead><tr>
 <th rowspan="2" style="width:5%">Oddział<br>poddz.</th>
