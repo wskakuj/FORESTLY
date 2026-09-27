@@ -18,7 +18,7 @@ from pathlib import Path
 import customtkinter as ctk
 
 # --- WERSJA I AKTUALIZACJA ---
-CURRENT_VERSION = "v2.0.87"
+CURRENT_VERSION = "v2.0.89"
 GITHUB_USER = "wskakuj"
 GITHUB_REPO = "FORESTLY"
 
@@ -322,6 +322,23 @@ def set_saved_excluded_templates(folder: Path, mode_key: str, excluded_keys):
     valid = [t["key"] for t in PDF_ORDER_TEMPLATES]
     data[mode_key + "_excluded"] = [k for k in (excluded_keys or []) if k in valid]
     save_order_store(folder, data)
+
+
+# foldery techniczne wyników pełnego automatu — nie są nazwami wsi
+FOLDERY_TECHNICZNE = {"PDF", "WORD", "TXT", "Z NAZWISKAMI", "BEZ NAZWISK"}
+
+
+def nazwa_nietechnicznego(folder):
+    """Nazwa pierwszego nadrzędnego folderu o nazwie nietechnicznej (wsi).
+
+    Np. dla .../CHORZEWO/PDF zwraca 'CHORZEWO', a dla trybu dwóch przebiegów
+    .../CHORZEWO/Z nazwiskami/PDF również 'CHORZEWO' (a nie 'Z nazwiskami',
+    przez co scalony PDF nazywał się 'z nazwiskami_UPUL.pdf' i mapa nie
+    dopasowywała się po nazwie wsi)."""
+    p = Path(folder)
+    while p.name.upper() in FOLDERY_TECHNICZNE and p.parent != p:
+        p = p.parent
+    return p.name
 
 
 def is_file_locked(filepath):

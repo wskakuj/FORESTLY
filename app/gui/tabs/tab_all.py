@@ -869,6 +869,30 @@ class TabAllMixin:
         "HALIZNY": "HALIZNY", "WYK_NEG": "WYK_NEG",
     }
 
+    def _incr_skopiuj_drzewo(self, zrodlo, cel):
+        """Kopiuje drzewo wyników z 'Z nazwiskami' do 'Bez nazwisk'.
+
+        Tryb przyspieszony: dokumenty bez nazwisk są identyczne jak w przebiegu
+        pierwszym, więc nie generujemy ich ponownie — kopiujemy. Własny układ
+        PDF folderu docelowego (pdf_merge_orders.json) nie jest nadpisywany
+        zapisem z 'Z nazwiskami'."""
+        zrodlo, cel = Path(zrodlo), Path(cel)
+        if not zrodlo.is_dir():
+            self.log(f"[OBIE WERSJE] Brak {zrodlo} — generuję w pełni.")
+            return False
+        _store = cel / "pdf_merge_orders.json" if cel.name.upper() == "PDF" else None
+        _zapas = _store.read_bytes() if (_store is not None and _store.exists()) else None
+        shutil.copytree(zrodlo, cel, dirs_exist_ok=True)
+        if _store is not None:
+            if _zapas is not None:
+                _store.write_bytes(_zapas)        # zachowaj własny układ PDF
+            else:
+                _store.unlink(missing_ok=True)    # brak własnego → scalanie
+                                                 # weźmie zapamiętany globalny
+        self.log(f"[OBIE WERSJE] Skopiowano folder '{zrodlo.name}' "
+                 f"z 'Z nazwiskami' (dokumenty bez nazwisk).")
+        return True
+
     def _all_uklad_pominiete(self, pdf_dir):
         """Klucze szablonów odznaczone w oknie 'Układ PDF' (tryb ALL).
 
@@ -1045,6 +1069,7 @@ class TabAllMixin:
                     self._przebieg_etykieta = "Przebieg 1/2 — Z NAZWISKAMI"
                     self.log("[OBIE WERSJE] Przebieg 1/2: REJESTR z pełnymi "
                              "nazwiskami → 'Z nazwiskami'.")
+                    self._incr_baza = None
                     self.run_logic_thread(src_path, str(dst_root / "Z nazwiskami"),
                                           mode, False, margins_dict,
                                           nowe_szablony_flag)
@@ -1056,13 +1081,17 @@ class TabAllMixin:
                         return
                     self._przebieg_etykieta = "Przebieg 2/2 — BEZ NAZWISK"
                     self.log("[OBIE WERSJE] Przebieg 2/2: REJESTR bez nazwisk "
-                             "→ 'Bez nazwisk'.")
+                             "→ 'Bez nazwisk' (tryb przyspieszony — generowane "
+                             "są tylko dokumenty z nazwiskami, reszta jest "
+                             "kopiowana z 'Z nazwiskami').")
+                    self._incr_baza = str(dst_root / "Z nazwiskami")
                     self.run_logic_thread(src_path, str(dst_root / "Bez nazwisk"),
                                           mode, True, margins_dict,
                                           nowe_szablony_flag)
                 finally:
                     self._dwie_wersje_aktywne = False
                     self._przebieg_etykieta = ""
+                    self._incr_baza = None
                     self.running = False
                     self.after(0, self.restore_all_buttons)
 
@@ -1077,7 +1106,7 @@ class TabAllMixin:
         ).start()
 
     def _szablony_html_etap(self, txt_dir, pdf_dir, remove_names, margins_dict,
-                            pominiete=None):
+                            pominiete=None, tylko_typy=None):
         """NOWE SZABLONY: raporty TXT mietka → HTML → PDF, bez Worda.
 
         Generuje wyłącznie raporty (REJESTR1, OPTAX, ...). Strona tytułowa,
@@ -1094,6 +1123,10 @@ class TabAllMixin:
         if pomij_typ:
             self.log("[SZABLONY] Pomijam (odznaczone w układzie PDF): "
                      + ", ".join(sorted(pomij_typ)))
+        if tylko_typy is not None:
+            self.log("[SZABLONY] Tryb przyspieszony 'Bez nazwisk': generuję tylko "
+                     + ", ".join(sorted(tylko_typy))
+                     + "; pozostałe raporty skopiowano z 'Z nazwiskami'.")
         optaxy = sorted(txt_dir.rglob("OPTAX*.TXT"))
         if not optaxy:
             raise RuntimeError(
@@ -1119,6 +1152,8 @@ class TabAllMixin:
                     continue
                 if typ in pomij_typ:   # odznaczone w układzie PDF — pomijamy
                     continue
+                if tylko_typy is not None and typ not in tylko_typy:
+                    continue   # skopiowane z 'Z nazwiskami' — nie generujemy
                 if txt.stat().st_size < 100:
                     self.log(f"[SZABLONY] Pomijam pusty plik: {txt.name}")
                     continue
@@ -1522,9 +1557,18 @@ class TabAllMixin:
             if not zrodla:
                 self.log("[MAPA] Brak plików map — pomijam.")
                 return 0
+            from app.config import FOLDERY_TECHNICZNE, nazwa_nietechnicznego
             pdf_folders = sorted({p.parent for p in Path(pdf_dir).rglob("*.pdf")})
-            wsie = sorted({f.name for f in pdf_folders
-                           if f.name.upper() not in ("PDF", "WORD", "TXT")})
+            # płaski układ (jeden folder mietka): PDF-y leżą bezpośrednio
+            # w folderze PDF, bez folderów wsi — całość to jedna "wieś",
+            # a jej nazwa bierze się z pierwszego nietechnicznego folderu
+            # nadrzędnego (tak samo jak nazwa scalonego PDF)
+            _plasko = all(f.name.upper() in FOLDERY_TECHNICZNE for f in pdf_folders)
+            if _plasko:
+                wsie = [nazwa_nietechnicznego(pdf_dir)]
+            else:
+                wsie = sorted({f.name for f in pdf_folders
+                               if f.name.upper() not in FOLDERY_TECHNICZNE})
             cache_pdfow = {}          # mapa źródłowa -> gotowy mapa.pdf (raz konwertowana)
             n = 0
             niedopasowane = []
@@ -1544,13 +1588,15 @@ class TabAllMixin:
                         mp = Path(tmp) / "mapa.pdf"
                         self._mapa_na_pdf(trafienie, mp)
                         cache_pdfow[trafienie] = mp.read_bytes()
-                for f in pdf_folders:
-                    if f.name == wieś:
-                        docel = f / "mapa.pdf"
-                        if docel.exists():
-                            docel.unlink()
-                        docel.write_bytes(cache_pdfow[trafienie])
-                        n += 1
+                docelowe = [f for f in pdf_folders if f.name == wieś]
+                if _plasko and not docelowe:
+                    docelowe = [Path(pdf_dir)]   # PDF-y leżą bezpośrednio w PDF
+                for docel in docelowe:
+                    plik_mapy = docel / "mapa.pdf"
+                    if plik_mapy.exists():
+                        plik_mapy.unlink()
+                    plik_mapy.write_bytes(cache_pdfow[trafienie])
+                    n += 1
                 self.log(f"[MAPA] {wieś}: mapa {trafienie.name} → mapa.pdf")
             for nazwa in zrodla:
                 if not any(self._norm_nazwy(w.replace(".001", ""))
@@ -1804,8 +1850,26 @@ class TabAllMixin:
                     self.log("[UKŁAD] Całkowicie pominięte (odznaczone w układzie PDF): "
                              + "; ".join(_lbl.get(k, k) for k in sorted(pominiete)))
 
+                # === 'BEZ NAZWISK' W TRYBIE PRZYSPIESZONYM ===
+                # po udanym 'Z nazwiskami' generujemy tylko dokumenty, w których
+                # usuwa się nazwiska; całą resztę (stronę tytułową, opisy,
+                # skróty, mapy, pozostałe raporty) kopiujemy z przebiegu 1
+                _incr_baza = None
+                if (mode == "ALL" and remove_names
+                        and getattr(self, "_dwie_wersje_aktywne", False)):
+                    _b = getattr(self, "_incr_baza", None)
+                    if _b and (Path(_b) / "PDF").is_dir():
+                        _incr_baza = Path(_b)
+                        self.log("[OBIE WERSJE] Tryb przyspieszony: generuję tylko "
+                                 "dokumenty z nazwiskami (REJESTR1"
+                                 + (", WSKAZ1" if nowe_szablony else "")
+                                 + "); pozostałe kopiuję z 'Z nazwiskami'.")
+
                 # === ETAP 0: GENEROWANIE TXT Z DBF MIETEKA ===
-                if getattr(self, "all_gen_txt_var", None) is None or self.all_gen_txt_var.get():
+                if _incr_baza is not None:
+                    self.update_dashboard(0, "done", "Pominięto")
+                    self.log("[TXT] Już wygenerowane w 'Z nazwiskami' — pomijam.")
+                elif getattr(self, "all_gen_txt_var", None) is None or self.all_gen_txt_var.get():
                     self.update_status("Generowanie plików TXT z DBF mietka...", "#0078D7")
                     self.update_dashboard(0, "running", "Generowanie TXT...")
                     self.check_stop()
@@ -1848,8 +1912,17 @@ class TabAllMixin:
                     )
                     self.update_dashboard(2, "running", "Szablony HTML...")
                     self.check_stop()
+                    _tylko_nazwiskowe = None
+                    if _incr_baza is not None:
+                        if self._incr_skopiuj_drzewo(_incr_baza / "PDF", dir_03):
+                            # z nazwiskami różnią się tylko te typy (szablony.USUWA_NAZWISKA)
+                            from app.core.szablony import USUWA_NAZWISKA
+                            _tylko_nazwiskowe = set(USUWA_NAZWISKA)
+                        else:
+                            _incr_baza = None
                     self._szablony_html_etap(dir_01, dir_03, remove_names,
-                                             margins_dict, pominiete)
+                                             margins_dict, pominiete,
+                                             tylko_typy=_tylko_nazwiskowe)
                     self.update_dashboard(2, "done", "Gotowe")
                     self.set_progress(0.45)
 
@@ -1861,8 +1934,13 @@ class TabAllMixin:
                     )
                     self.update_dashboard(3, "running", "STR_TYT + opis...")
                     self.check_stop()
-                    self._szablony_str_tyt_opis_og_wordem(dir_01, dir_02, dir_03,
-                                                         pominiete)
+                    if _incr_baza is not None:
+                        # STR_TYT i opisy nie zawierają nazwisk — już skopiowane
+                        self.log("[STR_TYT/OPIS OG] Skopiowano z 'Z nazwiskami' "
+                                 "— pomijam generowanie.")
+                    else:
+                        self._szablony_str_tyt_opis_og_wordem(dir_01, dir_02, dir_03,
+                                                             pominiete)
                     self._flatten_001_subfolders(dir_03)
                     self.update_dashboard(3, "done", "Gotowe")
                     self.set_progress(0.60)
@@ -1870,16 +1948,29 @@ class TabAllMixin:
                     self.update_status("Generowanie plików Word...", "#0078D7")
                     self.update_dashboard(2, "running", "Kompilacja...")
                     self.check_stop()
+                    _tylko_rejestr = False
+                    if _incr_baza is not None:
+                        # w starym torze nazwy usuwa wyłącznie REJESTR1
+                        if (self._incr_skopiuj_drzewo(_incr_baza / "Word", dir_02)
+                                and self._incr_skopiuj_drzewo(_incr_baza / "PDF", dir_03)):
+                            _tylko_rejestr = True
+                        else:
+                            _incr_baza = None
                     self.task_word_processing_subprocess(
                         dir_01, dir_02, remove_names,
-                        file_filter=self._all_filtr_word(pominiete),
+                        file_filter=(["REJESTR1"] if _tylko_rejestr
+                                     else self._all_filtr_word(pominiete)),
                         margins_dict=margins_dict)
                     self._flatten_001_subfolders(dir_02)
                     self.update_dashboard(2, "done", "Gotowe")
                     self.set_progress(0.30)
 
                     # === GENEROWANIE STR_TYT (z kreatora w 1-Click) ===
-                    if "TITLE" in pominiete:
+                    if _incr_baza is not None:
+                        self.log("[STR_TYT] Skopiowano z 'Z nazwiskami' "
+                                 "— pomijam generowanie.")
+                        tpl_tmp = None
+                    elif "TITLE" in pominiete:
                         self.log("[STR_TYT] Strona tytułowa odznaczona w układzie "
                                  "PDF — pomijam generowanie.")
                         tpl_tmp = None
@@ -1905,7 +1996,10 @@ class TabAllMixin:
                                    and self.all_pelny_opis_og_var.get())
                     _krotki_opis = (getattr(self, "all_krotki_opis_og_var", None) is not None
                                     and self.all_krotki_opis_og_var.get())
-                    if _pelny_opis or _krotki_opis:
+                    if _incr_baza is not None:
+                        self.log("[OPIS OG] Skopiowano z 'Z nazwiskami' "
+                                 "— pomijam generowanie.")
+                    elif _pelny_opis or _krotki_opis:
                         self.update_status(
                             "Generowanie opisów ogólnych (opis og_<wieś>.docx)"
                             + ("" if _pelny_opis else " — wersja skrócona") + "...",
@@ -1930,16 +2024,22 @@ class TabAllMixin:
                     self.update_status("Konwersja plików Word na PDF...", "#0078D7")
                     self.update_dashboard(3, "running", "Konwersja...")
                     self.check_stop()
-                    c3 = self.task_convert_to_pdf(
-                        dir_02, dir_03,
-                        pominiete={self._UKLAD2TYP[k] for k in pominiete
-                                   if k in self._UKLAD2TYP})
+                    if _incr_baza is not None:
+                        c3 = self.task_convert_to_pdf(dir_02, dir_03,
+                                                      tylko=["REJESTR1"])
+                    else:
+                        c3 = self.task_convert_to_pdf(
+                            dir_02, dir_03,
+                            pominiete={self._UKLAD2TYP[k] for k in pominiete
+                                       if k in self._UKLAD2TYP})
                     self._flatten_001_subfolders(dir_03)
                     self.update_dashboard(3, "done", f"{c3} plików")
                     self.set_progress(0.60)
 
                     # === WSTRZYKIWANIE SKROTÓW ===
-                if "SKROTY" in pominiete:
+                if _incr_baza is not None:
+                    self.log("[SKRÓTY] Skopiowano z 'Z nazwiskami' — pomijam dołączanie.")
+                elif "SKROTY" in pominiete:
                     self.log("[SKRÓTY] Odznaczone w układzie PDF — pomijam dołączanie.")
                 else:
                     self.update_status("Dołączanie 'Skrótów i symboli' do pakietów...", "#0078D7")
@@ -1950,7 +2050,9 @@ class TabAllMixin:
                 _mapa_raw = (_me.get().strip()
                              if _me is not None and hasattr(_me, "get") else "")
                 _drop = Path(tempfile.gettempdir()) / "forestly_mapy"
-                if "MAPA" in pominiete:
+                if _incr_baza is not None:
+                    self.log("[MAPA] Skopiowano z 'Z nazwiskami' — pomijam dołączanie.")
+                elif "MAPA" in pominiete:
                     self.log("[MAPA] Odznaczona w układzie PDF — pomijam dołączanie.")
                 elif (_mapa_raw and Path(_mapa_raw).is_dir()) or _drop.is_dir():
                     self.update_status("Dołączanie map do pakietów...", "#0078D7")

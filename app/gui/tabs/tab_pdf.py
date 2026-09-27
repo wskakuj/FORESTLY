@@ -40,7 +40,7 @@ class TabPdfMixin:
         )
         cb_skroty.grid(row=row_idx + 1, column=0, columnspan=3, padx=15, pady=(0, 20), sticky="w")
 
-    def task_convert_to_pdf(self, in_dir, out_dir, pominiete=None):
+    def task_convert_to_pdf(self, in_dir, out_dir, pominiete=None, tylko=None):
         docs = [
             p
             for p in in_dir.rglob("*")
@@ -49,6 +49,12 @@ class TabPdfMixin:
         if pominiete:
             _pomij = {str(x).upper() for x in pominiete}
             docs = [p for p in docs if p.stem.upper() not in _pomij]
+        if tylko:
+            # biało-lista (tryb przyspieszony 'Bez nazwisk': konwertuj tylko
+            # dokumenty, które różnią się od 'Z nazwiskami' — reszta jest
+            # już przekopiowana jako gotowe PDF-y)
+            _tyl = {str(x).upper() for x in tylko}
+            docs = [p for p in docs if p.stem.upper() in _tyl]
         if not docs:
             return 0
 
@@ -136,6 +142,45 @@ class TabPdfMixin:
                     pass
         return count
 
+    def _kontrola_kompletnosci(self, pdf_dirs, in_dir, excluded_keys):
+        """Kontrola kompletności wsi przed scalaniem — świadoma układu PDF.
+
+        Dokumenty odznaczone w 'Układ PDF' (excluded_keys) NIE są wymagane —
+        pełny automat w ogóle ich nie generuje (v2.0.87+), więc ich brak
+        nie jest błędem. Wieś, w której odznaczono wszystko oprócz np.
+        strony tytułowej, nie budzi już fałszywego ostrzeżenia."""
+        from app.config import nazwa_nietechnicznego
+        warnings = []
+        _tpl = {t["key"]: t for t in PDF_ORDER_TEMPLATES}
+        for folder in pdf_dirs:
+            if folder == in_dir:
+                # Bierzemy tylko pliki z głównego folderu (płaski układ)
+                pdfs = [p.name.lower() for p in in_dir.glob("*.pdf")]
+                village_name = nazwa_nietechnicznego(in_dir)
+            else:
+                pdfs = [p.name.lower() for p in folder.iterdir()
+                        if p.suffix.lower() == ".pdf"]
+                village_name = folder.name
+
+            has_title = any(template_matches(_tpl["TITLE"], p) for p in pdfs)
+            has_optax = any(template_matches(_tpl["OPTAX"], p) for p in pdfs)
+            has_opis = any(template_matches(_tpl["OPIS"], p) for p in pdfs)
+            has_rej = any(template_matches(_tpl["REJESTR1"], p) for p in pdfs)
+
+            missing = []
+            if not has_title and "TITLE" not in excluded_keys:
+                missing.append("STR_TYT")
+            # OPTAX/OPIS to wymóg "coś z treścią merytoryczną" — znika,
+            # gdy OPTAX jest odznaczony (opisy ogólne to osobne przełączniki)
+            if not (has_optax or has_opis) and "OPTAX" not in excluded_keys:
+                missing.append("OPTAX / OPIS")
+            if not has_rej and "REJESTR1" not in excluded_keys:
+                missing.append("REJESTR")
+
+            if missing:
+                warnings.append(f"• Wieś {village_name.upper()}: brak -> {', '.join(missing)}")
+        return warnings
+
     def task_merge_pdfs(self, in_dir, out_dir, mode_key="ALL"):
         # [NUMERACJA] po poprzednim biegu pliki mają prefiksy pozycji
         # ("04_OPTAX.pdf"); jeśli świeży przebieg wygenerował już czystą
@@ -174,44 +219,6 @@ class TabPdfMixin:
                 f"({len(pdf_dirs) - 1}) osobno."
             )
 
-        # --- KONTROLA KOMPLETNOŚCI ---
-        warnings = []
-        for folder in pdf_dirs:
-            if folder == in_dir:
-                # Bierzemy tylko pliki z głównego folderu
-                pdfs = [p.name.lower() for p in in_dir.glob("*.pdf")]
-                village_name = in_dir.parent.name
-                if village_name.upper() in ["PDF", "WORD", "TXT"]:
-                    village_name = in_dir.parent.parent.name
-            else:
-                pdfs = [p.name.lower() for p in folder.iterdir() if p.suffix.lower() == ".pdf"]
-                village_name = folder.name
-
-            _tpl = {t["key"]: t for t in PDF_ORDER_TEMPLATES}
-            has_title = any(template_matches(_tpl["TITLE"], p) for p in pdfs)
-            has_optax = any(template_matches(_tpl["OPTAX"], p) for p in pdfs)
-            has_opis = any(template_matches(_tpl["OPIS"], p) for p in pdfs)
-            has_rej = any(template_matches(_tpl["REJESTR1"], p) for p in pdfs)
-
-            missing = []
-            if not has_title: missing.append("STR_TYT")
-            if not (has_optax or has_opis): missing.append("OPTAX / OPIS")
-            if not has_rej: missing.append("REJESTR")
-
-            if missing:
-                warnings.append(f"• Wieś {village_name.upper()}: brak -> {', '.join(missing)}")
-
-        if warnings:
-            self.log("[KONTROLA] Wykryto braki w folderach do scalenia. Oczekiwanie na decyzję...")
-            if not self.show_validation_window_sync("Wykryto brakujące pliki (niektóre wsie nie są kompletne):",
-                                                    warnings):
-                raise InterruptedError("Operacja scalania przerwana przez użytkownika.")
-        # -----------------------------
-
-        count = 0
-        total_dirs = len(pdf_dirs)
-        self.last_output_dir = Path(out_dir)
-        self.start_progress_tracking(total_dirs, "Scalanie PDF")
         # [UKŁAD] gdy ten folder nie ma własnego układu (np. nowy folder wyników),
         # użyj globalnie zapamiętanej kolejności z ustawień programu
         _store = load_order_store(Path(in_dir))
@@ -251,13 +258,31 @@ class TabPdfMixin:
                 t["label"] for t in PDF_ORDER_TEMPLATES if t["key"] in excluded_keys)
             self.log(f"[UKŁAD] Wykluczono z scalania: {_lbl}")
 
+        # --- KONTROLA KOMPLETNOŚCI (świadoma układu PDF) ---
+        warnings = self._kontrola_kompletnosci(pdf_dirs, in_dir, set(excluded_keys))
+
+        if warnings:
+            self.log("[KONTROLA] Wykryto braki w folderach do scalenia. Oczekiwanie na decyzję...")
+            if not self.show_validation_window_sync("Wykryto brakujące pliki (niektóre wsie nie są kompletne):",
+                                                    warnings):
+                raise InterruptedError("Operacja scalania przerwana przez użytkownika.")
+        # -----------------------------
+
+        count = 0
+        total_dirs = len(pdf_dirs)
+        self.last_output_dir = Path(out_dir)
+        self.start_progress_tracking(total_dirs, "Scalanie PDF")
         for idx_dir, folder in enumerate(pdf_dirs, start=1):
             self.check_stop()
 
             if folder == in_dir:
-                village_name = in_dir.parent.name
-                if village_name.upper() in ["PDF", "WORD", "TXT"]:
-                    village_name = in_dir.parent.parent.name
+                # nazwa wsi = pierwszy nadrzędny folder nietechniczny
+                # (PDF-y bezpośrednio w PDF = jeden folder mietka; foldery
+                # 'Z nazwiskami'/'Bez nazwisk' z dwóch przebiegów też są
+                # techniczne — inaczej scalony PDF nazywałby się
+                # 'z nazwiskami_UPUL.pdf' i mapa nie dopasowywała się po nazwie)
+                from app.config import nazwa_nietechnicznego
+                village_name = nazwa_nietechnicznego(in_dir)
                 target_dir = out_dir
                 pdfs = sorted(list(in_dir.glob("*.pdf")))
             else:

@@ -15,8 +15,8 @@
   "folder_mietki_rozlicz_entry": "D:\\download\\gówno\\Nowy folder (17)\\rozliczone",
   "folder_mietki_out_entry": "D:\\download\\gówno\\Nowy folder (17)\\Nowy folder",
   "folder_wydruki_mietki_entry": "D:/download/gówno/Nowy folder (16)/CHORZEWO",
-  "web.all_src": "D:\\download\\gówno\\Nowy folder (22)",
-  "web.all_dst": "D:\\download\\gówno\\Nowy folder (22)",
+  "web.all_src": "D:\\download\\gówno\\Nowy folder (22)\\CHORZEWO",
+  "web.all_dst": "D:\\download\\gówno\\Nowy folder (22)\\",
   "web.all_gen_txt": true,
   "web.all_str_tyt": false,
   "web.all_template": "",
@@ -128,22 +128,21 @@
   "web.nowe_szablony": true,
   "pdf_order.ALL": {
     "order": [
-      "TITLE"
-    ],
-    "excluded": [
+      "TITLE",
       "WSKAZ1",
       "OPTAX",
       "REJESTR1",
       "WSK_ZB",
-      "OPIS",
       "TAB_KLW3",
       "WYK_NEG",
       "HALIZNY",
       "ZEST1",
       "WK_ZM1",
       "SKROTY",
-      "MAPA"
-    ]
+      "MAPA",
+      "OPIS"
+    ],
+    "excluded": []
   },
   "web.czcionki.ALL": {
     "REJESTR1": {
@@ -239,22 +238,21 @@
   },
   "pdf_order.PDF": {
     "order": [
-      "TITLE"
-    ],
-    "excluded": [
+      "TITLE",
       "WSKAZ1",
       "OPTAX",
       "REJESTR1",
       "WSK_ZB",
-      "OPIS",
       "TAB_KLW3",
       "WYK_NEG",
       "HALIZNY",
       "ZEST1",
       "WK_ZM1",
       "SKROTY",
-      "MAPA"
-    ]
+      "MAPA",
+      "OPIS"
+    ],
+    "excluded": []
   },
   "web.all_tpl_doc": "UPUL",
   "web.all_tpl_prefix": "położonych na terenie obrębu",
