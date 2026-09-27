@@ -17,7 +17,7 @@ import win32com.client
 import pythoncom
 
 from app.config import (
-    is_file_locked, load_margins, save_margins, add_tooltip,
+    PDF_ORDER_TEMPLATES, is_file_locked, load_margins, save_margins, add_tooltip,
 )
 
 from app.core.word_worker import (
@@ -862,11 +862,81 @@ class TabAllMixin:
                 # Jeśli checkbox jest odznaczony, całkowicie ukrywamy ramkę
                 self.all_skroty_frame.grid_remove()
 
-    def task_generuj_txt(self, in_root):
+    # klucz szablonu z okna 'Układ PDF' -> typ pliku raportu (stem TXT/Word/PDF)
+    _UKLAD2TYP = {
+        "REJESTR1": "REJESTR1", "OPTAX": "OPTAX", "TAB_KLW3": "TAB_KLW3",
+        "WSKAZ1": "WSKAZ1", "WSK_ZB": "WSK_ZB", "ZEST1": "ZEST1",
+        "HALIZNY": "HALIZNY", "WYK_NEG": "WYK_NEG",
+    }
+
+    def _all_uklad_pominiete(self, pdf_dir):
+        """Klucze szablonów odznaczone w oknie 'Układ PDF' (tryb ALL).
+
+        Dokumenty odznaczone nie są w ogóle generowane — oszczędność czasu.
+        Zapis czytany jest z folderu wyjściowego PDF (pdf_merge_orders.json),
+        a gdy go brak — z ustawień programu (ten sam zapis, którego używa
+        scalanie, więc generowanie i scalanie zawsze widzą to samo)."""
+        from app.config import get_saved_excluded_templates, load_order_store
+        try:
+            pdf_dir = Path(pdf_dir)
+            store = load_order_store(pdf_dir)
+            if isinstance(store.get("ALL"), list) and store.get("ALL"):
+                wykluczone = get_saved_excluded_templates(pdf_dir, "ALL")
+            else:
+                _gs = getattr(self, "get_setting", None)
+                g = _gs("pdf_order.ALL", None) if _gs is not None else None
+                wykluczone = (g.get("excluded")
+                              if isinstance(g, dict)
+                              and isinstance(g.get("excluded"), list) else [])
+            poprawne = {tpl["key"] for tpl in PDF_ORDER_TEMPLATES}
+            return {k for k in (wykluczone or []) if k in poprawne}
+        except Exception:
+            return set()
+
+    def _all_opisy_wlaczone(self):
+        v1 = getattr(self, "all_pelny_opis_og_var", None)
+        v2 = getattr(self, "all_krotki_opis_og_var", None)
+        return bool((v1 is not None and v1.get())
+                    or (v2 is not None and v2.get()))
+
+    def _all_tylko_txt(self, pominiete):
+        """Nazwy plików TXT do wygenerowania (None = komplet).
+
+        OPTAX.TXT powstaje zawsze (po nim iterują wsie szablony i strona
+        tytułowa), HALIZNY.TXT też (sprzężone z przenoszeniem halizn),
+        a WSK_ZB.TXT, gdy włączone są opisy ogólne (są ich danymi)."""
+        if not pominiete:
+            return None
+        pomij = {self._UKLAD2TYP[k] for k in pominiete if k in self._UKLAD2TYP}
+        pomij.discard("OPTAX")
+        pomij.discard("HALIZNY")
+        if self._all_opisy_wlaczone():
+            pomij.discard("WSK_ZB")
+        return {x + ".TXT" for x in self._UKLAD2TYP.values()} \
+            - {x + ".TXT" for x in pomij}
+
+    def _all_filtr_word(self, pominiete):
+        """Typy dla filtra Worda (stary tor) — None = wszystko.
+
+        OPTAX.doc zostaje (po nim task_generate_str_tyt znajduje wsie),
+        WSK_ZB.doc — gdy włączone opisy ogólne (czyta je ich generator)."""
+        if not pominiete:
+            return None
+        pomij = {self._UKLAD2TYP[k] for k in pominiete if k in self._UKLAD2TYP}
+        pomij.discard("OPTAX")
+        if self._all_opisy_wlaczone():
+            pomij.discard("WSK_ZB")
+        filtr = sorted({x for x in self._UKLAD2TYP.values()} - pomij)
+        return filtr or ["__NIC__"]
+
+    def task_generuj_txt(self, in_root, pominiete=None):
         """Etap 0: generuje pliki TXT MIETEKA z DBF (jak 'Generowanie: MIETEK -> TXT').
 
         Szuka folderów z plikami O*.DBF (np. WOL.001) w drzewie źródłowym
         i generuje komplet wydruków w miejscu, obok plików DBF.
+        'pominiete' = klucze odznaczone w 'Układ PDF' — te dokumenty
+        nie powstają w ogóle (poza OPTAX/HALIZNY/WSK_ZB, które są potrzebne
+        dalszym etapom — patrz _all_tylko_txt).
         Zwraca liczbę obrębów, dla których coś wygenerowano.
         """
         in_root = Path(in_root)
@@ -879,6 +949,7 @@ class TabAllMixin:
         # obręb = folder nadrzędny (np. CHORZEWO nad WOL.001); gdy DBF-y leżą
         # bezpośrednio w folderze źródłowym, traktujemy go jako obręb
         obreby = sorted({d.parent if d.parent != in_root.parent else d for d in kat_o})
+        tylko = self._all_tylko_txt(pominiete)
         n = 0
         for obr in obreby:
             self.check_stop()
@@ -895,7 +966,8 @@ class TabAllMixin:
                         self.log(f"  [TXT] {obr.name}: błąd przenoszenia halizn — "
                                  f"wynik może być niepełny.")
                 # 2) komplet wydruków (po przeniesieniu halizn)
-                out = generuj_wszystkie_po_przeniesieniu(obr, agencja=AGENCJA_NAGLOWKA)
+                out = generuj_wszystkie_po_przeniesieniu(obr, agencja=AGENCJA_NAGLOWKA,
+                                                         tylko=tylko)
                 if out:
                     n += 1
                     self.log(f"  [TXT] {obr.name}: {', '.join(sorted(out))}")
@@ -1004,7 +1076,8 @@ class TabAllMixin:
             daemon=True,
         ).start()
 
-    def _szablony_html_etap(self, txt_dir, pdf_dir, remove_names, margins_dict):
+    def _szablony_html_etap(self, txt_dir, pdf_dir, remove_names, margins_dict,
+                            pominiete=None):
         """NOWE SZABLONY: raporty TXT mietka → HTML → PDF, bez Worda.
 
         Generuje wyłącznie raporty (REJESTR1, OPTAX, ...). Strona tytułowa,
@@ -1016,6 +1089,11 @@ class TabAllMixin:
         from app.core import szablony
 
         txt_dir, pdf_dir = Path(txt_dir), Path(pdf_dir)
+        pomij_typ = {self._UKLAD2TYP[k] for k in (pominiete or ())
+                     if k in self._UKLAD2TYP}
+        if pomij_typ:
+            self.log("[SZABLONY] Pomijam (odznaczone w układzie PDF): "
+                     + ", ".join(sorted(pomij_typ)))
         optaxy = sorted(txt_dir.rglob("OPTAX*.TXT"))
         if not optaxy:
             raise RuntimeError(
@@ -1039,6 +1117,8 @@ class TabAllMixin:
                 typ = txt.stem.upper()
                 if typ not in szablony.RENDERERY:
                     continue
+                if typ in pomij_typ:   # odznaczone w układzie PDF — pomijamy
+                    continue
                 if txt.stat().st_size < 100:
                     self.log(f"[SZABLONY] Pomijam pusty plik: {txt.name}")
                     continue
@@ -1057,7 +1137,8 @@ class TabAllMixin:
                                current_file=f"Szablony: {obiekt or str(rel)}")
             self.log(f"[SZABLONY] {str(rel) or '.'}: {n_plik} plików PDF.")
 
-    def _szablony_str_tyt_opis_og_wordem(self, txt_dir, word_dir, pdf_dir):
+    def _szablony_str_tyt_opis_og_wordem(self, txt_dir, word_dir, pdf_dir,
+                                         pominiete=None):
         """STR_TYT i opisy ogólne przy nowych szablonach — STARA ścieżka (Word).
 
         Te dokumenty mają zachować wygląd znany ze starego toru, więc powstają
@@ -1079,7 +1160,12 @@ class TabAllMixin:
                 shutil.copy2(wsk_txt, word_dir / rel / "WSK_ZB.TXT")
 
         # 2) STR_TYT.docx — z pól kreatora (1-Click), nazwa wsi z OPTAX.TXT
-        tpl_tmp = self._zbuduj_szablon_str_tyt_dla_all()
+        if "TITLE" in (pominiete or ()):
+            self.log("[STR_TYT] Strona tytułowa odznaczona w układzie PDF "
+                     "— pomijam generowanie.")
+            tpl_tmp = None
+        else:
+            tpl_tmp = self._zbuduj_szablon_str_tyt_dla_all()
         if tpl_tmp:
             try:
                 self.update_status(
@@ -1711,12 +1797,19 @@ class TabAllMixin:
 
                 self.reset_dashboard()
 
+                # === UKŁAD PDF: dokumenty odznaczone w ogóle nie powstają ===
+                pominiete = self._all_uklad_pominiete(dir_03)
+                if pominiete:
+                    _lbl = {tpl["key"]: tpl["label"] for tpl in PDF_ORDER_TEMPLATES}
+                    self.log("[UKŁAD] Całkowicie pominięte (odznaczone w układzie PDF): "
+                             + "; ".join(_lbl.get(k, k) for k in sorted(pominiete)))
+
                 # === ETAP 0: GENEROWANIE TXT Z DBF MIETEKA ===
                 if getattr(self, "all_gen_txt_var", None) is None or self.all_gen_txt_var.get():
                     self.update_status("Generowanie plików TXT z DBF mietka...", "#0078D7")
                     self.update_dashboard(0, "running", "Generowanie TXT...")
                     self.check_stop()
-                    c0 = self.task_generuj_txt(in_root)
+                    c0 = self.task_generuj_txt(in_root, pominiete)
                     self.update_dashboard(0, "done", f"{c0} obrębów")
                 else:
                     self.update_dashboard(0, "done", "Pominięto")
@@ -1756,7 +1849,7 @@ class TabAllMixin:
                     self.update_dashboard(2, "running", "Szablony HTML...")
                     self.check_stop()
                     self._szablony_html_etap(dir_01, dir_03, remove_names,
-                                             margins_dict)
+                                             margins_dict, pominiete)
                     self.update_dashboard(2, "done", "Gotowe")
                     self.set_progress(0.45)
 
@@ -1768,7 +1861,8 @@ class TabAllMixin:
                     )
                     self.update_dashboard(3, "running", "STR_TYT + opis...")
                     self.check_stop()
-                    self._szablony_str_tyt_opis_og_wordem(dir_01, dir_02, dir_03)
+                    self._szablony_str_tyt_opis_og_wordem(dir_01, dir_02, dir_03,
+                                                         pominiete)
                     self._flatten_001_subfolders(dir_03)
                     self.update_dashboard(3, "done", "Gotowe")
                     self.set_progress(0.60)
@@ -1776,16 +1870,24 @@ class TabAllMixin:
                     self.update_status("Generowanie plików Word...", "#0078D7")
                     self.update_dashboard(2, "running", "Kompilacja...")
                     self.check_stop()
-                    self.task_word_processing_subprocess(dir_01, dir_02, remove_names, margins_dict=margins_dict)
+                    self.task_word_processing_subprocess(
+                        dir_01, dir_02, remove_names,
+                        file_filter=self._all_filtr_word(pominiete),
+                        margins_dict=margins_dict)
                     self._flatten_001_subfolders(dir_02)
                     self.update_dashboard(2, "done", "Gotowe")
                     self.set_progress(0.30)
 
-                    # === GENEROWANIE STR_TYT (zawsze — z kreatora w 1-Click) ===
-                    self.update_status(
-                        "Generowanie stron tytułowych (STR_TYT)...", "#0078D7"
-                    )
-                    tpl_tmp = self._zbuduj_szablon_str_tyt_dla_all()
+                    # === GENEROWANIE STR_TYT (z kreatora w 1-Click) ===
+                    if "TITLE" in pominiete:
+                        self.log("[STR_TYT] Strona tytułowa odznaczona w układzie "
+                                 "PDF — pomijam generowanie.")
+                        tpl_tmp = None
+                    else:
+                        self.update_status(
+                            "Generowanie stron tytułowych (STR_TYT)...", "#0078D7"
+                        )
+                        tpl_tmp = self._zbuduj_szablon_str_tyt_dla_all()
                     if tpl_tmp:
                         try:
                             self.task_generate_str_tyt(dir_02, tpl_tmp,
@@ -1828,21 +1930,29 @@ class TabAllMixin:
                     self.update_status("Konwersja plików Word na PDF...", "#0078D7")
                     self.update_dashboard(3, "running", "Konwersja...")
                     self.check_stop()
-                    c3 = self.task_convert_to_pdf(dir_02, dir_03)
+                    c3 = self.task_convert_to_pdf(
+                        dir_02, dir_03,
+                        pominiete={self._UKLAD2TYP[k] for k in pominiete
+                                   if k in self._UKLAD2TYP})
                     self._flatten_001_subfolders(dir_03)
                     self.update_dashboard(3, "done", f"{c3} plików")
                     self.set_progress(0.60)
 
-                    # === WSTRZYKIWANIE SKROTÓW (ZAWSZE WŁĄCZONE) ===
-                self.update_status("Dołączanie 'Skrótów i symboli' do pakietów...", "#0078D7")
-                self._inject_skroty_step(dir_03, mode, margins_dict)
+                    # === WSTRZYKIWANIE SKROTÓW ===
+                if "SKROTY" in pominiete:
+                    self.log("[SKRÓTY] Odznaczone w układzie PDF — pomijam dołączanie.")
+                else:
+                    self.update_status("Dołączanie 'Skrótów i symboli' do pakietów...", "#0078D7")
+                    self._inject_skroty_step(dir_03, mode, margins_dict)
 
                 # === MAPY (opcjonalnie): folder/przeciągnięte, dopasowanie po nazwie wsi ===
                 _me = getattr(self, "all_mapa_entry", None)
                 _mapa_raw = (_me.get().strip()
                              if _me is not None and hasattr(_me, "get") else "")
                 _drop = Path(tempfile.gettempdir()) / "forestly_mapy"
-                if (_mapa_raw and Path(_mapa_raw).is_dir()) or _drop.is_dir():
+                if "MAPA" in pominiete:
+                    self.log("[MAPA] Odznaczona w układzie PDF — pomijam dołączanie.")
+                elif (_mapa_raw and Path(_mapa_raw).is_dir()) or _drop.is_dir():
                     self.update_status("Dołączanie map do pakietów...", "#0078D7")
                     self.check_stop()
                     self._inject_mapa_step(dir_03)

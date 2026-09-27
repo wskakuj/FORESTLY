@@ -40,12 +40,15 @@ class TabPdfMixin:
         )
         cb_skroty.grid(row=row_idx + 1, column=0, columnspan=3, padx=15, pady=(0, 20), sticky="w")
 
-    def task_convert_to_pdf(self, in_dir, out_dir):
+    def task_convert_to_pdf(self, in_dir, out_dir, pominiete=None):
         docs = [
             p
             for p in in_dir.rglob("*")
             if p.is_file() and p.suffix.lower() in {".doc", ".docx"}
         ]
+        if pominiete:
+            _pomij = {str(x).upper() for x in pominiete}
+            docs = [p for p in docs if p.stem.upper() not in _pomij]
         if not docs:
             return 0
 
