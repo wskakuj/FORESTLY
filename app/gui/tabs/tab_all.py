@@ -1557,7 +1557,8 @@ class TabAllMixin:
             if not zrodla:
                 self.log("[MAPA] Brak plików map — pomijam.")
                 return 0
-            from app.config import FOLDERY_TECHNICZNE, nazwa_nietechnicznego
+            from app.config import (FOLDERY_TECHNICZNE,
+                                    nazwa_nietechnicznego, nazwa_wsi_plaskiego_ukladu)
             pdf_folders = sorted({p.parent for p in Path(pdf_dir).rglob("*.pdf")})
             # płaski układ (jeden folder mietka): PDF-y leżą bezpośrednio
             # w folderze PDF, bez folderów wsi — całość to jedna "wieś",
@@ -1565,7 +1566,8 @@ class TabAllMixin:
             # nadrzędnego (tak samo jak nazwa scalonego PDF)
             _plasko = all(f.name.upper() in FOLDERY_TECHNICZNE for f in pdf_folders)
             if _plasko:
-                wsie = [nazwa_nietechnicznego(pdf_dir)]
+                # nazwa wsi z nagłówka OPTAX.TXT (pewna), gdy go brak — z folderu
+                wsie = [nazwa_wsi_plaskiego_ukladu(pdf_dir)]
             else:
                 wsie = sorted({f.name for f in pdf_folders
                                if f.name.upper() not in FOLDERY_TECHNICZNE})

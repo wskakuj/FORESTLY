@@ -25,7 +25,113 @@ from app.config import (
 
 class TabTitlePagesMixin:
     """Mixin dla ModernApp — metody zostały wyciągnięte z oryginalnego guipia.py."""
-    pass
+
+    def setup_kreator_tytulowych_tab(self, parent, mode_key):
+        """Kreator Stron tytułowych — jedna zakładka z przełącznikiem trybu.
+
+        'Jedna wieś' = stary kreator (formularz + generowanie szablonu STR_TYT,
+        od teraz też przycisk Word + PDF); 'Wiele wsi (masowo)' = dawne
+        'Tworzenie Stron tytułowych'. Dwie zakładki wprowadzały w błąd."""
+        parent.grid_columnconfigure(0, weight=1)
+        parent.grid_rowconfigure(1, weight=1)
+
+        pasek = ctk.CTkFrame(parent, fg_color="transparent")
+        pasek.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 0))
+        tryb = ctk.StringVar(value="Jedna wieś")
+        seg = ctk.CTkSegmentedButton(
+            pasek, variable=tryb,
+            values=["Jedna wieś", "Wiele wsi (masowo)"],
+            height=34,
+            command=lambda v, mk=mode_key: self._kreator_tytulow_tryb(mk, v),
+        )
+        seg.pack(anchor="w")
+
+        if not hasattr(self, "_kreator_tytulow_frames"):
+            self._kreator_tytulow_frames = {}
+        f_jedna = ctk.CTkFrame(parent, fg_color="transparent")
+        f_wiele = ctk.CTkFrame(parent, fg_color="transparent")
+        for f in (f_jedna, f_wiele):
+            f.grid(row=1, column=0, sticky="nsew")
+            f.grid_columnconfigure(0, weight=1)
+            f.grid_rowconfigure(0, weight=1)
+        f_wiele.grid_remove()          # start w trybie 'Jedna wieś'
+        self._kreator_tytulow_frames[mode_key] = (f_jedna, f_wiele, tryb)
+
+        # --- 'Jedna wieś': stary kreator (formularz szablonu STR_TYT) ---
+        self.setup_template_generator_tab(f_jedna, mode_key)
+
+        # --- 'Wiele wsi (masowo)': dawne 'Tworzenie Stron tytułowych' ---
+        if mode_key == "MIETEK":
+            self.setup_mietek_title_pages_tab(f_wiele)
+        else:
+            self.setup_title_pages_tab(f_wiele)
+
+        # --- przycisk Word + PDF pod przyciskiem generowania szablonu ---
+        btn_pdf = ctk.CTkButton(
+            self.tpl_data[mode_key]["btn_gen"].master,
+            text="Utwórz STR_TYT — Word + PDF",
+            image=self.icon_start,
+            font=ctk.CTkFont(family="Segoe UI", size=15, weight="bold"),
+            fg_color="#0067C0",
+            hover_color="#005A9E",
+            height=44,
+            corner_radius=6,
+            command=lambda m=mode_key: self.generate_template_now(m, takze_pdf=True),
+        )
+        btn_pdf.grid(row=2, column=0, pady=(0, 10), sticky="ew")
+
+    def _kreator_tytulow_tryb(self, mode_key, wartosc):
+        """Przełącza między trybem 'Jedna wieś' i 'Wiele wsi (masowo)'."""
+        ramki = getattr(self, "_kreator_tytulow_frames", {}).get(mode_key)
+        if not ramki:
+            return
+        f_jedna, f_wiele, _tryb = ramki
+        if wartosc == "Wiele wsi (masowo)":
+            f_jedna.grid_remove()
+            f_wiele.grid()
+        else:
+            f_wiele.grid_remove()
+            f_jedna.grid()
+
+    def _docx_na_pdf_wordem(self, docx_path):
+        """Konwertuje jeden plik .docx na PDF przez Worda (COM)."""
+        import pythoncom
+        import win32com.client
+        from app.core import office_guard
+        docx_path = Path(docx_path)
+        pdf_path = docx_path.with_suffix(".pdf")
+        pythoncom.CoInitialize()
+        word = None
+        word_pid = None
+        doc = None
+        try:
+            word = win32com.client.DispatchEx("Word.Application")
+            try:
+                word_pid = office_guard.register(word)
+            except Exception:
+                pass
+            word.Visible, word.DisplayAlerts = False, 0
+            doc = word.Documents.Open(str(docx_path), ReadOnly=True)
+            doc.ExportAsFixedFormat(str(pdf_path), 17)   # 17 = wdExportFormatPDF
+            doc.Close(SaveChanges=False)
+            doc = None
+            return pdf_path
+        finally:
+            if doc is not None:
+                try:
+                    doc.Close(SaveChanges=False)
+                except Exception:
+                    pass
+            if word is not None:
+                try:
+                    word.Quit()
+                except Exception:
+                    pass
+                if word_pid is not None:
+                    try:
+                        office_guard.unregister(word_pid)
+                    except Exception:
+                        pass
 
     def setup_mietek_title_pages_tab(self, parent):
         parent.grid_columnconfigure(0, weight=1)

@@ -18,7 +18,7 @@ from pathlib import Path
 import customtkinter as ctk
 
 # --- WERSJA I AKTUALIZACJA ---
-CURRENT_VERSION = "v2.0.89"
+CURRENT_VERSION = "v2.0.90"
 GITHUB_USER = "wskakuj"
 GITHUB_REPO = "FORESTLY"
 
@@ -339,6 +339,30 @@ def nazwa_nietechnicznego(folder):
     while p.name.upper() in FOLDERY_TECHNICZNE and p.parent != p:
         p = p.parent
     return p.name
+
+
+def nazwa_wsi_plaskiego_ukladu(pdf_dir):
+    """Nazwa wsi dla płaskiego układu (PDF-y bezpośrednio w folderze PDF).
+
+    Pewna nazwa wsi jest w nagłówku OPTAX.TXT ('Obiekt: CHORZEWO') w sąsiednim
+    folderze TXT — niezależna od nazw folderów wynikowych (folder docelowy może
+    się nazywać np. 'Nowy folder (22)'). Gdy go nie ma, nazwa bierze się z
+    pierwszego nietechnicznego folderu nadrzędnego."""
+    import re as _re
+    pdf_dir = Path(pdf_dir)
+    try:
+        txt_dir = pdf_dir.parent / "TXT"
+        for p in sorted(txt_dir.rglob("OPTAX*.TXT"))[:1]:
+            head = p.read_bytes().decode("cp852", errors="replace")[:1200]
+            m = (_re.search(r"Obiekt:\s*(.+?)(?=\s{2,}|\s*[\r\n]|\s*\Z|\s*Stan na)", head)
+                 or _re.search(r"dla obiektu\s+(.+?)(?=\s{2,}|\s*[\r\n]|\s*\Z)", head))
+            if m:
+                nazwa = m.group(1).strip()
+                if nazwa:
+                    return nazwa
+    except Exception:
+        pass
+    return nazwa_nietechnicznego(pdf_dir)
 
 
 def is_file_locked(filepath):

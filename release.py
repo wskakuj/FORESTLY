@@ -11,9 +11,9 @@ Użycie (w folderze repo FORESTLY):
     python release.py        → kreator krok po kroku
     python release.py -k     → bez pytania o potwierdzenie (konto gotowe)
 
-Numer następnej wersji podpowiadany jest na podstawie ostatniego tagu
-na GitHubie (vX.Y.Z + 1), więc działa nawet, gdy lokalny app/config.py
-został w tyle za już wydanymi wersjami.
+Numer nowej wersji podpowiadany jest z app/config.py — paczka do
+rozpakowania ustawia go na wersję do wydania (Enter = zgoda). Gdyby taki
+tag już istniał, podpowiadany jest kolejny wolny numer.
 
 Wymagania: git (zalogowany — klon robiony przez HTTPS z zapamiętanym hasłem).
 """
@@ -182,19 +182,24 @@ def main():
         print("\nUwaga: są już commity niewysłane na GitHub —")
         print("wydanie dokończy ich wysyłkę.")
 
-    # 2) nowa wersja — propozycja z ostatniego tagu NA GITHUBIE
-    #    (localny app/config.py bywa w tyle, np. gdy release robiony był
-    #    z innej kopii repo — źródłem prawdy jest to, co już wypchnięte)
+    # 2) nowa wersja — domyślnie TA z app/config.py (paczka do rozpakowania
+    #    ustawia ją na wersję do wydania); gdyby tag był już zajęty,
+    #    podpowiadamy kolejny wolny numer
     cur = read_current_version()
     remote = latest_remote_tag()
+    remote_tags = remote_tag_list()
     if remote:
-        base = remote if _vt(remote) >= _vt(cur) else cur
         print(f"Ostatnia wersja na GitHub  : {remote}")
     else:
-        base = cur
         print("(nie udało się odczytać tagów z GitHub — bazuję na config.py)")
-    prop = next_patch(base) or "v0.0.1"
     print(f"Aktualna wersja (app/config.py): {cur}")
+
+    def _zajeta(v):
+        return bool(git("tag", "-l", v)) or v in remote_tags
+
+    prop = cur
+    while _zajeta(prop):
+        prop = next_patch(prop) or "v0.0.1"
     try:
         ans = input(f"Nowa wersja [{prop}]: ").strip() or prop
     except EOFError:
@@ -231,10 +236,10 @@ def main():
     print("-" * 62)
     if "-k" not in sys.argv:
         try:
-            ok = input("\nWypuścić wersję? [t/N]: ").strip().lower()
+            ok = input("\nWypuścić wersję? [T/n]: ").strip().lower()
         except EOFError:
-            ok = "n"
-        if ok not in ("t", "tak", "y", "yes"):
+            ok = ""
+        if ok in ("n", "nie", "no"):
             print("Anulowano — nic nie wysłano.")
             sys.exit(0)
 

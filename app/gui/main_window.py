@@ -627,12 +627,8 @@ class ModernApp(
             "Tylko etap 2: Zamienia gotowe pliki word na PDF i łączy w jeden plik.")
         tab_mietek_tpl_gen = _nowa_zakladka(
             "MIETEK", "Kreator Stron tytułowych",
-            "Generuje jeden bazowy dokument Word ze stroną tytułową "
-            "na podstawie wpisanych danych.")
-        tab_mietek_title = _nowa_zakladka(
-            "MIETEK", "Tworzenie Stron tytułowych",
-            "Masowo tworzy strony tytułowe dla każdej wsi (MIETEK), "
-            "wciągając dane z plików Word (OPTAX).")
+            "Strony tytułowe: jedna wieś z formularza (Word + PDF) "
+            "albo masowo dla wielu wsi (dane z plików Word OPTAX).")
         tab_opis_og = _nowa_zakladka(
             "MIETEK", "Opisy og\u00f3lne",
             "Tworzy \u201eopis og_<wie\u015b>.docx\u201d w folderach wsi \u2014 z Worda (WSK_ZB.doc) lub z danych MIETEKA (tymczasowo).")
@@ -669,11 +665,8 @@ class ModernApp(
             "w gotowe, pełne paczki PDF dla każdej wsi.")
         tab_template_gen = _nowa_zakladka(
             "TAKSATOR", "Kreator Stron tytułowych",
-            "Generuje jeden bazowy dokument Word ze stroną tytułową "
-            "na podstawie wpisanych danych.")
-        tab_title = _nowa_zakladka(
-            "TAKSATOR", "Tworzenie Stron tytułowych",
-            "Masowo tworzy strony tytułowe dla każdej wsi, wciągając dane z zestawień Excel.")
+            "Strony tytułowe: jedna wieś z formularza (Word + PDF) "
+            "albo masowo dla wielu wsi (dane z zestawień Excel).")
         tab_opis_og_taks = _nowa_zakladka(
             "TAKSATOR", "Opisy ogólne",
             "Tworzy opisy ogólne (opis og_<wieś>.docx) na podstawie raportów Excel do druku.")
@@ -722,8 +715,7 @@ class ModernApp(
             show_order_button=False,
             extra_ui_setup=self._setup_word_extras,
         )
-        self.setup_template_generator_tab(tab_mietek_tpl_gen, "MIETEK")
-        self.setup_mietek_title_pages_tab(tab_mietek_title)
+        self.setup_kreator_tytulowych_tab(tab_mietek_tpl_gen, "MIETEK")
         self.setup_tab(
             tab_pdf,
             "PDF",
@@ -738,8 +730,7 @@ class ModernApp(
         self.setup_opis_og_tab(tab_opis_og)
         self.setup_gdos_editor_tab(tab_gdos_baza)
 
-        self.setup_template_generator_tab(tab_template_gen, "TAKSATOR")
-        self.setup_title_pages_tab(tab_title)
+        self.setup_kreator_tytulowych_tab(tab_template_gen, "TAKSATOR")
         self.setup_opis_og_taksator_tab(tab_opis_og_taks)
         self.setup_excel_tab(tab_excel)
         self.setup_layout_excel_tab(tab_layout_excel)

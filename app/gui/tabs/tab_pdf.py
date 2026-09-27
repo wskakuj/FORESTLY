@@ -149,14 +149,14 @@ class TabPdfMixin:
         pełny automat w ogóle ich nie generuje (v2.0.87+), więc ich brak
         nie jest błędem. Wieś, w której odznaczono wszystko oprócz np.
         strony tytułowej, nie budzi już fałszywego ostrzeżenia."""
-        from app.config import nazwa_nietechnicznego
+        from app.config import nazwa_wsi_plaskiego_ukladu
         warnings = []
         _tpl = {t["key"]: t for t in PDF_ORDER_TEMPLATES}
         for folder in pdf_dirs:
             if folder == in_dir:
                 # Bierzemy tylko pliki z głównego folderu (płaski układ)
                 pdfs = [p.name.lower() for p in in_dir.glob("*.pdf")]
-                village_name = nazwa_nietechnicznego(in_dir)
+                village_name = nazwa_wsi_plaskiego_ukladu(in_dir)
             else:
                 pdfs = [p.name.lower() for p in folder.iterdir()
                         if p.suffix.lower() == ".pdf"]
@@ -276,13 +276,11 @@ class TabPdfMixin:
             self.check_stop()
 
             if folder == in_dir:
-                # nazwa wsi = pierwszy nadrzędny folder nietechniczny
-                # (PDF-y bezpośrednio w PDF = jeden folder mietka; foldery
-                # 'Z nazwiskami'/'Bez nazwisk' z dwóch przebiegów też są
-                # techniczne — inaczej scalony PDF nazywałby się
-                # 'z nazwiskami_UPUL.pdf' i mapa nie dopasowywała się po nazwie)
-                from app.config import nazwa_nietechnicznego
-                village_name = nazwa_nietechnicznego(in_dir)
+                # nazwa wsi = z nagłówka OPTAX.TXT w sąsiednim folderze TXT
+                # (pewna, niezależna od nazw folderów wynikowych); gdy go brak,
+                # pierwszy nadrzędny folder nietechniczny
+                from app.config import nazwa_wsi_plaskiego_ukladu
+                village_name = nazwa_wsi_plaskiego_ukladu(in_dir)
                 target_dir = out_dir
                 pdfs = sorted(list(in_dir.glob("*.pdf")))
             else:

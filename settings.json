@@ -270,7 +270,7 @@
   "web.ns_src": "",
   "web.ns_dst": "",
   "web.ns_typ": "WYK_NEG",
-  "web.ns_bez_nazwisk": true,
+  "web.ns_bez_nazwisk": false,
   "web.czcionki.NS": {
     "REJESTR1": {
       "tytul": {

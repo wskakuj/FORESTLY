@@ -294,7 +294,7 @@ class TabTemplateGeneratorMixin:
                         tr = row._tr
                         tr.getparent().remove(tr)
 
-    def generate_template_now(self, mode_key):
+    def generate_template_now(self, mode_key, takze_pdf=False):
         vars_dict = self.tpl_data[mode_key]
         doc_type = vars_dict["doc_type_var"].get()
         prefix = vars_dict["prefix_var"].get().strip()
@@ -352,6 +352,19 @@ class TabTemplateGeneratorMixin:
             self.log(
                 f"[KREATOR SZABLONU] Zapisano nowy szablon bazowy na podstawie wzorca: {out_path}"
             )
+            if takze_pdf:
+                try:
+                    pdf = self._docx_na_pdf_wordem(out_path)
+                    if pdf:
+                        self.log(f"[KREATOR STR_TYT] Utworzono PDF: {pdf}")
+                        messagebox.showinfo(
+                            "Sukces",
+                            "Strona tytułowa wygenerowana.\n\n"
+                            f"Word: {out_path}\nPDF:   {pdf}",
+                        )
+                        return
+                except Exception as e:
+                    self.log(f"[KREATOR STR_TYT] Błąd konwersji na PDF: {e}")
             messagebox.showinfo(
                 "Sukces",
                 "Szablon wygenerowany pomyślnie. Zachowano układ, czcionki i logo.",
