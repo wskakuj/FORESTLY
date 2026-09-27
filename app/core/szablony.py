@@ -93,8 +93,12 @@ def meta_z_pliku(path):
         head = wczytaj(path)[:1200]
     except OSError:
         return "", "", ""
-    m = re.search(r"Obiekt:\s*(\S+)", head) or re.search(r"dla obiektu\s+(\S+)", head)
-    obiekt = m.group(1).upper() if m else ""
+    # pełna nazwa obiektu — może być wieloczłonowa ("LUDWINÓW KOŚCIUSZKÓW");
+    # kończy się przy co najmniej 2 spacjach (dosunięcie do szer. nagłówka),
+    # końcu wiersza albo polu "Stan na"
+    m = (re.search(r"Obiekt:\s*(.+?)(?=\s{2,}|\s*[\r\n]|\s*\Z|\s*Stan na)", head)
+         or re.search(r"dla obiektu\s+(.+?)(?=\s{2,}|\s*[\r\n]|\s*\Z)", head))
+    obiekt = m.group(1).strip().upper() if m else ""
     m = re.search(r"Stan na:\s*(\S+)", head)
     stan = m.group(1) if m else ""
     m = re.search(r"na okres od (.*? do .*?)(?:\s{2,}|\r|\n|$)", head)

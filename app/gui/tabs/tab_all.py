@@ -322,34 +322,39 @@ class TabAllMixin:
                 row=r, column=0, padx=(10, 10), pady=4, sticky="w")
             widget.grid(row=r, column=1, padx=(0, 10), pady=4, sticky="ew")
 
-        self.all_tpl_doc_var = ctk.StringVar(value="UPUL")
+        _zap = lambda k, d: (self.get_setting("all_tpl." + k) or d)
+        self.all_tpl_doc_var = ctk.StringVar(
+            value=_zap("doc", "UPUL") if _zap("doc", "UPUL") in ("UPUL", "ISL") else "UPUL")
         _row(0, "Typ dokumentu:", ctk.CTkOptionMenu(
             body2, values=["UPUL", "ISL"], variable=self.all_tpl_doc_var, height=30))
-        self.all_tpl_prefix_var = ctk.StringVar(value="położonych na terenie obrębu")
+        _pf = _zap("prefix", "położonych na terenie obrębu")
+        self.all_tpl_prefix_var = ctk.StringVar(
+            value=_pf if _pf in ("położonych na terenie obrębu", "Obręb:")
+            else "położonych na terenie obrębu")
         _row(1, "Prefiks obrębu:", ctk.CTkOptionMenu(
             body2, values=["położonych na terenie obrębu", "Obręb:"],
             variable=self.all_tpl_prefix_var, height=30))
-        self.all_tpl_woj_var = ctk.StringVar(value=default_woj)
+        self.all_tpl_woj_var = ctk.StringVar(value=_zap("woj", default_woj))
         self.all_tpl_woj_box = ctk.CTkComboBox(
             body2, values=woj_list, variable=self.all_tpl_woj_var, height=30,
             command=lambda _v: self._all_tpl_refresh_powiat())
         _row(2, "Województwo (można wpisać własne):", self.all_tpl_woj_box)
-        self.all_tpl_powiat_var = ctk.StringVar(value=default_powiat)
+        self.all_tpl_powiat_var = ctk.StringVar(value=_zap("powiat", default_powiat))
         self.all_tpl_powiat_box = ctk.CTkComboBox(
             body2, values=powiat_list, variable=self.all_tpl_powiat_var,
             height=30, command=lambda _v: self._all_tpl_refresh_gmina())
         _row(3, "Powiat (można wpisać własny):", self.all_tpl_powiat_box)
-        self.all_tpl_gmina_var = ctk.StringVar(value=default_gmina)
+        self.all_tpl_gmina_var = ctk.StringVar(value=_zap("gmina", default_gmina))
         self.all_tpl_gmina_box = ctk.CTkComboBox(
             body2, values=gmina_list, variable=self.all_tpl_gmina_var, height=30)
         _row(4, "Gmina (można wpisać własną):", self.all_tpl_gmina_box)
 
         self.all_tpl_stan_na_entry = ctk.CTkEntry(body2, height=30)
-        self.all_tpl_stan_na_entry.insert(0, "30.06.2026 r.")
+        self.all_tpl_stan_na_entry.insert(0, _zap("stan_na", "30.06.2026 r."))
         _row(5, "Stan na (także data we wszystkich Wordach):",
              self.all_tpl_stan_na_entry)
         self.all_tpl_okres_entry = ctk.CTkEntry(body2, height=30)
-        self.all_tpl_okres_entry.insert(0, "01.01.2027 – 31.12.2036 r.")
+        self.all_tpl_okres_entry.insert(0, _zap("okres", "01.01.2027 – 31.12.2036 r."))
         _row(6, "Na okres (strona tytułowa):", self.all_tpl_okres_entry)
 
         daty_frame = ctk.CTkFrame(body2, fg_color="#252526", corner_radius=6)
@@ -359,12 +364,12 @@ class TabAllMixin:
                      text_color="#888888").grid(row=0, column=0, padx=(10, 6),
                                                 pady=6, sticky="w")
         self.all_wsk_od_entry = ctk.CTkEntry(daty_frame, height=28)
-        self.all_wsk_od_entry.insert(0, "01-01-2027")
+        self.all_wsk_od_entry.insert(0, _zap("wsk_od", "01-01-2027"))
         self.all_wsk_od_entry.grid(row=0, column=1, padx=4, pady=6, sticky="ew")
         ctk.CTkLabel(daty_frame, text="do:", font=font_label,
                      text_color="#888888").grid(row=0, column=2, padx=4, sticky="w")
         self.all_wsk_do_entry = ctk.CTkEntry(daty_frame, height=28)
-        self.all_wsk_do_entry.insert(0, "31-12-2036")
+        self.all_wsk_do_entry.insert(0, _zap("wsk_do", "31-12-2036"))
         self.all_wsk_do_entry.grid(row=0, column=3, padx=(4, 10), pady=6, sticky="ew")
 
         # --- skróty i symbole (własny plik, opcjonalnie) ---
@@ -760,6 +765,26 @@ class TabAllMixin:
             "kategoria": _sel("all_og_kategoria_var", "I"),
             "tabela": _sel("all_og_tabela_var", "mazowiecka"),
         }
+
+    def _zapamietaj_all_tpl(self):
+        """Zapisuje ostatnie wartości karty „Strona tytułowa i daty” (settings.json) —
+        przy następnym uruchomieniu programu karta wróci tak, jak została."""
+        try:
+            def _v(attr):
+                e = getattr(self, attr, None)
+                return e.get().strip() if e is not None else ""
+            self.set_setting("all_tpl.doc", _v("all_tpl_doc_var") or "UPUL")
+            self.set_setting("all_tpl.prefix", _v("all_tpl_prefix_var")
+                             or "położonych na terenie obrębu")
+            self.set_setting("all_tpl.woj", _v("all_tpl_woj_var"))
+            self.set_setting("all_tpl.powiat", _v("all_tpl_powiat_var"))
+            self.set_setting("all_tpl.gmina", _v("all_tpl_gmina_var"))
+            self.set_setting("all_tpl.stan_na", _v("all_tpl_stan_na_entry"))
+            self.set_setting("all_tpl.okres", _v("all_tpl_okres_entry"))
+            self.set_setting("all_tpl.wsk_od", _v("all_wsk_od_entry"))
+            self.set_setting("all_tpl.wsk_do", _v("all_wsk_do_entry"))
+        except Exception:
+            pass
 
     def _zbuduj_szablon_str_tyt_dla_all(self):
         """Buduje tymczasowy szablon STR_TYT z ustawień kreatora w 1-Click."""
@@ -1663,6 +1688,7 @@ class TabAllMixin:
 
     def run_logic_thread(self, src_str, out_str, mode, remove_names, margins_dict=None, nowe_szablony=False):
         # --- INICJALIZACJA ZMIENNYCH ---
+        self._zapamietaj_all_tpl()   # karta „Strona tytułowa i daty” wróci po restarcie
         in_root = None
         out_root = None
         dir_01, dir_02, dir_03, dir_04, dir_05 = None, None, None, None, None

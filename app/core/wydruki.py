@@ -301,7 +301,7 @@ def generuj_halizny_txt(obreb_dir, agencja=None):
         return None, 0
 
     lines = [_PCL_HAL + agencja.ljust(114) + f"Strona {1:4d}",
-             _HAL_TITLE.ljust(59) + f"Obiekt: {obiekt}".ljust(49) + f"Stan na: {stan_na}",
+             _HAL_TITLE.ljust(59) + f"Obiekt: {obiekt}  ".ljust(49) + f"Stan na: {stan_na}",
              _HAL_TOP, _HAL_H1, _HAL_H2, _HAL_H3, _HAL_H4,
              _HAL_SEP, _HAL_NUM, _HAL_SEP]
 
@@ -442,7 +442,7 @@ def generuj_zest1_txt(obreb_dir, dane=None, pozycje=None, agencja=None):
         for nr in podgr:
             recs.extend(_perm(podgr[nr]))
 
-    lines = ['\r Skorowidz działek'.ljust(35) + f"Obiekt: {obiekt}".ljust(49) +
+    lines = ['\r Skorowidz działek'.ljust(35) + f"Obiekt: {obiekt}  ".ljust(49) +
              f"Stan na: {stan}", '',
              _ZS_H[0], _ZS_H[1], _ZS_H[0]]
     for d in recs:
@@ -751,7 +751,7 @@ def generuj_optax_txt(obreb_dir, dane=None, pozycje=None, agencja=None):
         hdr = ('\r' if pageno == 1 else '\f\r') + pcl + agencja.ljust(114) + f"Strona {pageno:4d}"
         lines.append(hdr)
         lines.append(' Opis lasów i gruntów przeznaczonych do zalesienia'.ljust(56) +
-                     f"Obiekt: {obiekt}".ljust(49) + f"Stan na: {stan}")
+                     f"Obiekt: {obiekt}  ".ljust(49) + f"Stan na: {stan}")
         lines.extend(_OP_H)
         lines.extend(pg)
         lines.append(_bot_last if is_last else _OP_BOT)

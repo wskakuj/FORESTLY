@@ -1,3 +1,3 @@
-# Co nowego w v2.0.85
-- OPTAX fix
+# Co nowego w v2.0.86
+- strony tytułowe poprawione
 
