@@ -1091,3 +1091,32 @@ input.drop-over {
   white-space: nowrap;
 }
 .field-dropfiles .btn.ghost { margin-top: 6px; }
+
+
+/* ---- Przełącznik trybu zakładki (segment): "Jedna wieś / Wiele wsi" ---- */
+.segment {
+  display: inline-flex;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--panel-solid);
+}
+.seg-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 13px;
+  padding: 9px 18px;
+  cursor: pointer;
+  transition: color .15s, background .15s;
+}
+.seg-btn + .seg-btn { border-left: 1px solid var(--border); }
+.seg-btn:hover { color: var(--text); }
+.seg-btn.sel {
+  background: var(--accent-grad);
+  color: #06251c;
+  font-weight: 700;
+}
+.seg-group.hidden { display: none; }

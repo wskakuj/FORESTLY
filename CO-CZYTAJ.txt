@@ -1,0 +1,30 @@
+FORESTLY v2.0.92 — JEDNA ZAKŁADKA STRON TYTUŁOWYCH (w GUI, które widzisz)
+=======================================================================
+
+  Poprzednia próba (v2.0.90) trafiła w wycofany kod starego GUI
+  CustomTkinter — stąd brak efektu. Teraz zmiana jest TAM, gdzie
+  trzeba: w webowym interfejsie aplikacji (PyWebView), czyli
+  tym, który faktycznie uruchamia Forestly.exe.
+
+CO SIĘ ZMIENIŁO
+  - Zakładki "Kreator Stron tytułowych" i "Tworzenie Stron
+    tytułowych" (w MIETEK i w TAKSATOR) to teraz JEDNA zakładka
+    "Kreator Stron tytułowych" z przełącznikiem trybu u góry:
+      * "Jedna wieś"        — stary kreator (formularz STR_TYT),
+      * "Wiele wsi (masowo)" — dawne masowe tworzenie.
+  - W trybie "Jedna wieś" jest dodatkowy przycisk
+    "Utwórz STR_TYT — Word + PDF": zapisuje Worda i od razu
+    konwertuje go na PDF (przez Worda) obok pliku .docx.
+  - Licznik zakładek w menu bocznej aktualizuje się sam.
+
+INSTALACJA
+  Rozpakuj do foldera Forestly ("Zamień pliki w folderze
+  docelowym") i wydaj wersję (podpowie v2.0.92; Enter wystarczy).
+
+ZMIENIONE PLIKI
+  app/gui/web_schema.py    (jedna zakładka + przełącznik trybu)
+  app/gui/web_backend.py   (akcja "Utwórz STR_TYT — Word + PDF")
+  webapp/app.js            (renderowanie segmentu i grup)
+  webapp/style.css          (styl przełącznika)
+  app/config.py             (wersja)
+  RELEASE_NOTES.md

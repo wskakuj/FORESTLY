@@ -1002,6 +1002,10 @@ class WebBackend(
             "start_halizny": self.start_halizny_pipeline,
             "generate_template:MIETEK": lambda: self.generate_template_now("MIETEK"),
             "generate_template:TAKSATOR": lambda: self.generate_template_now("TAKSATOR"),
+            "generate_template_pdf:MIETEK": lambda: self.generate_template_now(
+                "MIETEK", takze_pdf=True),
+            "generate_template_pdf:TAKSATOR": lambda: self.generate_template_now(
+                "TAKSATOR", takze_pdf=True),
             "start_mietek_title_pages": self.start_mietek_title_pages_pipeline,
             "start_title_pages": self.start_title_pages_pipeline,
             "start_rozbieznosci": lambda: self.start_mietek_rozbieznosci_pipeline(bez_nazwisk=False),

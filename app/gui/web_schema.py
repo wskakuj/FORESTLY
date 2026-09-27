@@ -86,9 +86,34 @@ def _czcionki(mode):
                         "Domyślne wartości zachowują dzisiejszy wygląd.")}
 
 
-def _button(bid, label, task, style="primary", tooltip=""):
-    return {"id": bid, "label": label, "task": task, "style": style,
-            "tooltip": tooltip}
+def _button(bid, label, task, style="primary", tooltip="", group=None):
+    b = {"id": bid, "label": label, "task": task, "style": style,
+         "tooltip": tooltip}
+    if group:
+        b["group"] = group
+    return b
+
+
+def _info_grupa(text_, grupa):
+    """Nagłówek opisujący tryb przełącznika (należy do jego grupy)."""
+    return {"kind": "info", "text": text_, "group": grupa}
+
+
+def _segment(cid, label, options, default, tooltip=""):
+    """Przełącznik trybu zakładki (np. 'Jedna wieś / Wiele wsi (masowo)').
+
+    Pierwsza opcja pokazuje grupę 'jedna', druga — 'wiele' (kontrolki
+    i przyciski z takim samym 'group' w schemacie)."""
+    return {"id": cid, "kind": "segment", "label": label, "options": options,
+            "default": default, "tooltip": tooltip,
+            "groups": {options[0]: "jedna", options[1]: "wiele"}}
+
+
+def _grp(ctrl, grupa):
+    """Kontrolka przypisana do trybu przełącznika segmentu."""
+    c = dict(ctrl)
+    c["group"] = grupa
+    return c
 
 
 WYDRUKI_CHOICES = ["Wszystkie", "OPTAX", "TAB_KLW3", "ZEST1", "REJESTR1",
@@ -294,24 +319,30 @@ def build_schema():
         },
         {
             "key": "MIETEK|Kreator Stron tytułowych",
-            "tooltip": "Generuje jeden bazowy dokument Word ze stroną tytułową na podstawie danych.",
-            "controls": _tpl_controls("MIETEK"),
-            "buttons": [_button("run", "Wygeneruj Szablon STR_TYT", "generate_template:MIETEK")],
-        },
-        {
-            "key": "MIETEK|Tworzenie Stron tytułowych",
-            "tooltip": "Masowo tworzy strony tytułowe dla każdej wsi (MIETEK), wciągając dane z OPTAX.",
+            "tooltip": "Strony tytułowe: jedna wieś z formularza (Word + PDF) "
+                       "albo masowo dla wielu wsi (dane z plików Word OPTAX).",
             "controls": [
-                _path("mt_template", "mietek_title_template_entry", "Szablon STR_TYT:",
-                      "Wskaż plik bazowy", kind="file"),
-                _path("mt_word", "mietek_title_word_entry", "Fold. z plikami Word (OPTAX):",
-                      "Wskaż folder, w którym znajdują się pliki OPTAX"),
-                _text("mt_village_ph", "mietek_title_village_placeholder_entry",
-                      "Placeholder nazwy wsi:", "NAZWA WSI"),
-                _text("mt_area_ph", "mietek_title_area_placeholder_entry",
-                      "Placeholder powierzchni:", "wielkość"),
+                _segment("kreator_tryb", "Tryb tworzenia:",
+                         ["Jedna wieś", "Wiele wsi (masowo)"], "Jedna wieś"),
+                *[_grp(c, "jedna") for c in _tpl_controls("MIETEK")],
+                _info_grupa("Wiele wsi (masowo) — dane z plików Word (OPTAX):", "wiele"),
+                _grp(_path("mt_template", "mietek_title_template_entry", "Szablon STR_TYT:",
+                           "Wskaż plik bazowy", kind="file"), "wiele"),
+                _grp(_path("mt_word", "mietek_title_word_entry", "Fold. z plikami Word (OPTAX):",
+                           "Wskaż folder, w którym znajdują się pliki OPTAX"), "wiele"),
+                _grp(_text("mt_village_ph", "mietek_title_village_placeholder_entry",
+                           "Placeholder nazwy wsi:", "NAZWA WSI"), "wiele"),
+                _grp(_text("mt_area_ph", "mietek_title_area_placeholder_entry",
+                           "Placeholder powierzchni:", "wielkość"), "wiele"),
             ],
-            "buttons": [_button("run", "Masowo twórz strony STR_TYT", "start_mietek_title_pages")],
+            "buttons": [
+                _button("run", "Wygeneruj Szablon STR_TYT", "generate_template:MIETEK",
+                        group="jedna"),
+                _button("run", "Utwórz STR_TYT — Word + PDF", "generate_template_pdf:MIETEK",
+                        group="jedna"),
+                _button("run", "Masowo twórz strony STR_TYT", "start_mietek_title_pages",
+                        group="wiele"),
+            ],
         },
         {
             "key": "MIETEK|Opisy ogólne",
@@ -488,26 +519,33 @@ def build_schema():
         },
         {
             "key": "TAKSATOR|Kreator Stron tytułowych",
-            "tooltip": "Generuje jeden bazowy dokument Word ze stroną tytułową na podstawie danych.",
-            "controls": _tpl_controls("TAKSATOR"),
-            "buttons": [_button("run", "Wygeneruj Szablon STR_TYT", "generate_template:TAKSATOR")],
-        },
-        {
-            "key": "TAKSATOR|Tworzenie Stron tytułowych",
-            "tooltip": "Masowo tworzy strony tytułowe dla każdej wsi, wciągając dane z zestawień Excel.",
+            "tooltip": "Strony tytułowe: jedna wieś z formularza (Word + PDF) "
+                       "albo masowo dla wielu wsi (dane z zestawień Excel).",
             "controls": [
-                _path("tt_template", "title_template_entry", "Szablon STR_TYT:",
-                      "Wskaż plik bazowy (np. wygenerowany w Kreatorze Szablonów)", kind="file"),
-                _path("tt_excel", "title_excel_entry", "Fold. z rejestrami Excel:",
-                      "Wskaż folder z plikami .xls / .xlsx"),
-                _path("tt_out", "title_output_entry", "Folder zapisu STR_TYT:",
-                      "Wskaż folder docelowy dla nowych stron"),
-                _text("tt_village_ph", "title_village_placeholder_entry",
-                      "Placeholder nazwy wsi:", "NAZWA WSI"),
-                _text("tt_area_ph", "title_area_placeholder_entry",
-                      "Placeholder powierzchni:", "wielkość"),
+                _segment("kreator_tryb_taks", "Tryb tworzenia:",
+                         ["Jedna wieś", "Wiele wsi (masowo)"], "Jedna wieś"),
+                *[_grp(c, "jedna") for c in _tpl_controls("TAKSATOR")],
+                _info_grupa("Wiele wsi (masowo) — dane z zestawień Excel:", "wiele"),
+                _grp(_path("tt_template", "title_template_entry", "Szablon STR_TYT:",
+                           "Wskaż plik bazowy (np. wygenerowany w Kreatorze Szablonów)",
+                           kind="file"), "wiele"),
+                _grp(_path("tt_excel", "title_excel_entry", "Fold. z rejestrami Excel:",
+                           "Wskaż folder z plikami .xls / .xlsx"), "wiele"),
+                _grp(_path("tt_out", "title_output_entry", "Folder zapisu STR_TYT:",
+                           "Wskaż folder docelowy dla nowych stron"), "wiele"),
+                _grp(_text("tt_village_ph", "title_village_placeholder_entry",
+                           "Placeholder nazwy wsi:", "NAZWA WSI"), "wiele"),
+                _grp(_text("tt_area_ph", "title_area_placeholder_entry",
+                           "Placeholder powierzchni:", "wielkość"), "wiele"),
             ],
-            "buttons": [_button("run", "Masowo twórz strony STR_TYT", "start_title_pages")],
+            "buttons": [
+                _button("run", "Wygeneruj Szablon STR_TYT", "generate_template:TAKSATOR",
+                        group="jedna"),
+                _button("run", "Utwórz STR_TYT — Word + PDF", "generate_template_pdf:TAKSATOR",
+                        group="jedna"),
+                _button("run", "Masowo twórz strony STR_TYT", "start_title_pages",
+                        group="wiele"),
+            ],
         },
         {
             "key": "TAKSATOR|Opisy ogólne",

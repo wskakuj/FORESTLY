@@ -296,8 +296,49 @@ function renderOneControl(c) {
     case "info": return renderInfo(c);
     case "gdos_table": return renderGdos(c);
     case "group": return renderGroup(c);
+    case "segment": return renderSegment(c);
   }
   return null;
+}
+
+function renderSegment(c) {
+  /* przełącznik trybu zakładki (np. "Jedna wieś / Wiele wsi (masowo)") —
+     pokazuje kontrolki i przyciski swojej grupy (data-group), resztę chowa */
+  const wrap = el("div", "field segment-field");
+  if (c.label) {
+    const lbl = el("label", null, escapeHtml(c.label));
+    if (c.tooltip) lbl.title = c.tooltip;
+    wrap.appendChild(lbl);
+  }
+  const seg = el("div", "segment");
+  const options = c.options || [];
+  const groups = c.groups || {};
+  const def = c.default || options[0];
+  options.forEach(opt => {
+    const b = el("button", "seg-btn");
+    b.type = "button";
+    b.textContent = opt;
+    b.onclick = () => {
+      $$(".seg-btn", seg).forEach(x => x.classList.remove("sel"));
+      b.classList.add("sel");
+      applySegmentGroups(wrap.closest(".tab-view"), groups[opt] || null);
+    };
+    if (opt === def) {
+      b.classList.add("sel");
+      seg.dataset.defaultGroup = groups[opt] || "";
+    }
+    seg.appendChild(b);
+  });
+  wrap.appendChild(seg);
+  return wrap;
+}
+
+function applySegmentGroups(view, active) {
+  if (!view) return;
+  $$(".seg-group", view).forEach(g =>
+    g.classList.toggle("hidden", !active || g.dataset.group !== active));
+  $$(".actions .btn[data-group]", view).forEach(b =>
+    b.classList.toggle("hidden", !active || b.dataset.group !== active));
 }
 
 function renderGroup(c) {
@@ -329,9 +370,23 @@ function renderControls(view, tab) {
     view.appendChild(hide);
     target = hide;
   }
+  /* kontrolki z "group" trafiają do pojemnika .seg-group — pokazuje go
+     przełącznik segmentu ("Jedna wieś / Wiele wsi"), resztę chowa */
+  let segWrap = null;
   for (const c of tab.controls) {
     const node = renderOneControl(c);
-    if (node) target.appendChild(node);
+    if (!node) continue;
+    if (c.group) {
+      if (!segWrap || segWrap.dataset.group !== c.group) {
+        segWrap = el("div", "seg-group");
+        segWrap.dataset.group = c.group;
+        target.appendChild(segWrap);
+      }
+      segWrap.appendChild(node);
+    } else {
+      segWrap = null;
+      target.appendChild(node);
+    }
   }
   if (isAll) {
     WIZ.home = target;
@@ -347,10 +402,15 @@ function renderControls(view, tab) {
     btn.innerHTML = (isRun ? ICON("play") : "") + "<span>" + escapeHtml(b.label) + "</span>";
     btn.title = b.tooltip || "";
     if (b.style !== "secondary") btn.classList.add("run-big");
+    if (b.group) btn.dataset.group = b.group;
     btn.onclick = () => { LAST_TASK_LABEL = b.label; runTask(b.task); };
     actions.appendChild(btn);
   }
   view.appendChild(actions);
+  /* domyślny tryb przełączników segmentu (pierwsza/zaznaczona opcja) */
+  for (const seg of $$(".segment", view)) {
+    applySegmentGroups(view, seg.dataset.defaultGroup || null);
+  }
 }
 
 /* ================== Kreator Pełnego Automatu (1-Click) ==================
