@@ -294,6 +294,25 @@ class TabTemplateGeneratorMixin:
                         tr = row._tr
                         tr.getparent().remove(tr)
 
+    def _odswiez_eksplorator(self, folder):
+        """Prośba do Eksploratora Windows o odświeżenie folderu.
+
+        Plik utworzony w tle (np. PDF z kreatora) potrafi nie pokazać się
+        w otwartym oknie Eksploratora, dopóki użytkownik nie wciśnie F5 —
+        to znana przypadłość Windows. SHChangeNotify(SHCNE_UPDATEDIR)
+        grzecznie prosi otwarte okna o odświeżenie widoku."""
+        try:
+            import os, ctypes
+            if os.name != "nt":
+                return
+            ctypes.windll.shell32.SHChangeNotify(
+                0x1000,          # SHCNE_UPDATEDIR — zmiana zawartości katalogu
+                0x0005,          # SHCNF_PATHW | SHCNF_FLUSH
+                str(Path(folder)),
+                None)
+        except Exception:
+            pass
+
     def generate_template_now(self, mode_key, takze_pdf=False, wyjscie=None):
         """Generuje stronę tytułową.
 
@@ -320,10 +339,10 @@ class TabTemplateGeneratorMixin:
             area_text = "wielkość" if vars_dict["area_var"].get() else ""
         # ------------------------------------------
 
-        out_path = vars_dict["output_entry"].get().strip()
-        if not out_path:
+        out_dir = vars_dict["output_entry"].get().strip()
+        if not out_dir:
             messagebox.showwarning(
-                "Błąd", "Wskaż miejsce i nazwę pliku do zapisu (np. Mojszablon.docx)!"
+                "Błąd", "Wskaż miejsce zapisu szablonu (folder)!"
             )
             return
         if vars_dict["area_var"].get() and not area_text:
@@ -332,20 +351,24 @@ class TabTemplateGeneratorMixin:
                 "Wpisz wartość dla pola Powierzchnia albo odznacz 'Dodaj wiersz z powierzchnią (ha)'.",
             )
             return
-        # Nazwa pliku zawsze z przedrostkiem zależnym od typu dokumentu (UPUL_ / ISL_)
+        # Nazwa pliku: nazwa wsi (gdy strona dla konkretnej wsi) albo z automatu
+        # "Szablon"; przedrostek zależny od typu dokumentu (UPUL_ / ISL_)
         doc_prefix = "ISL_" if doc_type == "ISL" else "UPUL_"
-        other_prefix = "UPUL_" if doc_type == "ISL" else "ISL_"
-        out_path_obj = Path(out_path)
-        file_name = out_path_obj.name
-        if file_name.upper().startswith(other_prefix):
-            file_name = file_name[len(other_prefix):]
-        if not file_name.upper().startswith(doc_prefix):
-            file_name = f"{doc_prefix}{file_name}"
-        if not file_name.lower().endswith(".docx"):
-            file_name = f"{file_name}.docx"
-        out_path = str(out_path_obj.with_name(file_name))
-        vars_dict["output_entry"].delete(0, "end")
-        vars_dict["output_entry"].insert(0, out_path)
+        if vars_dict.get("single_village_var") and vars_dict["single_village_var"].get():
+            nazwa = vars_dict["village_entry"].get().strip()
+        else:
+            nazwa = ""
+        if not nazwa or nazwa.upper() == "NAZWA WSI":
+            nazwa = "Szablon"
+        # znaki zakazane w nazwach plików Windows -> podkreślenia
+        ZAKAZANE = '<>:"|?*' + chr(92) + '/'   # znaki zakazane w Windows
+        nazwa = "".join(ch if ch not in ZAKAZANE else "_" for ch in nazwa)
+        nazwa = nazwa.strip(" .") or "Szablon"
+        out_dir_obj = Path(out_dir)
+        # kompatybilność: wklejona cała ścieżka pliku .docx -> bierzemy jej folder
+        if out_dir_obj.suffix.lower() == ".docx":
+            out_dir_obj = out_dir_obj.parent
+        out_path = str(out_dir_obj / f"{doc_prefix}{nazwa}.docx")
         try:
             self._build_str_tyt_doc(
                 doc_type, prefix, woj, powiat, gmina, stan_na, okres, out_path,
@@ -359,6 +382,7 @@ class TabTemplateGeneratorMixin:
             self.log(
                 f"[KREATOR SZABLONU] Zapisano nowy szablon bazowy na podstawie wzorca: {out_path}"
             )
+            self._odswiez_eksplorator(Path(out_path).parent)
             if wyjscie == "pdf":
                 pdf = self._docx_na_pdf_wordem(out_path)
                 if not pdf:
@@ -372,6 +396,7 @@ class TabTemplateGeneratorMixin:
                 if getattr(self, "open_dir_btn", None) is not None:
                     self.open_dir_btn.configure(state="normal")
                 self.log(f"[KREATOR STR_TYT] Utworzono stronę tytułową (PDF): {pdf}")
+                self._odswiez_eksplorator(Path(pdf).parent)
                 messagebox.showinfo(
                     "Sukces", "Strona tytułowa zapisana jako PDF:\n\n" + str(pdf))
                 return

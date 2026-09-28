@@ -29,11 +29,11 @@
   "web.word_remove_names": false,
   "web.tpl_MIETEK_stan": "30.06.2026 r.",
   "web.tpl_MIETEK_okres": "01.01.2027 – 31.12.2036 r.",
-  "web.tpl_MIETEK_single": false,
+  "web.tpl_MIETEK_single": true,
   "web.tpl_MIETEK_village": "NAZWA WSI",
-  "web.tpl_MIETEK_area": false,
+  "web.tpl_MIETEK_area": true,
   "web.tpl_MIETEK_area_v": "wielkość",
-  "web.tpl_MIETEK_out": "",
+  "web.tpl_MIETEK_out": "D:\\download\\gówno\\Nowy folder (22)\\Nowy folder",
   "web.mt_template": "D:\\download\\gówno\\Nowy folder (18)\\OPISY_OGOLNE_POPRAWIONE_2026\\UPUL_wzor.docx",
   "web.mt_word": "D:\\download\\gówno\\Nowy folder (18)\\OPISY_OGOLNE_POPRAWIONE_2026\\Nowy folder (2)",
   "web.mt_out": "D:\\download\\gówno\\Nowy folder (16)\\Nowy folder (3)\\Nowy folder\\bez nazwisk\\Word",
@@ -391,5 +391,7 @@
   "all_tpl.stan_na": "31.12.1997 r.",
   "all_tpl.okres": "01.01.2027 – 31.12.2036 r.",
   "all_tpl.wsk_od": "01.01.2027",
-  "all_tpl.wsk_do": "31.12.2036"
+  "all_tpl.wsk_do": "31.12.2036",
+  "web.tpl_MIETEK_format": "PDF",
+  "web.tpl_TAKSATOR_format": "PDF"
 }

@@ -100,18 +100,19 @@ def _info_grupa(text_, grupa):
 
 
 def _segment(cid, label, options, default, tooltip="", attr=None,
-             sel_class=None):
-    """Przełącznik segmentowy (np. 'Jedna wieś / Wiele wsi (masowo)').
-
-    Dwa tryby działania:
-      * z 'groups' — przełącza widoczność grup kontrolek ('jedna'/'wiele'),
+             sel_class=None, groups=None):
+    """Przełącznik segmentowy. Dwa tryby działania:
+      * z 'groups' — przełącza widoczność grup kontrolek (np. tryb
+        'Jedna wieś / Wiele wsi' pokazuje grupę 'jedna' albo 'wiele'),
       * z 'attr' — zwykły przełącznik wartości (np. PDF/Word), którego wybór
         jest zapamiętywany i wysyłany do backendu jak każde inne pole.
-    'sel_class' pozwala pokolorować wybraną opcję (np. PDF na czerwono)."""
+    'sel_class' pozwala pokolorować wybraną opcję (np. PDF na czerwono).
+    WAŻNE: 'groups' trzeba podać jawnie — zwykły przełącznik wartości
+    NIE może przełączać widoku zakładki (inaczej chowa kontrolki)."""
     c = {"id": cid, "kind": "segment", "label": label, "options": options,
          "default": default, "tooltip": tooltip}
-    if len(options) == 2:
-        c["groups"] = {options[0]: "jedna", options[1]: "wiele"}
+    if groups:
+        c["groups"] = groups
     if attr:
         c["attr"] = attr
         c["save"] = True
@@ -334,7 +335,9 @@ def build_schema():
                        "albo masowo dla wielu wsi (dane z plików Word OPTAX).",
             "controls": [
                 _segment("kreator_tryb", "Tryb tworzenia:",
-                         ["Jedna wieś", "Wiele wsi (masowo)"], "Jedna wieś"),
+                         ["Jedna wieś", "Wiele wsi (masowo)"], "Jedna wieś",
+                         groups={"Jedna wieś": "jedna",
+                                 "Wiele wsi (masowo)": "wiele"}),
                 _grp(_segment("tpl_MIETEK_format", "Format wyjścia:",
                               ["PDF", "Word"], "PDF",
                               attr="tpl_data.MIETEK.format_var",
@@ -537,7 +540,9 @@ def build_schema():
                        "albo masowo dla wielu wsi (dane z zestawień Excel).",
             "controls": [
                 _segment("kreator_tryb_taks", "Tryb tworzenia:",
-                         ["Jedna wieś", "Wiele wsi (masowo)"], "Jedna wieś"),
+                         ["Jedna wieś", "Wiele wsi (masowo)"], "Jedna wieś",
+                         groups={"Jedna wieś": "jedna",
+                                 "Wiele wsi (masowo)": "wiele"}),
                 _grp(_segment("tpl_TAKSATOR_format", "Format wyjścia:",
                               ["PDF", "Word"], "PDF",
                               attr="tpl_data.TAKSATOR.format_var",
@@ -747,6 +752,6 @@ def _tpl_controls(mode):
         _text(f"tpl_{mode}_village", b + "village_entry", "Nazwa wsi:", "NAZWA WSI"),
         _check(f"tpl_{mode}_area", b + "area_var", "Dodaj wiersz z powierzchnią (ha)", False),
         _text(f"tpl_{mode}_area_v", b + "area_entry", "Powierzchnia:", "wielkość"),
-        _path(f"tpl_{mode}_out", b + "output_entry", "Zapisz szablon jako:",
-              "Ścieżka do pliku np. Szablon.docx", kind="save"),
+        _path(f"tpl_{mode}_out", b + "output_entry", "Miejsce zapisu szablonu:",
+              "Folder, w którym zapisać plik", kind="folder"),
     ]

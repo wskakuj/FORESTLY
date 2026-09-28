@@ -317,6 +317,9 @@ function renderSegment(c) {
   const groups = c.groups || {};
   const selClass = c.sel_class || {};
   const def = c.default || options[0];
+  /* przełącznik WARTOŚCI (np. PDF/Word) nie ma grup — nie może ruszać
+     widoku zakładki (applySegmentGroups z null chowałby wszystkie pola) */
+  const hasGroups = Object.keys(groups).length > 0;
   const select = (opt, applyView) => {
     seg.dataset.value = opt;
     $$(".seg-btn", seg).forEach(x => {
@@ -325,7 +328,7 @@ function renderSegment(c) {
     });
     const btn = seg.querySelector('[data-opt="' + cssEscape(opt) + '"]');
     if (btn && selClass[opt]) btn.classList.add(selClass[opt]);
-    if (applyView) applySegmentGroups(wrap.closest(".tab-view"), groups[opt] || null);
+    if (applyView && hasGroups) applySegmentGroups(wrap.closest(".tab-view"), groups[opt]);
   };
   options.forEach(opt => {
     const b = el("button", "seg-btn");
@@ -419,9 +422,12 @@ function renderControls(view, tab) {
     actions.appendChild(btn);
   }
   view.appendChild(actions);
-  /* domyślny tryb przełączników segmentu (pierwsza/zaznaczona opcja) */
+  /* domyślny tryb przełączników segmentu (pierwsza/zaznaczona opcja);
+     segmenty bez grup (np. PDF/Word) są pomijane — wywołanie z null
+     chowałoby wszystkie pola zakładki */
   for (const seg of $$(".segment", view)) {
-    applySegmentGroups(view, seg.dataset.defaultGroup || null);
+    if (seg.dataset.defaultGroup)
+      applySegmentGroups(view, seg.dataset.defaultGroup);
   }
 }
 
