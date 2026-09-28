@@ -99,14 +99,25 @@ def _info_grupa(text_, grupa):
     return {"kind": "info", "text": text_, "group": grupa}
 
 
-def _segment(cid, label, options, default, tooltip=""):
-    """Przełącznik trybu zakładki (np. 'Jedna wieś / Wiele wsi (masowo)').
+def _segment(cid, label, options, default, tooltip="", attr=None,
+             sel_class=None):
+    """Przełącznik segmentowy (np. 'Jedna wieś / Wiele wsi (masowo)').
 
-    Pierwsza opcja pokazuje grupę 'jedna', druga — 'wiele' (kontrolki
-    i przyciski z takim samym 'group' w schemacie)."""
-    return {"id": cid, "kind": "segment", "label": label, "options": options,
-            "default": default, "tooltip": tooltip,
-            "groups": {options[0]: "jedna", options[1]: "wiele"}}
+    Dwa tryby działania:
+      * z 'groups' — przełącza widoczność grup kontrolek ('jedna'/'wiele'),
+      * z 'attr' — zwykły przełącznik wartości (np. PDF/Word), którego wybór
+        jest zapamiętywany i wysyłany do backendu jak każde inne pole.
+    'sel_class' pozwala pokolorować wybraną opcję (np. PDF na czerwono)."""
+    c = {"id": cid, "kind": "segment", "label": label, "options": options,
+         "default": default, "tooltip": tooltip}
+    if len(options) == 2:
+        c["groups"] = {options[0]: "jedna", options[1]: "wiele"}
+    if attr:
+        c["attr"] = attr
+        c["save"] = True
+    if sel_class:
+        c["sel_class"] = sel_class
+    return c
 
 
 def _grp(ctrl, grupa):
@@ -324,6 +335,11 @@ def build_schema():
             "controls": [
                 _segment("kreator_tryb", "Tryb tworzenia:",
                          ["Jedna wieś", "Wiele wsi (masowo)"], "Jedna wieś"),
+                _grp(_segment("tpl_MIETEK_format", "Format wyjścia:",
+                              ["PDF", "Word"], "PDF",
+                              attr="tpl_data.MIETEK.format_var",
+                              sel_class={"PDF": "sel-pdf", "Word": "sel-word"}),
+                     "jedna"),
                 *[_grp(c, "jedna") for c in _tpl_controls("MIETEK")],
                 _info_grupa("Wiele wsi (masowo) — dane z plików Word (OPTAX):", "wiele"),
                 _grp(_path("mt_template", "mietek_title_template_entry", "Szablon STR_TYT:",
@@ -336,11 +352,9 @@ def build_schema():
                            "Placeholder powierzchni:", "wielkość"), "wiele"),
             ],
             "buttons": [
-                _button("run", "Wygeneruj Szablon STR_TYT", "generate_template:MIETEK",
+                _button("run", "Wygeneruj stronę tytułową", "generate_str_tyt:MIETEK",
                         group="jedna"),
-                _button("run", "Utwórz STR_TYT — Word + PDF", "generate_template_pdf:MIETEK",
-                        group="jedna"),
-                _button("run", "Masowo twórz strony STR_TYT", "start_mietek_title_pages",
+                _button("run", "Wygeneruj strony tytułowe", "start_mietek_title_pages",
                         group="wiele"),
             ],
         },
@@ -524,6 +538,11 @@ def build_schema():
             "controls": [
                 _segment("kreator_tryb_taks", "Tryb tworzenia:",
                          ["Jedna wieś", "Wiele wsi (masowo)"], "Jedna wieś"),
+                _grp(_segment("tpl_TAKSATOR_format", "Format wyjścia:",
+                              ["PDF", "Word"], "PDF",
+                              attr="tpl_data.TAKSATOR.format_var",
+                              sel_class={"PDF": "sel-pdf", "Word": "sel-word"}),
+                     "jedna"),
                 *[_grp(c, "jedna") for c in _tpl_controls("TAKSATOR")],
                 _info_grupa("Wiele wsi (masowo) — dane z zestawień Excel:", "wiele"),
                 _grp(_path("tt_template", "title_template_entry", "Szablon STR_TYT:",
@@ -539,11 +558,9 @@ def build_schema():
                            "Placeholder powierzchni:", "wielkość"), "wiele"),
             ],
             "buttons": [
-                _button("run", "Wygeneruj Szablon STR_TYT", "generate_template:TAKSATOR",
+                _button("run", "Wygeneruj stronę tytułową", "generate_str_tyt:TAKSATOR",
                         group="jedna"),
-                _button("run", "Utwórz STR_TYT — Word + PDF", "generate_template_pdf:TAKSATOR",
-                        group="jedna"),
-                _button("run", "Masowo twórz strony STR_TYT", "start_title_pages",
+                _button("run", "Wygeneruj strony tytułowe", "start_title_pages",
                         group="wiele"),
             ],
         },

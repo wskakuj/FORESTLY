@@ -1401,7 +1401,9 @@ class TabAllMixin:
             subprocess.run(
                 ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
                  "-Command", ps],
-                capture_output=True, timeout=300, check=True)
+                capture_output=True, timeout=300, check=True,
+                # bez tego przy każdym TIFF-ie wyskakiwało czarne okno konsoli
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
         except Exception as e:
             stderr = ""
             try:

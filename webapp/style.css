@@ -1120,3 +1120,16 @@ input.drop-over {
   font-weight: 700;
 }
 .seg-group.hidden { display: none; }
+
+
+/* Kolor wybranej opcji przełącznika PDF/Word (kreator STR_TYT) */
+.seg-btn.sel.sel-pdf {
+  background: linear-gradient(135deg, #e5484d 0%, #d93a3f 100%);
+  color: #fff;
+  font-weight: 700;
+}
+.seg-btn.sel.sel-word {
+  background: linear-gradient(135deg, #3b82f6 0%, #2f6fe4 100%);
+  color: #fff;
+  font-weight: 700;
+}

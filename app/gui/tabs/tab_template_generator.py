@@ -294,7 +294,14 @@ class TabTemplateGeneratorMixin:
                         tr = row._tr
                         tr.getparent().remove(tr)
 
-    def generate_template_now(self, mode_key, takze_pdf=False):
+    def generate_template_now(self, mode_key, takze_pdf=False, wyjscie=None):
+        """Generuje stronę tytułową.
+
+        'wyjscie' (przełącznik PDF/Word w kreatorze): 'word' = tylko plik
+        Word, 'pdf' = tylko PDF (Word powstaje tymczasowo i jest usuwany);
+        None = stara logika: Word, a przy takze_pdf=True dodatkowo PDF obok."""
+        if wyjscie not in ("word", "pdf"):
+            wyjscie = None
         vars_dict = self.tpl_data[mode_key]
         doc_type = vars_dict["doc_type_var"].get()
         prefix = vars_dict["prefix_var"].get().strip()
@@ -352,6 +359,22 @@ class TabTemplateGeneratorMixin:
             self.log(
                 f"[KREATOR SZABLONU] Zapisano nowy szablon bazowy na podstawie wzorca: {out_path}"
             )
+            if wyjscie == "pdf":
+                pdf = self._docx_na_pdf_wordem(out_path)
+                if not pdf:
+                    raise RuntimeError(
+                        "Nie udało się utworzyć PDF (konwersja przez Worda nie wyszła).")
+                try:
+                    Path(out_path).unlink()   # tylko PDF — plik Word był tymczasowy
+                except OSError:
+                    pass
+                self.last_output_dir = Path(pdf).parent
+                if getattr(self, "open_dir_btn", None) is not None:
+                    self.open_dir_btn.configure(state="normal")
+                self.log(f"[KREATOR STR_TYT] Utworzono stronę tytułową (PDF): {pdf}")
+                messagebox.showinfo(
+                    "Sukces", "Strona tytułowa zapisana jako PDF:\n\n" + str(pdf))
+                return
             if takze_pdf:
                 try:
                     pdf = self._docx_na_pdf_wordem(out_path)

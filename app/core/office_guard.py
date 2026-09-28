@@ -95,7 +95,9 @@ def _image_name(pid):
     try:
         out = subprocess.run(
             ["tasklist", "/FI", "PID eq %d" % pid, "/FO", "CSV", "/NH"],
-            capture_output=True, text=True, timeout=10).stdout or ""
+            capture_output=True, text=True, timeout=10,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+        ).stdout or ""
     except Exception:
         return None
     out = out.strip().upper()
@@ -125,7 +127,8 @@ def kill_registered(log=None):
             subprocess.run(
                 ["taskkill", "/F", "/T", "/PID", str(pid)],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                timeout=15)
+                timeout=15,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
             killed.append(pid)
         except Exception:
             pass

@@ -302,8 +302,10 @@ function renderOneControl(c) {
 }
 
 function renderSegment(c) {
-  /* przełącznik trybu zakładki (np. "Jedna wieś / Wiele wsi (masowo)") —
-     pokazuje kontrolki i przyciski swojej grupy (data-group), resztę chowa */
+  /* przełącznik segmentowy. Dwa tryby działania:
+     - z "groups": przełącza widoczność grup kontrolek (data-group),
+     - z "attr": zwykły przełącznik wartości (np. PDF/Word) — wybór trafia
+       do collectValues() jak każde inne pole (data-cid + data-kind) */
   const wrap = el("div", "field segment-field");
   if (c.label) {
     const lbl = el("label", null, escapeHtml(c.label));
@@ -313,22 +315,32 @@ function renderSegment(c) {
   const seg = el("div", "segment");
   const options = c.options || [];
   const groups = c.groups || {};
+  const selClass = c.sel_class || {};
   const def = c.default || options[0];
+  const select = (opt, applyView) => {
+    seg.dataset.value = opt;
+    $$(".seg-btn", seg).forEach(x => {
+      x.classList.remove("sel", "sel-pdf", "sel-word");
+      if (x.dataset.opt === opt) x.classList.add("sel");
+    });
+    const btn = seg.querySelector('[data-opt="' + cssEscape(opt) + '"]');
+    if (btn && selClass[opt]) btn.classList.add(selClass[opt]);
+    if (applyView) applySegmentGroups(wrap.closest(".tab-view"), groups[opt] || null);
+  };
   options.forEach(opt => {
     const b = el("button", "seg-btn");
     b.type = "button";
+    b.dataset.opt = opt;
     b.textContent = opt;
-    b.onclick = () => {
-      $$(".seg-btn", seg).forEach(x => x.classList.remove("sel"));
-      b.classList.add("sel");
-      applySegmentGroups(wrap.closest(".tab-view"), groups[opt] || null);
-    };
-    if (opt === def) {
-      b.classList.add("sel");
-      seg.dataset.defaultGroup = groups[opt] || "";
-    }
+    b.onclick = () => select(opt, true);
     seg.appendChild(b);
   });
+  select(def, false);
+  if (groups[def]) seg.dataset.defaultGroup = groups[def];
+  if (c.attr) {
+    seg.dataset.cid = c.id;
+    seg.dataset.kind = "segment";
+  }
   wrap.appendChild(seg);
   return wrap;
 }
@@ -2182,6 +2194,8 @@ function collectValues() {
       out[cid] = node.checked;
     } else if (kind === "select") {
       out[cid] = node.value;
+    } else if (kind === "segment") {
+      out[cid] = node.dataset.value || "";
     } else if (kind === "checks-item") {
       out[cid] = out[cid] || {};
       out[cid][node.dataset.choice] = node.checked;

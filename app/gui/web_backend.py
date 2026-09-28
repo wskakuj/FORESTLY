@@ -605,6 +605,15 @@ class WebBackend(
         else:
             setattr(obj, key, fake)
 
+    def _str_tyt_format(self, mode):
+        """Wyjście kreatora STR_TYT wg przełącznika PDF/Word: 'pdf' albo 'word'."""
+        f = self._get_fake(f"tpl_data.{mode}.format_var")
+        try:
+            v = str(f.get()).strip().lower()
+        except Exception:
+            v = ""
+        return v if v in ("pdf", "word") else "pdf"
+
     def _get_fake(self, attr):
         if "." not in attr:
             return getattr(self, attr, None)
@@ -674,6 +683,12 @@ class WebBackend(
                 for choice in c["choices"]:
                     var = FakeVar(choice == "Wszystkie")
                     self._set_fake(f"{base}.{choice}", var)
+            elif kind == "segment" and c.get("attr"):
+                # przełącznik wartości (np. PDF/Word w kreatorze STR_TYT);
+                # segmenty bez 'attr' (przełącznik trybu) nie mają wartości
+                val = self.get_setting(
+                    f"web.{c['id']}", c.get("default") or c["options"][0])
+                self._set_fake(c["attr"], FakeVar(str(val)))
             elif kind == "select":
                 # zapamiętany wybór (np. kategoria zagrożenia, tabela
                 # siedliskowa) przeżywa restart programu
@@ -749,6 +764,8 @@ class WebBackend(
             elif kind == "check":
                 self._get_fake(c["attr"]).set(bool(val))
             elif kind == "select":
+                self._get_fake(c["attr"]).set(str(val))
+            elif kind == "segment" and c.get("attr"):
                 self._get_fake(c["attr"]).set(str(val))
             elif kind == "checks":
                 val = dict(val or {})
@@ -1006,6 +1023,10 @@ class WebBackend(
                 "MIETEK", takze_pdf=True),
             "generate_template_pdf:TAKSATOR": lambda: self.generate_template_now(
                 "TAKSATOR", takze_pdf=True),
+            "generate_str_tyt:MIETEK": lambda: self.generate_template_now(
+                "MIETEK", wyjscie=self._str_tyt_format("MIETEK")),
+            "generate_str_tyt:TAKSATOR": lambda: self.generate_template_now(
+                "TAKSATOR", wyjscie=self._str_tyt_format("TAKSATOR")),
             "start_mietek_title_pages": self.start_mietek_title_pages_pipeline,
             "start_title_pages": self.start_title_pages_pipeline,
             "start_rozbieznosci": lambda: self.start_mietek_rozbieznosci_pipeline(bez_nazwisk=False),
@@ -1343,6 +1364,11 @@ class WebBackend(
                     values[cid] = bool(c.get("default", False)) if saved is None else bool(saved)
                 elif kind == "select":
                     values[cid] = c.get("default", "")
+                elif kind == "segment":
+                    saved = self.get_setting(f"web.{cid}", None)
+                    values[cid] = (saved if saved is not None
+                                   else (c.get("default")
+                                         or c.get("options", [""])[0]))
                 elif kind == "checks":
                     values[cid] = {ch: (ch == "Wszystkie") for ch in c["choices"]}
                 elif kind == "margins":
