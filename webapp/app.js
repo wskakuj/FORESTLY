@@ -1,6 +1,10 @@
 /* Forestly — logika frontendu (most pywebview <-> Python) */
 "use strict";
 
+/* wersja tego pliku — widoczna w sidebarze obok wersji programu;
+   jeśli się różni, app.js nie podmienił się przy rozpakowaniu paczki */
+const APP_JS_VER = "2.0.101";
+
 const $ = (sel, root) => (root || document).querySelector(sel);
 const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
 
@@ -53,7 +57,8 @@ function ready() {
 function renderAll(cfg) {
   SCHEMA = cfg.schema;
   VALUES = cfg.values || {};
-  $("#app-version").textContent = "wersja " + (SCHEMA.version || "");
+  $("#app-version").textContent =
+    "wersja " + (SCHEMA.version || "") + " · UI " + APP_JS_VER;
   document.title = SCHEMA.app_name;
   const nameEl = $("#app-name");
   if (nameEl && SCHEMA.app_name) nameEl.textContent = SCHEMA.app_name;
@@ -1356,12 +1361,9 @@ async function openMarginsPreview(cid, mode) {
   document.addEventListener("mouseup", onDragUp);
 
 
-  const info = el("div", "mp-note",
-    "Podgląd stron A4 (tak, jak wyjdzie z druku). Zmieniaj marginesy " +
-    "i czcionki w tabeli po lewej — podgląd odświeża się na żywo; " +
-    "przy wielu stronach przewijaj w dół. Przycisk Drukuj wydaje jedną " +
-    "stronę testową. Drugi raz kliknięty przycisk podglądu zamyka panel.");
-  dock.appendChild(info);
+  /* UWAGA: suwak nasycenia nagłówków (OPTAX/REJESTR) jest renderowany
+     po stronie Pythona, wewnątrz HTML podglądu (pasek u góry dokumentu)
+     — działa niezależnie od tego pliku. */
 
   const wrap = el("div", "mp-sheet-wrap");
   const sheet = el("div", "mp-sheet");
@@ -1452,7 +1454,9 @@ async function openMarginsPreview(cid, mode) {
       return;
     }
     sheet.classList.remove("hidden");
-    info.textContent = (r.zrodlo || "dokument przykładowy") +
+    /* źródło podglądu (ścieżka pliku) trafia do podpowiedzi tytułu */
+    const hh = dock.querySelector("h3");
+    if (hh) hh.title = (r.zrodlo || "dokument przykładowy") +
                        "  (" + typ + ", " + (r.poziom ? "poziomo" : "pionowo") + ")";
     /* podgląd JEDNEJ kartki A4 — dokładnie ta wielkość, co w druku;
        treść poza pierwszą stroną jest przycięta, a marginesy (padding)

@@ -1133,3 +1133,30 @@ input.drop-over {
   color: #fff;
   font-weight: 700;
 }
+
+
+/* Suwak nasycenia nagłówków (OPTAX/REJESTR) w oknie podglądu marginesów */
+.mp-nasycenie {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--border, #333);
+  background: var(--panel, #1c2431);
+}
+.mp-nasycenie label {
+  font-size: 12px;
+  color: var(--muted, #9aa5b1);
+  white-space: nowrap;
+}
+.mp-nasycenie input[type="range"] {
+  flex: 1;
+  accent-color: #2dd4a7;
+}
+.mp-nasycenie .mp-nas-val {
+  font-size: 12px;
+  min-width: 40px;
+  text-align: right;
+  color: var(--text, #e8eef2);
+  font-variant-numeric: tabular-nums;
+}

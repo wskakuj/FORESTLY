@@ -436,6 +436,55 @@ def _marginesy_z_slownika(saved):
 
 # --------------------------------------------------------------------- backend
 
+def _pas_nasycenia(html, nasycenie):
+    """Pasek suwaka nasycenia nagłówków wstrzykiwany do HTML podglądu.
+
+    Celowo renderowany po stronie Pythona: działa niezależnie od wersji
+    app.js. Obsługa zdarzeń jest DELEGOWANA na poziomie 'document' —
+    podgląd Stronicuje treść, klonując węzły do kolejnych stron A4,
+    a klony nie przenoszą zwykłych nasłuchów. Zdarzenia z klona
+    i tak trafiają do document, więc suwak działa także na klonie."""
+    try:
+        n = int(round(float(nasycenie)))
+    except (TypeError, ValueError):
+        n = 40
+    n = max(0, min(100, n))
+    bar = (
+        "<style>@media print{#fl-nasycenie{display:none!important}}</style>"
+        '<div id="fl-nasycenie" style="position:fixed;top:0;left:0;right:0;'
+        "z-index:99;display:flex;align-items:center;gap:10px;padding:7px 12px;"
+        "background:#20242c;color:#e8eef2;font:12px 'Segoe UI',Arial,sans-serif;"
+        'border-bottom:1px solid #3a3f4a;box-shadow:0 2px 8px rgba(0,0,0,.35);">'
+        '<label style="white-space:nowrap;">Nasycenie nagłówków:</label>'
+        '<input id="fl-nas-inp" type="range" min="0" max="100" step="5" value="' + str(n) + '" '
+        'style="flex:1;accent-color:#2dd4a7;">'
+        '<span id="fl-nas-val" style="min-width:38px;text-align:right;'
+        'font-variant-numeric:tabular-nums;">' + str(n) + "%</span></div>"
+        "<script>(function(){"
+        'function maluj(v){var p=parseInt(v,10)||0;'
+        "var c=Math.round(255+(47-255)*p/100);"
+        'var hx="#"+c.toString(16).padStart(2,"0").repeat(3);'
+        'var fg=p>=45?"#ffffff":"#141414";'
+        'var dop=p>=45?"#d6d6d6":"#555555";'
+        'document.querySelectorAll("th").forEach(function(th){'
+        "th.style.background=hx;th.style.color=fg;});"
+        'document.querySelectorAll("th .opis").forEach(function(sm){'
+        "sm.style.color=dop;});}"
+        'document.addEventListener("input",function(e){'
+        'if(!e.target||e.target.id!=="fl-nas-inp")return;'
+        'var s=e.target.nextElementSibling;'   # etykieta % stoi zaraz za suwakiem
+        'if(s)s.textContent=e.target.value+"%";'
+        "maluj(e.target.value);},false);"
+        'document.addEventListener("change",function(e){'
+        'if(!e.target||e.target.id!=="fl-nas-inp")return;'
+        "try{if(window.parent&&window.parent.pywebview&&window.parent.pywebview.api)"
+        "window.parent.pywebview.api.set_nasycenie_naglowkow(parseInt(e.target.value,10)||0);}"
+        "catch(err){}},false);"
+        "})();</script>"
+    )
+    return html.replace("<body>", "<body>" + bar, 1)
+
+
 class WebBackend(
     TabOpisOgMixin,
     TabAllMixin, TabWordMixin, TabPdfMixin, TabManualMergeMixin,
@@ -1483,7 +1532,9 @@ class WebBackend(
                         szablony.generuj_raport_pdf(
                             typ, txt, pdf,
                             bez_nazwisk=bool(bez_nazwisk and typ in szablony.USUWA_NAZWISKA),
-                            margins=margins, czcionki=czc)
+                            margins=margins, czcionki=czc,
+                            nasycenie_naglowka=self.get_setting(
+                                "nasycenie_naglowkow", 40))
                         ok += 1
                         self.log(f"  ✅ {obr.name}: {typ}.txt + PDF → {pdf}")
                 except Exception as e:
@@ -1581,7 +1632,25 @@ class WebBackend(
                     return cache[typ]
         return None, None
 
-    def get_margins_preview(self, typ, margins, czcionki=None):
+    def get_nasycenie_naglowkow(self):
+        """Aktualne nasycenie nagłówków OPTAX/REJESTR (0-100, %)."""
+        try:
+            v = int(round(float(self.get_setting("nasycenie_naglowkow", 40))))
+        except (TypeError, ValueError):
+            v = 40
+        return max(0, min(100, v))
+
+    def set_nasycenie_naglowkow(self, value):
+        """Zapis nasycenia nagłówków OPTAX/REJESTR (suwak w podglądzie)."""
+        try:
+            v = int(round(float(value)))
+        except (TypeError, ValueError):
+            v = 40
+        v = max(0, min(100, v))
+        self.set_setting("nasycenie_naglowkow", v)
+        return {"ok": True, "value": v}
+
+    def get_margins_preview(self, typ, margins, czcionki=None, nasycenie=None):
         """HTML podglądu raportu nowym wyglądem z podanymi marginesami
         i czcionkami (tytuł / tabela).
 
@@ -1620,6 +1689,15 @@ class WebBackend(
                     "w którym leżą pliki TXT — albo uruchom najpierw proces, "
                     "a podgląd pokaże Twój dokument."}
         obiekt, stan, okres = szablony.meta_z_pliku(txt)
+        # nasycenie nagłówków OPTAX/REJESTR (suwak w oknie podglądu);
+        # bez parametru — ostatnio zapisana wartość użytkownika
+        if nasycenie is None:
+            nasycenie = self.get_setting("nasycenie_naglowkow", 40)
+        try:
+            nasycenie = int(round(float(nasycenie)))
+        except (TypeError, ValueError):
+            nasycenie = 40
+        nasycenie = max(0, min(100, nasycenie))
         mg = szablony._marginesy(_marginesy_z_slownika(margins), typ)
         cz = (czcionki or {}).get(typ) if isinstance(czcionki, dict) else None
         bez = False
@@ -1638,6 +1716,13 @@ class WebBackend(
                 html = szablony.RENDERERY[typ](txt, obiekt, okres or stan,
                                               bez_nazwisk=bez, marginesy=mg,
                                               czcionki=cz)
+            elif typ in ("OPTAX", "REJESTR1"):
+                html = szablony.RENDERERY[typ](txt, obiekt, stan,
+                                               bez_nazwisk=bez, marginesy=mg,
+                                               czcionki=cz,
+                                               nasycenie_naglowka=nasycenie)
+                # pasek suwaka — renderowany w Pythonie, widoczny w podglądzie
+                html = _pas_nasycenia(html, nasycenie)
             else:
                 html = szablony.RENDERERY[typ](txt, obiekt, stan,
                                                bez_nazwisk=bez, marginesy=mg,

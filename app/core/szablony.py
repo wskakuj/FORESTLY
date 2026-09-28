@@ -418,7 +418,8 @@ def _marginesy(margins, typ):
 CSS = """
   * { box-sizing: border-box; }
   body { font: 8.6pt/1.4 "Segoe UI", Arial, sans-serif; color: #141414;
-         margin: 0; background: #fff; }
+         margin: 0; background: #fff;
+         -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .hdr { margin-bottom: 5mm; border-bottom: 1.6pt solid #222; padding-bottom: 2mm; }
   .hdr .agencja { font-size: 7.5pt; letter-spacing: .4px; color: #444; }
   .hdr h1 { font-size: 12pt; margin: 1mm 0 .5mm; letter-spacing: .2px; }
@@ -426,7 +427,13 @@ CSS = """
   .hdr .meta b { color: #111; }
   table { border-collapse: collapse; width: 100%; }
   thead { display: table-header-group; }
-  th { font-weight: 600; font-size: 7.6pt; background: #f2f2f2; }
+  /* nagłówek tabeli: średnia szarość + ciemne pismo — wyraźna na wydruku
+     papierowym, ale nie "czarna"; jasność reguluje suwak nasycenia
+     (OPTAX/REJESTR), zakres: #ffffff (0%) - #2f2f2f (100%),
+     domyślnie 40% = #acacac */
+  th { font-weight: 600; font-size: 7.6pt; background: #acacac; color: #141414;
+       -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  th .opis { color: #555; }
   /* pionowy napis ("Ochr.") — transform na spanie, NIE na komórce:
      transform bezpośrednio na th psuł obramowanie przy border-collapse */
   th.vcol { padding: 2px 0; }
@@ -506,7 +513,8 @@ def _strona(tytul, obiekt, stan, tresc, extra_css="", poziom=False,
 
 # --------------------------------------------------------------- HTML: raporty
 
-def html_rejestr1(path, obiekt, stan, bez_nazwisk=False, marginesy=None, czcionki=None):
+def html_rejestr1(path, obiekt, stan, bez_nazwisk=False, marginesy=None,
+                  czcionki=None, nasycenie_naglowka=None):
     pozycje = parse_rejestr1(path)
     tr = []
     for p in pozycje:
@@ -592,10 +600,12 @@ def html_rejestr1(path, obiekt, stan, bez_nazwisk=False, marginesy=None, czcionk
     tresc = ('<table>' + head + '<tbody>' + "".join(tr) + "</tbody></table>")
     return _strona("Rejestr działek leśnych i gruntów do zalesienia wg. właścicieli",
                    obiekt, stan, tresc, poziom=True, marginesy=marginesy,
-                   czcionki=czcionki)
+                   czcionki=czcionki,
+                   extra_css=_th_nasycenie_css(nasycenie_naglowka))
 
 
-def html_optax(path, obiekt, stan, bez_nazwisk=False, marginesy=None, czcionki=None):
+def html_optax(path, obiekt, stan, bez_nazwisk=False, marginesy=None,
+               czcionki=None, nasycenie_naglowka=None):
     rek = parse_optax(path)
     tr = []
     for r in rek:
@@ -639,7 +649,8 @@ przeznaczonego do zalesienia</th>
 <tbody>""" + "".join(tr) + "</tbody></table>"
     return _strona("Opis lasów i gruntów przeznaczonych do zalesienia",
                    obiekt, stan, tresc, poziom=True, marginesy=marginesy,
-                   czcionki=czcionki)
+                   czcionki=czcionki,
+                   extra_css=_th_nasycenie_css(nasycenie_naglowka))
 
 
 def html_tabklw3(path, obiekt, stan, bez_nazwisk=False, marginesy=None, czcionki=None):
@@ -814,6 +825,30 @@ def html_wyk_neg(path, obiekt, stan, bez_nazwisk=False, marginesy=None, czcionki
 
 
 # typ -> renderer; wszystkie mają sygnaturę (path, obiekt, stan, ...)
+def _th_nasycenie_css(nasycenie):
+    """CSS nadpisujący kolor nagłówka tabeli wg 'nasycenia' (0-100, %).
+
+    Dotyczy raportów OPTAX i REJESTR1. 100 (domyślnie) = pełny grafit
+    z białym pismem, 0 = białe tło z ciemnym pismem, pomiędzy — szarości
+    płynnie przechodzące od bieli do grafitu. Puste '' = bez zmian."""
+    try:
+        p = int(round(float(nasycenie)))
+    except (TypeError, ValueError):
+        return ""
+    if p >= 100:
+        bg, fg, dop = "#2f2f2f", "#ffffff", "#d6d6d6"
+    elif p <= 0:
+        bg, fg, dop = "#ffffff", "#141414", "#666"
+    else:
+        c = round(255 + (0x2f - 255) * (p / 100.0))
+        jasne = p >= 45
+        bg = "#{0:02x}{0:02x}{0:02x}".format(c)
+        fg = "#fff" if jasne else "#141414"
+        dop = "#d6d6d6" if jasne else "#555"
+    return ("  th { background: " + bg + "; color: " + fg + "; }\n"
+            "  th .opis { color: " + dop + "; }\n")
+
+
 RENDERERY = {
     "REJESTR1": html_rejestr1,
     "OPTAX": html_optax,
@@ -1129,7 +1164,7 @@ def html_na_pdf(html_path, pdf_path, timeout=120):
 
 def generuj_raport_pdf(typ, txt_path, pdf_path, bez_nazwisk=False,
                        margins=None, agencja="AGENCJA „CEZAR”",
-                       czcionki=None):
+                       czcionki=None, nasycenie_naglowka=None):
     """TXT mietka → HTML → PDF dla jednego raportu.
 
     'czcionki' = {TYP: {"tytul": {"pt":…, "font":…}, "tabela": {…}}}
@@ -1147,6 +1182,11 @@ def generuj_raport_pdf(typ, txt_path, pdf_path, bez_nazwisk=False,
     elif typ == "WSK_ZB":
         html = renderer(txt_path, obiekt, okres or stan,
                         bez_nazwisk=bez_nazwisk, marginesy=mg, czcionki=cz)
+    elif typ in ("OPTAX", "REJESTR1"):
+        # nasycenie nagłówka tabeli (suwak w oknie podglądu marginesów)
+        html = renderer(txt_path, obiekt, stan,
+                        bez_nazwisk=bez_nazwisk, marginesy=mg, czcionki=cz,
+                        nasycenie_naglowka=nasycenie_naglowka)
     else:
         html = renderer(txt_path, obiekt, stan,
                         bez_nazwisk=bez_nazwisk, marginesy=mg, czcionki=cz)

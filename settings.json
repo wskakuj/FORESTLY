@@ -15,8 +15,8 @@
   "folder_mietki_rozlicz_entry": "D:\\download\\gówno\\Nowy folder (17)\\rozliczone",
   "folder_mietki_out_entry": "D:\\download\\gówno\\Nowy folder (17)\\Nowy folder",
   "folder_wydruki_mietki_entry": "D:/download/gówno/Nowy folder (16)/CHORZEWO",
-  "web.all_src": "D:\\download\\gówno\\Nowy folder (22)\\CHORZEWO",
-  "web.all_dst": "D:\\download\\gówno\\Nowy folder (22)\\",
+  "web.all_src": "D:\\download\\gówno\\Nowy folder (20)\\Nowy folder\\DĄBRÓWKA",
+  "web.all_dst": "D:\\download\\gówno\\Nowy folder (20)\\Nowy folder",
   "web.all_gen_txt": true,
   "web.all_str_tyt": false,
   "web.all_template": "",
@@ -120,7 +120,7 @@
   "web.gdos_xlsx": "D:\\download\\Opera\\gdos_obszary.xlsx",
   "web.all_gen_opis_og": true,
   "web.all_gdos": "D:\\download\\gówno\\Nowy folder (20)\\Nowy folder",
-  "last_output_dir": "D:\\download\\gówno\\Nowy folder (22)\\PDF polaczone",
+  "last_output_dir": "D:\\download\\gówno\\Nowy folder (20)\\Nowy folder\\PDF polaczone",
   "web.all_tpl_stan": "31.12.1997 r.",
   "web.all_tpl_okres": "01.01.2027 – 31.12.2036 r.",
   "web.all_wsk_od": "01.01.2027",
@@ -393,5 +393,6 @@
   "all_tpl.wsk_od": "01.01.2027",
   "all_tpl.wsk_do": "31.12.2036",
   "web.tpl_MIETEK_format": "PDF",
-  "web.tpl_TAKSATOR_format": "PDF"
+  "web.tpl_TAKSATOR_format": "PDF",
+  "nasycenie_naglowkow": 15
 }

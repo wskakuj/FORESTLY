@@ -1164,7 +1164,9 @@ class TabAllMixin:
                     typ, txt, pdf,
                     bez_nazwisk=bool(remove_names and typ in szablony.USUWA_NAZWISKA),
                     margins=margins_dict,
-                    czcionki=_czc if isinstance(_czc, dict) else {})
+                    czcionki=_czc if isinstance(_czc, dict) else {},
+                    # nasycenie nagłówków OPTAX/REJESTR (suwak w podglądzie)
+                    nasycenie_naglowka=self.get_setting("nasycenie_naglowkow", 40))
                 n_plik += 1
 
             n_done += 1
