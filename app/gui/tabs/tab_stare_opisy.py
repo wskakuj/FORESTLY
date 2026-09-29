@@ -18,7 +18,10 @@ Przerabia WSZYSTKIE stare pliki Word z Pełnego Automatu na nowe szablony:
 Oryginalne pliki zostają nietknięte — wszystko ląduje w folderze docelowym:
   <out>/<wieś>/opis og_<wieś>.docx
   <out>/<wieś>/STR_TYT_<wieś>.docx
-  <out>/<wieś>/szablony/<TYP>.html  +  <out>/<wieś>/szablony/pdf/<TYP>.pdf
+  <out>/<wieś>/nowe szablony/<TYP>.html
+  <out>/<wieś>/nowe szablony/pdf/<TYP>.pdf
+  <out>/<wieś>/nowe szablony/pdf/STR_TYT_<wieś>.pdf   (strona tytułowa jako PDF)
+  <out>/<wieś>/nowe szablony/pdf/opis og_<wieś>.pdf (opis og na nowym szablonie)
 
 Zależności: python-docx, szablony.py, przeglądarka (Edge/Chrome) do PDF;
 pliki .doc są tymczasowo konwertowane na .docx przez Worda COM
@@ -226,6 +229,43 @@ class TabStareOpisyMixin:
             doc.Close(False)
         return tmp, tmp
 
+    # ------------------------------------------------ Word COM / docx -> PDF
+
+    def _stare_zapewnia_word(self):
+        """Word COM (.doc -> .docx, docx -> PDF), start raz na całe
+        uruchomienie — trzymany w self._stare_word."""
+        word = getattr(self, "_stare_word", None)
+        if word is None:
+            import win32com.client
+            word = win32com.client.DispatchEx("Word.Application")
+            word.Visible = False
+            word.DisplayAlerts = 0
+            self._stare_word = word
+        return word
+
+    def _stare_docx_na_pdf(self, docx_path, pdf_path):
+        """Nowy docx -> PDF przez Worda (ExportAsFixedFormat — ten sam
+        mechanizm co konwersja Word->PDF w Pełnym Automacie)."""
+        word = self._stare_zapewnia_word()
+        doc = word.Documents.Open(str(docx_path), AddToRecentFiles=False)
+        try:
+            doc.ExportAsFixedFormat(
+                OutputFileName=str(pdf_path),
+                ExportFormat=17,      # wdExportFormatPDF
+                OpenAfterExport=False,
+                OptimizeFor=0,        # wdExportOptimizeForPrint
+                Range=0,              # wdExportAllDocument
+                Item=0,               # wdExportDocumentContent
+                IncludeDocProps=True,
+                KeepIRM=True,
+                CreateBookmarks=1,    # wdExportCreateHeadingBookmarks
+                DocStructureTags=True,
+                BitmapMissingFonts=True,
+                UseISO19005_1=False,
+            )
+        finally:
+            doc.Close(False)
+
     # ------------------------------------------------ STR_TYT z szablonu
 
     @staticmethod
@@ -404,11 +444,7 @@ class TabStareOpisyMixin:
             try:
                 if p.suffix.lower() == ".doc":
                     if word is None:
-                        import win32com.client
-                        word = win32com.client.DispatchEx("Word.Application")
-                        word.Visible = False
-                        word.DisplayAlerts = 0
-                        self._stare_word = word
+                        word = self._stare_zapewnia_word()
                     docx_path, tmp = self._stare_docx_dla(p, word, tmpdir)
                 else:
                     docx_path, tmp = p, None
@@ -468,16 +504,16 @@ class TabStareOpisyMixin:
                 log(f"[STARE OPISY] {wies}: {typ}: błąd parsowania ({e}) — "
                     f"próbuję mimo to.")
 
-            html_dir = docelowy / "szablony"
-            pdf_dir = docelowy / "szablony" / "pdf"
+            html_dir = docelowy / "nowe szablony"
+            pdf_dir = docelowy / "nowe szablony" / "pdf"
             pdf_dir.mkdir(parents=True, exist_ok=True)
             try:
                 szablony.generuj_raport_pdf(
                     typ, txt_path, pdf_dir / f"{typ}.pdf",
                     html_out=html_dir / f"{typ}.html")
                 cos_powstalo = True
-                log(f"[STARE OPISY] {wies}: {typ} → szablony/{typ}.html + "
-                    f"szablony/pdf/{typ}.pdf")
+                log(f"[STARE OPISY] {wies}: {typ} → nowe szablony/{typ}.html "
+                    f"+ nowe szablony/pdf/{typ}.pdf")
             except Exception as e:
                 log(f"[STARE OPISY] {wies}: {typ}: BŁĄD generowania ({e}).")
 
@@ -511,6 +547,16 @@ class TabStareOpisyMixin:
                     out_path = docelowy / f"opis og_{wies}.docx"
                     TabOpisOgMixin._fill_template(tpl, vals, out_path, formy=formy)
                     cos_powstalo = True
+                    # opis og na nowym szablonie -> też PDF do folderu pdf
+                    try:
+                        pdf_dir = docelowy / "nowe szablony" / "pdf"
+                        pdf_dir.mkdir(parents=True, exist_ok=True)
+                        self._stare_docx_na_pdf(out_path, pdf_dir / f"opis og_{wies}.pdf")
+                        log(f"[STARE OPISY] {wies}: opis og → PDF "
+                            f"(nowe szablony/pdf/opis og_{wies}.pdf)")
+                    except Exception as e:
+                        log(f"[STARE OPISY] {wies}: opis og — nie udało się "
+                            f"wygenerować PDF ({e}); docx został zapisany.")
                     opis_form = (f"{len(formy) - 1} form ochrony"
                                  if formy and len(formy) > 1 else
                                  ("formy: brak" if formy is None
@@ -561,8 +607,33 @@ class TabStareOpisyMixin:
                 cos_powstalo = True
                 log(f"[STARE OPISY] {wies}: STR_TYT_{safe or wies}.docx "
                     f"(Pow: {pow_txt})")
+                # strona tytułowa -> też PDF do folderu pdf
+                try:
+                    pdf_dir = docelowy / "nowe szablony" / "pdf"
+                    pdf_dir.mkdir(parents=True, exist_ok=True)
+                    self._stare_docx_na_pdf(out_path,
+                                             pdf_dir / f"STR_TYT_{safe or wies}.pdf")
+                    log(f"[STARE OPISY] {wies}: STR_TYT → PDF "
+                        f"(nowe szablony/pdf/STR_TYT_{safe or wies}.pdf)")
+                except Exception as e:
+                    log(f"[STARE OPISY] {wies}: STR_TYT — nie udało się "
+                        f"wygenerować PDF ({e}); docx został zapisany.")
             except Exception as e:
                 log(f"[STARE OPISY] {wies}: STR_TYT — błąd generowania ({e}).")
+
+        # --- 4b) bez szablonu STR_TYT: stara strona tytułowa jako PDF ---
+        elif "STR_TYT" in docx_map:
+            try:
+                pdf_dir = docelowy / "nowe szablony" / "pdf"
+                pdf_dir.mkdir(parents=True, exist_ok=True)
+                stary = docx_map["STR_TYT"][0]
+                self._stare_docx_na_pdf(stary, pdf_dir / f"{stary.stem}.pdf")
+                cos_powstalo = True
+                log(f"[STARE OPISY] {wies}: stara STR_TYT skopiowana do PDF "
+                    f"(nowe szablony/pdf/{stary.stem}.pdf)")
+            except Exception as e:
+                log(f"[STARE OPISY] {wies}: stara STR_TYT — nie udało się "
+                    f"skopiować do PDF ({e}).")
 
         if not cos_powstalo:
             log(f"[STARE OPISY] {wies}: nic nie powstało dla tej wsi.")
