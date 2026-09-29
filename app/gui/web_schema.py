@@ -401,6 +401,37 @@ def build_schema():
             "buttons": [_button("run", "Generuj opisy ogólne", "start_opis_og")],
         },
         {
+            "key": "MIETEK|Stare → nowe szablony",
+            "tooltip": "Przerabia wszystkie STARE pliki Word z Pełnego Automatu "
+                       "(OPTAX, REJESTR1, TAB_KLW3, WSK_ZB, WSKAZ1, WYK_NEG, ZEST1, "
+                       "HALIZNY, opis og_<wieś>, STR_TYT) na nowe szablony.",
+            "controls": [
+                _info("Wskaż folder ze starymi plikami — program znajdzie "
+                      "pliki wsi (OPTAX, REJESTR1, TAB_KLW3, WSK_ZB, WSKAZ1, "
+                      "WYK_NEG, ZEST1, HALIZNY, „opis og_<wieś>” — bezpośrednio "
+                      "albo w podfolderach wsi, np. cała struktura „ułożone”) "
+                      "i przerobi je na nowe szablony: raporty → HTML + PDF "
+                      "(dokładnie te same, co w Pełnym Automacie), opis ogólny "
+                      "→ nowy szablon „opis og_<wieś>.docx”. Oryginały zostają "
+                      "nietknięte. Puste raporty (np. WYK_NEG bez negocjacji) "
+                      "są pomijane. Pliki .doc są tymczasowo konwertowane przez "
+                      "Worda (jedna instancja — Word może mignąć na pasku "
+                      "zadań, to normalne)."),
+                _path("stare_root", "stare_opisy_root_entry",
+                      "1. Folder ze starymi plikami:",
+                      "np. folder „ułożone” z podfolderami wsi albo folder jednej wsi"),
+                _path("stare_out", "stare_opisy_out_entry",
+                      "2. Folder docelowy zapisu:",
+                      "Gdzie zapisać nowe pliki? (puste = obok oryginałów)"),
+                _path("stare_strtyt_tpl", "stare_strtyt_tpl_entry",
+                      "3. Szablon STR_TYT (opcjonalnie):",
+                      "Twój nowy szablon strony tytułowej — wypełniany nazwą wsi "
+                      "i powierzchnią z OPTAX (placeholdery: NAZWA WSI, wielkość)",
+                      save=False, kind="file"),
+            ],
+            "buttons": [_button("run", "Przerób na nowy szablon", "start_stare_opisy")],
+        },
+        {
             "key": "MIETEK|Wykaz Rozbieżności",
             "tooltip": "Porównuje powierzchnie z mietków (D*.DBF) z ewidencją XLS.",
             "controls": [

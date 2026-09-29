@@ -55,6 +55,7 @@ from app.gui.tabs.tab_wydruki import TabWydrukiMixin
 from app.gui.tabs.tab_excel_z_mdb import TabExcelZMdbMixin
 from app.gui.tabs.tab_tworzenie_mietkow import TabTworzenieMietkowMixin
 from app.gui.tabs.tab_nazwiska_mietek import TabNazwiskaMietekMixin
+from app.gui.tabs.tab_stare_opisy import TabStareOpisyMixin
 from app.gui.tabs.tab_mietek_rozbieznosci import TabMietekRozbieznosciMixin
 from app.gui.tabs.tab_mietek_plus10 import TabMietekPlus10Mixin
 from app.updater import UpdaterMixin
@@ -492,7 +493,8 @@ class WebBackend(
     TabLayoutExcelMixin, TabSplitPdfMixin, TabMdbUpdateMixin,
     TabPdfConverterMixin, TabRozliczanieMixin, TabHaliznyMixin,
     TabWydrukiMixin, TabExcelZMdbMixin, TabTworzenieMietkowMixin,
-    TabNazwiskaMietekMixin, TabMietekRozbieznosciMixin, TabMietekPlus10Mixin, UpdaterMixin,
+    TabNazwiskaMietekMixin, TabMietekRozbieznosciMixin, TabMietekPlus10Mixin,
+    TabStareOpisyMixin, UpdaterMixin,
 ):
     """Logika aplikacji bez CustomTkinter — z mostkiem do PyWebView."""
 
@@ -1086,6 +1088,7 @@ class WebBackend(
             "start_split_pdf": self.start_split_pdf_pipeline,
             "start_opis_og": self.start_opis_og_pipeline,
             "start_opis_og_taksator": self.start_opis_og_taksator_pipeline,
+            "start_stare_opisy": self.start_stare_opisy_pipeline,
             "gdos_export": self.gdos_export_task,
             "gdos_import": self.gdos_import_task,
             "start_mdb_update": self.start_mdb_update_pipeline,

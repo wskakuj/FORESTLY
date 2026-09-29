@@ -1164,11 +1164,13 @@ def html_na_pdf(html_path, pdf_path, timeout=120):
 
 def generuj_raport_pdf(typ, txt_path, pdf_path, bez_nazwisk=False,
                        margins=None, agencja="AGENCJA „CEZAR”",
-                       czcionki=None, nasycenie_naglowka=None):
+                       czcionki=None, nasycenie_naglowka=None, html_out=None):
     """TXT mietka → HTML → PDF dla jednego raportu.
 
     'czcionki' = {TYP: {"tytul": {"pt":…, "font":…}, "tabela": {…}}}
-    (ustawienia z kreatora / zakładki Nowe Szablony)."""
+    (ustawienia z kreatora / zakładki Nowe Szablony).
+    'html_out' — jeśli podane, HTML zapisuje się dodatkowo pod tę ścieżkę
+    (konwerter starych wordów zostawia podgląd obok PDF)."""
     typ = typ.upper()
     renderer = RENDERERY.get(typ)
     if renderer is None:
@@ -1194,6 +1196,10 @@ def generuj_raport_pdf(typ, txt_path, pdf_path, bez_nazwisk=False,
         html_path = Path(tmp) / f"{typ}.html"
         html_path.write_text(html, encoding="utf-8")
         html_na_pdf(html_path, pdf_path)
+    if html_out is not None:
+        html_out = Path(html_out)
+        html_out.parent.mkdir(parents=True, exist_ok=True)
+        html_out.write_text(html, encoding="utf-8")
     return pdf_path
 
 
