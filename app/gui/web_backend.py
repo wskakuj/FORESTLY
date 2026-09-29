@@ -885,7 +885,105 @@ class WebBackend(
     # ------------------------------------------------------- usługi GUI
 
     def log(self, text):
+        # v2.0.108: bufor linii — z niego powstaje raport po biegu
+        buf = getattr(self, "_log_buf", None)
+        if buf is None:
+            buf = self._log_buf = []
+        buf.append(str(text))
+        if len(buf) > 4000:
+            del buf[:len(buf) - 4000]
         self._emit({"type": "log", "text": str(text)})
+
+    def raport_start(self):
+        """v2.0.108: start liczenia czasu i czyszczenie bufora na nowy bieg."""
+        self._log_buf = []
+        self._raport_t0 = time.time()
+
+    def _raport_folder(self, out_root):
+        """Finalny folder wyników biegu (do otwarcia w Eksploratorze)."""
+        kandydaci = []
+        if out_root is not None:
+            kandydaci += [Path(out_root) / "PDF polaczone",
+                          Path(out_root) / "PDF", Path(out_root)]
+        d = getattr(self, "last_output_dir", None)
+        if d:
+            kandydaci.append(Path(d))
+        for k in kandydaci:
+            try:
+                if k.exists():
+                    return k
+            except Exception:
+                pass
+        return None
+
+    def otworz_folder(self, path):
+        """JS API: otwiera Eksplorator w podanym folderze wyników."""
+        try:
+            p = Path(str(path))
+            if not p.exists():
+                return {"ok": False, "error": "Folder nie istnieje."}
+            if os.name == "nt":
+                try:
+                    os.startfile(str(p))
+                except Exception:
+                    subprocess.Popen(["explorer", str(p)])
+            else:
+                self.log("[UWAGA] Otwieranie folderu jest dostępne na Windows.")
+            return {"ok": True, "path": str(p)}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def pokaz_raport_koncowy(self, out_root=None):
+        """v2.0.108: okno z raportem po zakończonym biegu + automatyczne
+        otwarcie folderu z plikami docelowymi.
+
+        Podsumowanie zbierane z bufora logów: wsie (z powierzchnią ze
+        STR_TYT), scalone pakiety, wersje do wydruku oraz wszystkie
+        ostrzeżenia/pominięcia — żeby nie trzeba było czytać całego loga.
+        """
+        import re as _re
+        buf = list(getattr(self, "_log_buf", []))
+        czas = ""
+        t0 = getattr(self, "_raport_t0", None)
+        if t0:
+            sek = max(1, int(time.time() - t0))
+            czas = (f"{sek // 60} min {sek % 60} s" if sek >= 60
+                    else f"{sek} s")
+        wsie, pakiety, wydruki, uwagi = [], [], [], []
+        rx_wies = _re.compile(
+            r"\[STR_TYT\] Utworzono: .+?STR_TYT\.docx \(Wieś: (.+?), Pow: (.+?)\)")
+        rx_pak = _re.compile(r"Połączono: (.+?\.pdf)")
+        rx_wydruk = _re.compile(r"\[WYDRUK\] (.+?_WYDRUK\.pdf)")
+        rx_uwaga = _re.compile(
+            r"\[UWAGA\]|BŁĄD|pomij|pomini|Nie znaleziono|nie udało się"
+            r"|BRAK_DANYCH|⚠|puste —", _re.I)
+        for l in buf:
+            m = rx_wies.search(l)
+            if m:
+                wsie.append(f"{m.group(1)} — {m.group(2)} ha")
+                continue
+            m = rx_pak.search(l)
+            if m:
+                pakiety.append(m.group(1))
+                continue
+            m = rx_wydruk.search(l)
+            if m:
+                wydruki.append(m.group(1))
+                continue
+            if rx_uwaga.search(l):
+                uwagi.append(l.strip())
+        folder = self._raport_folder(out_root)
+        self._emit({"type": "raport", "czas": czas,
+                    "etykieta": getattr(self, "_przebieg_etykieta", "") or "",
+                    "wsie": wsie, "pakiety": pakiety, "wydruki": wydruki,
+                    "uwagi": uwagi[:60],
+                    "folder": str(folder) if folder else ""})
+        # automatyczne otwarcie okna z plikami docelowymi
+        if folder is not None:
+            try:
+                self.otworz_folder(folder)
+            except Exception:
+                pass
 
     def clear_log(self):
         self._emit({"type": "clear_log"})

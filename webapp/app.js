@@ -2327,6 +2327,7 @@ function handleEvent(ev) {
         if (DROP_RENDERY.pc_drop) DROP_RENDERY.pc_drop();
         break;
     case "changelog": showChangelog(ev); break;
+    case "raport": showRaport(ev); break;
     case "state": setRunning(!!ev.running); break;
     case "toast": toast(ev.text, ev.kind); break;
   }
@@ -2481,6 +2482,57 @@ function renderChangelogBody(box, text) {
 }
 
 /* -------------------------------------------------------------------- dialogi */
+/* ------------------------------------- raport po biegu (v2.0.108) */
+function showRaport(ev) {
+  const wrap = el("div", "modal-backdrop");
+  const modal = el("div", "modal");
+  modal.style.width = "640px";
+  const et = ev.etykieta ? escapeHtml(ev.etykieta) + " — " : "";
+  const h = el("h3", null, et + "Zakończono pomyślnie");
+  h.style.color = "#1e7d32";
+  modal.appendChild(h);
+  const body = el("div", "changelog-body raport-body");
+  if (ev.czas) body.appendChild(el("div", "raport-czas", "Czas biegu: " + ev.czas));
+
+  const sekcja = (tytul, pozycje, klasa) => {
+    body.appendChild(el("div", "raport-sekcja", tytul));
+    const w = el("div", "raport-lista");
+    (pozycje || []).forEach(p => w.appendChild(el("div", klasa || "raport-item", escapeHtml(p))));
+    body.appendChild(w);
+  };
+
+  if (ev.wsie && ev.wsie.length)
+    sekcja(`Wsie (${ev.wsie.length})`, ev.wsie);
+  if (ev.pakiety && ev.pakiety.length)
+    sekcja(`Scalone pakiety (${ev.pakiety.length})`, ev.pakiety);
+  if (ev.wydruki && ev.wydruki.length)
+    sekcja(`Wersje do wydruku dwustronnego (${ev.wydruki.length})`, ev.wydruki);
+  if (ev.uwagi && ev.uwagi.length) {
+    body.appendChild(el("div", "raport-sekcja", `Ostrzeżenia i pominięcia (${ev.uwagi.length})`));
+    const u = el("div", "raport-uwagi");
+    ev.uwagi.forEach(x => u.appendChild(el("div", null, escapeHtml(x))));
+    body.appendChild(u);
+  } else {
+    body.appendChild(el("div", "raport-czas", "Bez ostrzeżeń i pominięć — wszystko poszło gładko."));
+  }
+  modal.appendChild(body);
+
+  const row = el("div", "modal-row");
+  if (ev.folder) {
+    const otworz = el("button", "btn secondary", "Otwórz folder wyników");
+    otworz.onclick = () => api().otworz_folder(ev.folder);
+    row.appendChild(otworz);
+  }
+  const close = el("button", "btn primary", "Zamknij");
+  close.textContent = "Zamknij";
+  close.onclick = () => wrap.remove();
+  row.appendChild(close);
+  modal.appendChild(row);
+  wrap.appendChild(modal);
+  wrap.onclick = e => { if (e.target === wrap) wrap.remove(); };
+  $("#modal-root").appendChild(wrap);
+}
+
 function showChangelog(ev) {
   const wrap = el("div", "modal-backdrop");
   const modal = el("div", "modal");

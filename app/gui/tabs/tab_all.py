@@ -1847,6 +1847,10 @@ class TabAllMixin:
         dir_01, dir_02, dir_03, dir_04, dir_05 = None, None, None, None, None
         # -------------------------------
 
+        # v2.0.108: bufor logów + licznik czasu na raport końcowy
+        if hasattr(self, "raport_start"):
+            self.raport_start()
+
         pythoncom.CoInitialize()
         try:
             in_root = Path(src_str)
@@ -2328,7 +2332,12 @@ class TabAllMixin:
             self.log("\nZAKOŃCZONO POMYŚLNIE.")
             self.set_progress(1.0)
             self.update_status("Zakończono pomyślnie.", "#27ae60", animate=False)
-            self.after(0, lambda: messagebox.showinfo("Sukces", "Zadanie zakończone."))
+            # v2.0.108: zamiast gołego "Sukces" — okno z raportem biegu
+            # + automatycznie otwarte okno z plikami docelowymi
+            if hasattr(self, "pokaz_raport_koncowy"):
+                self.pokaz_raport_koncowy(out_root)
+            else:
+                self.after(0, lambda: messagebox.showinfo("Sukces", "Zadanie zakończone."))
         except InterruptedError:
             self.update_status("Przerwano", "#D83B01", animate=False)
             self.log("\nZADANIE PRZERWANE PRZEZ UŻYTKOWNIKA.")

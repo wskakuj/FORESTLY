@@ -1,3 +1,3 @@
-# Co nowego w v2.0.107
-- - poprawiono brak powierzchni na stronach tytułowych
+# Co nowego w v2.0.108
+- podsumowanie po pełnym automacie
 
