@@ -33,6 +33,38 @@ WZORZEC_WIEKU = re.compile(r'/(\d+)-(\d+)/(\d+)([lL]?)')
 _RZYMSKIE = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"]
 
 
+def puste_opisy_taksacyjne(pliki_o, pliki_r):
+    """v2.0.112: wykrywa puste pliki opisów taksacyjnych (R/O).
+
+    „Pusty” = brak rekordów ALBO wszystkie opisy puste:
+    OP_TAX/OP_TAX1 dla O*.DBF, pole WIEK dla R*.DBF.
+    Zwraca listę komunikatów (pusta lista = wszystko w porządku).
+    Błędy odczytu pomijamy — wyjdą przy właściwym przebiegu."""
+    puste = []
+    for p in (pliki_o or []):
+        try:
+            _pola, rek = read_dbf(p)
+        except Exception:
+            continue
+        if not rek:
+            puste.append(f"  {p.name}: brak rekordów")
+        elif not any(((r.get("OP_TAX") or "") + (r.get("OP_TAX1") or "")).strip()
+                     for r in rek):
+            puste.append(f"  {p.name}: {len(rek)} rekordów, ale wszystkie "
+                         "opisy (OP_TAX) puste")
+    for p in (pliki_r or []):
+        try:
+            _pola, rek = read_dbf(p)
+        except Exception:
+            continue
+        if not rek:
+            puste.append(f"  {p.name}: brak rekordów")
+        elif not any(str(r.get("WIEK") or "").strip() for r in rek):
+            puste.append(f"  {p.name}: {len(rek)} rekordów, ale pole WIEK "
+                         "puste we wszystkich")
+    return puste
+
+
 def przesun_wiek_w_tekscie(tekst, lata):
     """Dodaje `lata` do każdego zapisu wieku /x-y/z (i /x-y/zl) w tekście."""
     if not tekst:
@@ -423,6 +455,21 @@ class TabMietekPlus10Mixin:
                 "W wybranym folderze (i jego podfolderach, np. WOL.001)\n"
                 "nie znaleziono plików O*.DBF ani R*.DBF.")
             return None
+
+        # v2.0.112: ostrzeżenie o pustych opisach taksacyjnych — przesuwanie
+        # wieku na pustych R/O najczęściej znaczy zły mietek albo brak opisów
+        puste = puste_opisy_taksacyjne(pliki_o, pliki_r)
+        if puste:
+            self.log("[MIETKI +10 LAT] ⚠ Puste pliki opisów taksacyjnych: "
+                     + "; ".join(x.strip() for x in puste))
+            if not messagebox.askyesno(
+                    "Puste opisy taksacyjne",
+                    "W tym mietku pliki z opisami taksacyjnymi są PUSTE:\n\n"
+                    + "\n".join(puste)
+                    + "\n\nPrzesuwanie wieku na pustych plikach nie ma sensu —\n"
+                      "sprawdź, czy to na pewno właściwy mietek, albo najpierw\n"
+                      "uzupełnij opisy taksacyjne.\n\nKontynuować mimo to?"):
+                return None
 
         pola = ["OP_TAX", "OP_TAX1"]
         return folder_path, lata, pliki_o, pliki_r, pola, wys, piers
