@@ -2,13 +2,19 @@
 Forestly — Mixin: TabPdfMixin
 """
 
-import customtkinter as ctk
+from app.core.leniwe_importy import leniwy_modul
+ctk = leniwy_modul("customtkinter")
+np = leniwy_modul("numpy")
+fitz = leniwy_modul("pymupdf")
 import re
 import time
 from pathlib import Path
 
-import pymupdf as fitz
-from pypdf import PdfWriter, PdfReader
+# v2.0.109: leniwe — pypdf dopiero przy pierwszym użyciu
+from app.core.leniwe_importy import leniwy
+
+PdfWriter = leniwy("pypdf", "PdfWriter")
+PdfReader = leniwy("pypdf", "PdfReader")
 import win32com.client
 
 from app.config import (

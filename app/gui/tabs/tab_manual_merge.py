@@ -2,7 +2,8 @@
 Forestly — Mixin: TabManualMergeMixin
 """
 
-import customtkinter as ctk
+from app.core.leniwe_importy import leniwy_modul
+ctk = leniwy_modul("customtkinter")
 
 from app.config import (
     add_tooltip,

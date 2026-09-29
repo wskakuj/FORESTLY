@@ -5,7 +5,8 @@ Zależności: config.py (COLORS, add_tooltip)
 Odpowiada za: okno do ręcznego wczytania, ułożenia i scalenia plików PDF.
 """
 
-import customtkinter as ctk
+from app.core.leniwe_importy import leniwy_modul
+ctk = leniwy_modul("customtkinter")
 import tkinter as tk
 from pathlib import Path
 from pypdf import PdfWriter

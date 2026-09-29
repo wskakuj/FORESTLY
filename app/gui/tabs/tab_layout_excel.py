@@ -2,14 +2,18 @@
 Forestly — Mixin: TabLayoutExcelMixin
 """
 
-import customtkinter as ctk
+from app.core.leniwe_importy import leniwy_modul
+ctk = leniwy_modul("customtkinter")
 from pathlib import Path
 import threading
 import re
 import traceback
 from PIL import Image
-from pypdf import PdfWriter
-from pypdf import PdfReader
+# v2.0.109: leniwe — pypdf dopiero przy pierwszym użyciu
+from app.core.leniwe_importy import leniwy
+
+PdfWriter = leniwy("pypdf", "PdfWriter")
+PdfReader = leniwy("pypdf", "PdfReader")
 import win32com.client
 import pythoncom
 

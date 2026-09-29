@@ -2,7 +2,8 @@
 Forestly — Mixin: TabSplitPdfMixin
 """
 
-import customtkinter as ctk
+from app.core.leniwe_importy import leniwy_modul
+ctk = leniwy_modul("customtkinter")
 from tkinter import messagebox
 from pathlib import Path
 import threading
@@ -13,7 +14,9 @@ import pythoncom
 from app.config import (
     is_file_locked,
 )
-from pypdf import PdfWriter
+from app.core.leniwe_importy import leniwy
+
+PdfWriter = leniwy("pypdf", "PdfWriter")   # v2.0.109: leniwe
 
 class TabSplitPdfMixin:
     """Mixin dla ModernApp — metody zostały wyciągnięte z oryginalnego guipia.py."""

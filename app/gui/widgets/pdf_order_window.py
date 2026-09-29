@@ -5,7 +5,8 @@ Zależności: config.py (PDF_ORDER_TEMPLATES, COLORS, load_order_store, save_ord
 Odpowiada za: okno modalne do ustawiania kolejności stron PDF w dokumencie końcowym.
 """
 
-import customtkinter as ctk
+from app.core.leniwe_importy import leniwy_modul
+ctk = leniwy_modul("customtkinter")
 import tkinter as tk
 from pathlib import Path
 

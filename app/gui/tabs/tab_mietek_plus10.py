@@ -16,7 +16,9 @@ Funkcje read_dbf/write_dbf to kopie z tab_tworzenie_mietkow — zakładka jest
 samodzielna i w pełni testowalna bez GUI.
 """
 
-import customtkinter as ctk
+from app.core.leniwe_importy import leniwy_modul
+ctk = leniwy_modul("customtkinter")
+np = leniwy_modul("numpy")
 from tkinter import messagebox
 from pathlib import Path
 import os

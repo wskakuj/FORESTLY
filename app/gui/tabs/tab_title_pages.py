@@ -2,20 +2,24 @@
 Forestly — Mixin: TabTitlePagesMixin
 """
 
-import customtkinter as ctk
+from app.core.leniwe_importy import leniwy_modul
+ctk = leniwy_modul("customtkinter")
+pd = leniwy_modul("pandas")
+np = leniwy_modul("numpy")
 from tkinter import messagebox
 from pathlib import Path
 import threading
 import re
 import warnings
 import traceback
-import pandas as pd
 import warnings as _w
 _w.filterwarnings("ignore", message=".*OLE2 inconsistency.*")
 _w.filterwarnings("ignore", message=".*file size.*not.*sector size.*")
 _w.filterwarnings("ignore", message=".*SSCS size.*")
-import numpy as np
-from docx import Document
+# v2.0.109: leniwe — python-docx dopiero przy pierwszym użyciu
+from app.core.leniwe_importy import leniwy
+
+Document = leniwy("docx", "Document")
 import win32com.client
 import pythoncom
 

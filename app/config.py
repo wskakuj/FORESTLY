@@ -15,16 +15,19 @@ import sys
 import json
 from pathlib import Path
 
-import customtkinter as ctk
+from app.core.leniwe_importy import leniwy_modul
+ctk = leniwy_modul("customtkinter")
+np = leniwy_modul("numpy")
 
 # --- WERSJA I AKTUALIZACJA ---
-CURRENT_VERSION = "v2.0.108"
+CURRENT_VERSION = "v2.0.109"
 GITHUB_USER = "wskakuj"
 GITHUB_REPO = "FORESTLY"
 
 # --- KONFIGURACJA GUI ---
-ctk.set_appearance_mode("Dark")
-ctk.set_default_color_theme("blue")
+# v2.0.109: wywołania ctk usunięte — GUI CustomTkinter zostało wycofane
+# w v2.0.78, a te dwie linijki wymuszały ładowanie customtkinter przy
+# KAŻDYM starcie. Sam import zostaje (leniwy — patrz leniwe_importy).
 
 ENCODING = "cp852"
 ORDER_FILE_NAME = "pdf_merge_orders.json"

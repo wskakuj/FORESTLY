@@ -2,7 +2,11 @@
 Forestly — Mixin: TabRozliczanieMixin
 """
 
-import customtkinter as ctk
+from app.core.leniwe_importy import leniwy_modul
+ctk = leniwy_modul("customtkinter")
+pd = leniwy_modul("pandas")
+np = leniwy_modul("numpy")
+openpyxl = leniwy_modul("openpyxl")
 from tkinter import messagebox
 from pathlib import Path
 import threading
@@ -13,11 +17,15 @@ import win32com.client
 
 import re
 import traceback
-import pandas as pd
-import numpy as np
-import openpyxl
-from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
-from openpyxl.utils import get_column_letter
+# v2.0.109: leniwe — openpyxl dopiero przy pierwszym użyciu
+from app.core.leniwe_importy import leniwy
+
+Font = leniwy("openpyxl.styles", "Font")
+Alignment = leniwy("openpyxl.styles", "Alignment")
+Border = leniwy("openpyxl.styles", "Border")
+Side = leniwy("openpyxl.styles", "Side")
+PatternFill = leniwy("openpyxl.styles", "PatternFill")
+get_column_letter = leniwy("openpyxl.utils", "get_column_letter")
 
 from app.config import (
     add_tooltip, is_file_locked, load_margins,

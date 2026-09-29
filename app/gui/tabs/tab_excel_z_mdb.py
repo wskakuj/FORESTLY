@@ -2,13 +2,14 @@
 Forestly — Mixin: TabExcelZMdbMixin
 """
 
-import customtkinter as ctk
+from app.core.leniwe_importy import leniwy_modul
+ctk = leniwy_modul("customtkinter")
+pd = leniwy_modul("pandas")
 from tkinter import messagebox
 from tkinter import filedialog
 from pathlib import Path
 import threading
 import traceback
-import pandas as pd
 import pyodbc
 
 class TabExcelZMdbMixin:

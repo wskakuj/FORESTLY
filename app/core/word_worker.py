@@ -17,10 +17,13 @@ import json
 import subprocess
 from pathlib import Path
 
-from docx import Document
-from docx.shared import Pt
-from docx.shared import Cm
-from docx.oxml.ns import qn
+# v2.0.109: leniwe — python-docx dopiero przy pierwszym użyciu
+from app.core.leniwe_importy import leniwy
+
+Document = leniwy("docx", "Document")
+Pt = leniwy("docx.shared", "Pt")
+Cm = leniwy("docx.shared", "Cm")
+qn = leniwy("docx.oxml.ns", "qn")
 import win32com.client
 
 from app.config import (

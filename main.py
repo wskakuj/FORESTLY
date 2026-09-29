@@ -114,12 +114,21 @@ def main():
         run_word_worker_cli()
         return
 
+    # v2.0.109: SZYBKI START — ciężkie biblioteki (pandas, numpy, openpyxl,
+    # pypdf, pymupdf, python-docx, customtkinter…) ładowane dopiero przy
+    # pierwszym użyciu, a czyszczenie osieroconych procesów Worda idzie
+    # w tle (PowerShell na zimno potrafi zająć 1-3 s — nie blokuje startu)
+    from app.core.leniwe_importy import zainstaluj_leniwe
+    zainstaluj_leniwe(["pandas", "numpy", "openpyxl", "pypdf", "pymupdf",
+                       "docx", "xlrd", "customtkinter"])
+
     import webview
 
     from app.config import kill_orphan_office_processes
     from app.gui.web_backend import WebBackend
 
-    kill_orphan_office_processes()
+    import threading
+    threading.Thread(target=kill_orphan_office_processes, daemon=True).start()
 
     backend = WebBackend()
 

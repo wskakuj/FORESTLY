@@ -2,7 +2,9 @@
 Forestly — Mixin: TabWordMixin
 """
 
-import customtkinter as ctk
+from app.core.leniwe_importy import leniwy_modul
+ctk = leniwy_modul("customtkinter")
+np = leniwy_modul("numpy")
 import time
 import json
 import os

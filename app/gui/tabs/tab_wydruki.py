@@ -5,7 +5,9 @@ Zakładka WYDRUKI — generuje pliki wydrukowe MIETEKA bezpośrednio
 z plików DBF (bez uruchamiania programu MS-DOS).
 """
 
-import customtkinter as ctk
+from app.core.leniwe_importy import leniwy_modul
+ctk = leniwy_modul("customtkinter")
+np = leniwy_modul("numpy")
 from tkinter import messagebox
 from pathlib import Path
 import threading

@@ -2,7 +2,10 @@
 Forestly — Mixin: TabKrzyzowkiMixin
 """
 
-import customtkinter as ctk
+from app.core.leniwe_importy import leniwy_modul
+ctk = leniwy_modul("customtkinter")
+pd = leniwy_modul("pandas")
+np = leniwy_modul("numpy")
 from tkinter import messagebox
 from pathlib import Path
 import threading
@@ -12,8 +15,6 @@ warnings.filterwarnings("ignore", message=".*OLE2 inconsistency.*")
 warnings.filterwarnings("ignore", message=".*file size.*not.*sector size.*")
 warnings.filterwarnings("ignore", message=".*SSCS size.*")
 import traceback
-import pandas as pd
-import numpy as np
 
 class TabKrzyzowkiMixin:
     """Mixin dla ModernApp — metody zostały wyciągnięte z oryginalnego guipia.py."""

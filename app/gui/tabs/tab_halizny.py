@@ -2,13 +2,14 @@
 Forestly — Mixin: TabHaliznyMixin
 """
 
-import customtkinter as ctk
+from app.core.leniwe_importy import leniwy_modul
+ctk = leniwy_modul("customtkinter")
+np = leniwy_modul("numpy")
 from tkinter import messagebox
 from pathlib import Path
 import threading
 import re
 import traceback
-import numpy as np
 
 class TabHaliznyMixin:
     """Mixin dla ModernApp — metody zostały wyciągnięte z oryginalnego guipia.py."""

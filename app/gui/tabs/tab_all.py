@@ -2,7 +2,9 @@
 Forestly — Mixin: TabAllMixin
 """
 
-import customtkinter as ctk
+from app.core.leniwe_importy import leniwy_modul
+ctk = leniwy_modul("customtkinter")
+np = leniwy_modul("numpy")
 from tkinter import messagebox
 from pathlib import Path
 import threading
@@ -11,8 +13,10 @@ import re
 import traceback
 import shutil
 import tempfile
-import numpy as np
-from docx import Document
+# v2.0.109: leniwe — python-docx dopiero przy pierwszym użyciu
+from app.core.leniwe_importy import leniwy
+
+Document = leniwy("docx", "Document")
 import win32com.client
 import pythoncom
 

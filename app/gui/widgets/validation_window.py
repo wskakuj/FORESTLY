@@ -5,7 +5,8 @@ Zależności: config.py (COLORS)
 Odpowiada za: okno modalne z ostrzeżeniami/walidacją przed uruchomieniem procesu.
 """
 
-import customtkinter as ctk
+from app.core.leniwe_importy import leniwy_modul
+ctk = leniwy_modul("customtkinter")
 import threading
 
 from app.config import COLORS

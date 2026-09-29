@@ -14,13 +14,18 @@ import warnings
 import json
 from pathlib import Path
 
-import pandas as pd
-import numpy as np
-from openpyxl.styles import Font
-from openpyxl.styles import Alignment
-from openpyxl.styles import Border
-from openpyxl.styles import Side
-from openpyxl.utils import get_column_letter
+from app.core.leniwe_importy import leniwy_modul
+pd = leniwy_modul("pandas")
+np = leniwy_modul("numpy")
+openpyxl = leniwy_modul("openpyxl")
+# v2.0.109: leniwe — openpyxl ładuje się dopiero przy pierwszym użyciu
+from app.core.leniwe_importy import leniwy
+
+Font = leniwy("openpyxl.styles", "Font")
+Alignment = leniwy("openpyxl.styles", "Alignment")
+Border = leniwy("openpyxl.styles", "Border")
+Side = leniwy("openpyxl.styles", "Side")
+get_column_letter = leniwy("openpyxl.utils", "get_column_letter")
 
 from app.config import EXCEL_SHEET_DEFAULTS
 

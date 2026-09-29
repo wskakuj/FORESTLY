@@ -2,11 +2,12 @@
 Forestly — Mixin: TabNazwiskaMietekMixin
 """
 
-import customtkinter as ctk
+from app.core.leniwe_importy import leniwy_modul
+ctk = leniwy_modul("customtkinter")
+np = leniwy_modul("numpy")
 from tkinter import messagebox
 from pathlib import Path
 import threading
-import numpy as np
 
 from app.core.word_worker import (
     get_resource_path,

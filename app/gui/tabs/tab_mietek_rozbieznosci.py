@@ -2,7 +2,11 @@
 Forestly — Mixin: TabMietekRozbieznosciMixin
 """
 
-import customtkinter as ctk
+from app.core.leniwe_importy import leniwy_modul
+ctk = leniwy_modul("customtkinter")
+pd = leniwy_modul("pandas")
+np = leniwy_modul("numpy")
+openpyxl = leniwy_modul("openpyxl")
 from tkinter import messagebox
 from pathlib import Path
 import threading
@@ -12,10 +16,12 @@ warnings.filterwarnings("ignore", message=".*OLE2 inconsistency.*")
 warnings.filterwarnings("ignore", message=".*file size.*not.*sector size.*")
 warnings.filterwarnings("ignore", message=".*SSCS size.*")
 import traceback
-import pandas as pd
-from openpyxl.styles import Font
-from openpyxl.styles import Border
-from openpyxl.styles import Side
+# v2.0.109: leniwe — openpyxl dopiero przy pierwszym użyciu
+from app.core.leniwe_importy import leniwy
+
+Font = leniwy("openpyxl.styles", "Font")
+Border = leniwy("openpyxl.styles", "Border")
+Side = leniwy("openpyxl.styles", "Side")
 
 from app.config import (
     add_tooltip,

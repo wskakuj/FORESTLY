@@ -2,12 +2,16 @@
 Forestly — Mixin: TabTemplateGeneratorMixin
 """
 
-import customtkinter as ctk
+from app.core.leniwe_importy import leniwy_modul
+ctk = leniwy_modul("customtkinter")
+np = leniwy_modul("numpy")
 import tkinter as tk
 from tkinter import messagebox
 from pathlib import Path
-import numpy as np
-from docx import Document
+# v2.0.109: leniwe — python-docx dopiero przy pierwszym użyciu
+from app.core.leniwe_importy import leniwy
+
+Document = leniwy("docx", "Document")
 
 from app.config import (
     TERRITORY_DATA,

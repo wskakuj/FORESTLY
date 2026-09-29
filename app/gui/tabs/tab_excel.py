@@ -2,7 +2,8 @@
 Forestly — Mixin: TabExcelMixin
 """
 
-import customtkinter as ctk
+from app.core.leniwe_importy import leniwy_modul
+ctk = leniwy_modul("customtkinter")
 from tkinter import messagebox
 from pathlib import Path
 import threading

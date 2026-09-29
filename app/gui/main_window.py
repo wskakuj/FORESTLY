@@ -19,7 +19,9 @@ import threading
 import traceback
 from pathlib import Path
 
-import customtkinter as ctk
+from app.core.leniwe_importy import leniwy_modul
+ctk = leniwy_modul("customtkinter")
+np = leniwy_modul("numpy")
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from tkinter import ttk

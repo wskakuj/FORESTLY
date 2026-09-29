@@ -5,7 +5,8 @@ Zależności: config.py (COLORS)
 Odpowiada za: okno wyświetlające listę zmian po aktualizacji programu.
 """
 
-import customtkinter as ctk
+from app.core.leniwe_importy import leniwy_modul
+ctk = leniwy_modul("customtkinter")
 
 import re
 
