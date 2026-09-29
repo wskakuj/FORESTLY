@@ -1783,6 +1783,7 @@ const STARE_WERSJE_STR_TYT = {
 };
 function renderStrTyt(c) {
   if (STARE_WERSJE_STR_TYT[VALUES[c.id]]) VALUES[c.id] = STARE_WERSJE_STR_TYT[VALUES[c.id]];
+  const kontener = el("div", "strtyt-kontener");
   const row = renderSelect({ id: c.id, label: c.label, values: c.values, default: c.default });
   const sel = row.querySelector('select[data-cid="' + c.id + '"]');
   const box = el("div", "strtyt-podglady");
@@ -1813,8 +1814,9 @@ function renderStrTyt(c) {
   }
   if (sel) sel.addEventListener("change", oznacz);
   oznacz();
-  row.appendChild(box);
-  return row;
+  kontener.appendChild(row);
+  kontener.appendChild(box);
+  return kontener;
 }
 
 /* podgląd strony tytułowej na cały ekran — z opcją „Wybierz tę wersję” */
