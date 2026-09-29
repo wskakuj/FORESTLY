@@ -171,14 +171,17 @@ def build_schema():
                         _strtyt(
                             "all_tpl_szablon", "all_tpl_szablon_var",
                             "Szablon strony tytułowej:",
-                            ["Wbudowany", "B — klasyczny (Times)", "D — minimal"],
-                            "Wbudowany",
-                            [{"src": "podglad_STR_TYT_B.png",
-                              "label": "B — klasyczny",
-                              "value": "B — klasyczny (Times)"},
-                             {"src": "podglad_STR_TYT_D.png",
-                              "label": "D — minimal",
-                              "value": "D — minimal"}]),
+                            ["Wersja 1", "Wersja 2", "Wersja 3"],
+                            "Wersja 1",
+                            [{"src": "podglad_STR_TYT_1.png",
+                              "label": "Wersja 1 — wbudowana",
+                              "value": "Wersja 1"},
+                             {"src": "podglad_STR_TYT_2.png",
+                              "label": "Wersja 2 — klasyczna",
+                              "value": "Wersja 2"},
+                             {"src": "podglad_STR_TYT_3.png",
+                              "label": "Wersja 3 — minimalna",
+                              "value": "Wersja 3"}]),
                         _select("all_tpl_doc", "all_tpl_doc_var", "Typ dokumentu:",
                                 ["UPUL", "ISL"], "UPUL"),
                         _select("all_tpl_prefix", "all_tpl_prefix_var", "Prefiks obrębu:",
@@ -201,11 +204,14 @@ def build_schema():
                         _text("all_wsk_do", "all_wsk_do_entry",
                               "WSK_ZB — 10-lecie do:", "31-12-2036", "np. 31-12-2036"),
                     ],
-                    tooltip=('Wybierz szablon strony tytułowej: „Wbudowany” buduje '
-                             'się z pól poniżej; „B” i „D” to pliki od Ciebie — '
-                             'nazwa wsi i powierzchnia podstawia się z OPTAX tak '
-                             'samo, a gmina/powiat/województwo i daty — z pól '
-                             'poniżej.\n'
+                    tooltip=('Trzy wersje strony tytułowej. „Wersja 1” buduje '
+                             'się z pól poniżej; „Wersja 2” i „Wersja 3” to '
+                             'Twoje pliki (STR_TYT_wersja_2.docx / '
+                             'STR_TYT_wersja_3.docx w folderze programu) — '
+                             'nazwa wsi i powierzchnia podstawia się z OPTAX, '
+                             'a gmina/powiat/województwo i daty z pól poniżej.\n'
+                             'Klik na miniaturkę wybiera wersję, lupa (🔍) '
+                             'powiększa podgląd.\n'
                              '„Stan na” zastępuje daty we wszystkich generowanych '
                              'dokumentach Word, a pola 10-lecia — okres w WSK_ZB.'), collapsed=False),
                 _check("all_pelny_opis_og", "all_pelny_opis_og_var",

@@ -1773,35 +1773,68 @@ function renderSelect(c) {
   return row;
 }
 
-/* v2.0.111: wybór szablonu strony tytułowej (B/D) z podglądami —
-   klik na miniaturkę wybiera szablon, ramka podświetla aktywny */
+/* v2.0.113: wybór szablonu strony tytułowej („Wersja 1/2/3”) z podglądami —
+   klik na miniaturkę wybiera, 🔍 powiększa na cały ekran.
+   Stare wartości z v2.0.111–112 (Wbudowany/B/D) migrują na nową nazwę. */
+const STARE_WERSJE_STR_TYT = {
+  "Wbudowany": "Wersja 1",
+  "B — klasyczny (Times)": "Wersja 2",
+  "D — minimal": "Wersja 3"
+};
 function renderStrTyt(c) {
+  if (STARE_WERSJE_STR_TYT[VALUES[c.id]]) VALUES[c.id] = STARE_WERSJE_STR_TYT[VALUES[c.id]];
   const row = renderSelect({ id: c.id, label: c.label, values: c.values, default: c.default });
   const sel = row.querySelector('select[data-cid="' + c.id + '"]');
   const box = el("div", "strtyt-podglady");
   const oznacz = () => {
     $$(".strtyt-podglad", box).forEach(f => f.classList.toggle("on", f.dataset.value === (sel && sel.value)));
   };
+  const wybierz = (v) => {
+    if (!sel) return;
+    sel.value = v;
+    sel.dispatchEvent(new Event("change"));
+    oznacz();
+  };
   for (const im of (c.imgs || [])) {
     const fig = el("figure", "strtyt-podglad");
     fig.dataset.value = im.value;
-    fig.title = "Kliknij, aby wybrać ten szablon";
+    fig.title = "Kliknij, aby wybrać tę wersję";
     const img = el("img");
     img.src = im.src; img.alt = im.label; img.draggable = false;
     fig.appendChild(img);
     fig.appendChild(el("figcaption", null, escapeHtml(im.label)));
-    fig.onclick = () => {
-      if (!sel) return;
-      sel.value = im.value;
-      sel.dispatchEvent(new Event("change"));
-      oznacz();
-    };
+    const lupa = el("button", "strtyt-lupa", "🔍");
+    lupa.type = "button";
+    lupa.title = "Powiększ podgląd";
+    lupa.onclick = (e) => { e.stopPropagation(); pokazLupkeStrTyt(im.src, im.label, () => wybierz(im.value)); };
+    fig.appendChild(lupa);
+    fig.onclick = () => wybierz(im.value);
     box.appendChild(fig);
   }
   if (sel) sel.addEventListener("change", oznacz);
   oznacz();
   row.appendChild(box);
   return row;
+}
+
+/* podgląd strony tytułowej na cały ekran — z opcją „Wybierz tę wersję” */
+function pokazLupkeStrTyt(src, label, onWybierz) {
+  const stara = document.getElementById("strtyt-lightbox");
+  if (stara) stara.remove();
+  const lb = el("div", "strtyt-lightbox");
+  lb.id = "strtyt-lightbox";
+  const zamknij = () => lb.remove();
+  const img = el("img"); img.src = src; img.alt = label;
+  const x = el("button", "strtyt-lightbox-x", "✕"); x.type = "button"; x.title = "Zamknij";
+  x.onclick = zamknij;
+  const bw = el("button", "strtyt-lightbox-wybierz", "Wybierz tę wersję"); bw.type = "button";
+  bw.onclick = () => { zamknij(); if (onWybierz) onWybierz(); };
+  lb.appendChild(img);
+  lb.appendChild(el("div", "strtyt-lightbox-cap", escapeHtml(label)));
+  lb.appendChild(x);
+  lb.appendChild(bw);
+  lb.onclick = (e) => { if (e.target === lb) zamknij(); };
+  document.body.appendChild(lb);
 }
 
 /* województwo -> powiat -> gmina: odświeża podpowiedzi po zmianie,

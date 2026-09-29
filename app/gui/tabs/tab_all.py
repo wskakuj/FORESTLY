@@ -796,10 +796,13 @@ class TabAllMixin:
             e = getattr(self, attr, None)
             return e.get().strip() if e is not None else default
 
-        # v2.0.111: wybór szablonu strony tytułowej (B/D — pliki użytkownika);
-        # przy jakimkolwiek problemie wracamy do wbudowanego wzorca kreatora
-        wybor = _v("all_tpl_szablon_var", "Wbudowany")
-        if wybor.startswith("B") or wybor.startswith("D"):
+        # v2.0.113: wybór szablonu strony tytułowej („Wersja 1/2/3” — pliki
+        # użytkownika; 1 = wbudowany wzorzec kreatora). Rozpoznajemy też
+        # stare wartości z v2.0.111–112 („Wbudowany”/„B —…”/„D —…”).
+        # Przy jakimkolwiek problemie wracamy do wbudowanego wzorca kreatora.
+        wybor = _v("all_tpl_szablon_var", "Wersja 1")
+        if (wybor.startswith("Wersja 2") or wybor.startswith("Wersja 3")
+                or wybor.startswith("B") or wybor.startswith("D")):
             try:
                 return self._zbuduj_str_tyt_z_szablonu(wybor, _v)
             except Exception:
@@ -830,17 +833,25 @@ class TabAllMixin:
             return None
 
     def _zbuduj_str_tyt_z_szablonu(self, wybor, _v):
-        """v2.0.111: strona tytułowa z pliku szablonu (B/D) z polami kreatora.
+        """v2.0.113: strona tytułowa z pliku szablonu („Wersja 2/3”) z polami kreatora.
 
         Tokeny w szablonie: {GMINA} {POWIAT} {WOJEWÓDZTWO} {STAN_NA} {OKRES}.
         NAZWA WSI i POWIERZCHNIA_WSI zostają nietknięte — podmienia je
-        pętla wsi w run_logic_thread (nazwa z OPTAX + „Razem” z OPTAX)."""
+        pętla wsi w run_logic_thread (nazwa z OPTAX + „Razem” z OPTAX).
+        Nowa nazwa pliku ma pierwszeństwo, stara (B/D z v2.0.111) — zapas."""
         from app.core.word_worker import get_resource_path
-        nazwa = ("STR_TYT_szablon_B.docx" if wybor.startswith("B")
-                 else "STR_TYT_szablon_D.docx")
-        tpl = get_resource_path(nazwa)
-        if not tpl or not Path(tpl).exists():
-            raise FileNotFoundError(f"brak pliku szablonu: {nazwa}")
+        if wybor.startswith("Wersja 3") or wybor.startswith("D"):
+            kandydaci = ("STR_TYT_wersja_3.docx", "STR_TYT_szablon_D.docx")
+        else:   # „Wersja 2” / „B —…”
+            kandydaci = ("STR_TYT_wersja_2.docx", "STR_TYT_szablon_B.docx")
+        tpl = nazwa = None
+        for n in kandydaci:
+            p = get_resource_path(n)
+            if p and Path(p).exists():
+                tpl, nazwa = p, n
+                break
+        if not tpl:
+            raise FileNotFoundError(f"brak pliku szablonu: {kandydaci[0]}")
         fd, tmp = tempfile.mkstemp(suffix=".docx", prefix="STR_TYT_ALL_")
         os.close(fd)
         shutil.copyfile(tpl, tmp)
