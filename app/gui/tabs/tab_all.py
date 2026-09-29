@@ -802,7 +802,11 @@ class TabAllMixin:
                 _v("all_tpl_gmina_var").upper(),
                 _v("all_tpl_stan_na_entry"),
                 _v("all_tpl_okres_entry"),
-                tmp, village="NAZWA WSI", keep_area=False)
+                tmp, village="NAZWA WSI",
+                # v2.0.107: wiersz powierzchni zostaje w szablonie (z tokenem
+                # do podmiany) — wcześniej był usuwany, więc na stronach
+                # tytułowych nie było powierzchni z OPTAX
+                keep_area=True, area_text="POWIERZCHNIA_WSI")
             self.log("[STR_TYT] Zbudowano szablon bazowy z ustawień kreatora (1-Click).")
             return out
         except Exception:
@@ -1211,13 +1215,24 @@ class TabAllMixin:
                 for optax_path in optaxy:
                     self.check_stop()
                     obiekt, _stan, _okres = szablony.meta_z_pliku(optax_path)
+                    # v2.0.107: powierzchnia „Razem” z OPTAX — ta sama
+                    # wartość, którą widać w raporcie OPTAX
+                    try:
+                        razem = szablony.razem_z_optax(optax_path)
+                    except Exception:
+                        razem = ""
+                    if not razem or razem == "[BRAK_DANYCH]":
+                        razem = "[BRAK_DANYCH]"
                     rel = optax_path.parent.relative_to(txt_dir)
                     doc = Document(tpl_tmp)
                     self.replace_text_robust(
                         doc, "NAZWA WSI", obiekt or "NIEZNANA_WIES")
+                    self.replace_text_robust(
+                        doc, "POWIERZCHNIA_WSI", razem)
                     doc.save(str(word_dir / rel / "STR_TYT.docx"))
                     self.log(f"[STR_TYT] Utworzono: {word_dir / rel}/STR_TYT.docx"
-                             f" (Wieś: {obiekt or 'NIEZNANA_WIES'})")
+                             f" (Wieś: {obiekt or 'NIEZNANA_WIES'},"
+                             f" Pow: {razem})")
             finally:
                 try:
                     Path(tpl_tmp).unlink()
