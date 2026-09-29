@@ -293,6 +293,7 @@ function renderOneControl(c) {
     case "check": return renderCheck(c);
     case "checks": return renderChecks(c);
     case "select": return renderSelect(c);
+    case "strtyt": return renderStrTyt(c);   /* v2.0.111: szablon STR_TYT z podglądami */
     case "margins": return renderMargins(c);
     case "czcionki": return renderCzcionki(c);
     case "fonts": return renderFonts(c);
@@ -1769,6 +1770,37 @@ function renderSelect(c) {
   sel.dataset.cid = c.id; sel.dataset.kind = "select";
   /* dla comboboxa input jest już wewnątrz .combo — nie przenosimy go */
   if (!row.contains(sel)) row.appendChild(sel);
+  return row;
+}
+
+/* v2.0.111: wybór szablonu strony tytułowej (B/D) z podglądami —
+   klik na miniaturkę wybiera szablon, ramka podświetla aktywny */
+function renderStrTyt(c) {
+  const row = renderSelect({ id: c.id, label: c.label, values: c.values, default: c.default });
+  const sel = row.querySelector('select[data-cid="' + c.id + '"]');
+  const box = el("div", "strtyt-podglady");
+  const oznacz = () => {
+    $$(".strtyt-podglad", box).forEach(f => f.classList.toggle("on", f.dataset.value === (sel && sel.value)));
+  };
+  for (const im of (c.imgs || [])) {
+    const fig = el("figure", "strtyt-podglad");
+    fig.dataset.value = im.value;
+    fig.title = "Kliknij, aby wybrać ten szablon";
+    const img = el("img");
+    img.src = im.src; img.alt = im.label; img.draggable = false;
+    fig.appendChild(img);
+    fig.appendChild(el("figcaption", null, escapeHtml(im.label)));
+    fig.onclick = () => {
+      if (!sel) return;
+      sel.value = im.value;
+      sel.dispatchEvent(new Event("change"));
+      oznacz();
+    };
+    box.appendChild(fig);
+  }
+  if (sel) sel.addEventListener("change", oznacz);
+  oznacz();
+  row.appendChild(box);
   return row;
 }
 

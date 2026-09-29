@@ -795,6 +795,17 @@ class TabAllMixin:
         def _v(attr, default=""):
             e = getattr(self, attr, None)
             return e.get().strip() if e is not None else default
+
+        # v2.0.111: wybór szablonu strony tytułowej (B/D — pliki użytkownika);
+        # przy jakimkolwiek problemie wracamy do wbudowanego wzorca kreatora
+        wybor = _v("all_tpl_szablon_var", "Wbudowany")
+        if wybor.startswith("B") or wybor.startswith("D"):
+            try:
+                return self._zbuduj_str_tyt_z_szablonu(wybor, _v)
+            except Exception:
+                self.log("[STR_TYT] Nie udało się zbudować strony tytułowej z wybranego "
+                         "szablonu — używam wbudowanego wzorca:\n"
+                         + traceback.format_exc())
         try:
             fd, tmp = tempfile.mkstemp(suffix=".docx", prefix="STR_TYT_ALL_")
             os.close(fd)
@@ -817,6 +828,41 @@ class TabAllMixin:
             self.log("[STR_TYT] Nie udało się zbudować szablonu strony tytułowej:\n"
                      + traceback.format_exc())
             return None
+
+    def _zbuduj_str_tyt_z_szablonu(self, wybor, _v):
+        """v2.0.111: strona tytułowa z pliku szablonu (B/D) z polami kreatora.
+
+        Tokeny w szablonie: {GMINA} {POWIAT} {WOJEWÓDZTWO} {STAN_NA} {OKRES}.
+        NAZWA WSI i POWIERZCHNIA_WSI zostają nietknięte — podmienia je
+        pętla wsi w run_logic_thread (nazwa z OPTAX + „Razem” z OPTAX)."""
+        from app.core.word_worker import get_resource_path
+        nazwa = ("STR_TYT_szablon_B.docx" if wybor.startswith("B")
+                 else "STR_TYT_szablon_D.docx")
+        tpl = get_resource_path(nazwa)
+        if not tpl or not Path(tpl).exists():
+            raise FileNotFoundError(f"brak pliku szablonu: {nazwa}")
+        fd, tmp = tempfile.mkstemp(suffix=".docx", prefix="STR_TYT_ALL_")
+        os.close(fd)
+        shutil.copyfile(tpl, tmp)
+        doc = Document(tmp)
+        self.replace_text_robust(doc, "{GMINA}",
+                                 (_v("all_tpl_gmina_var") or "—").upper())
+        self.replace_text_robust(doc, "{POWIAT}",
+                                 (_v("all_tpl_powiat_var") or "—").upper())
+        self.replace_text_robust(doc, "{WOJEWÓDZTWO}",
+                                 (_v("all_tpl_woj_var") or "—").upper())
+        self.replace_text_robust(doc, "{STAN_NA}",
+                                 _v("all_tpl_stan_na_entry") or "—")
+        self.replace_text_robust(doc, "{OKRES}",
+                                 _v("all_tpl_okres_entry") or "—")
+        # typ dokumentu: szablony mają tytuł UPUL — dla ISL podmieniamy całość
+        if (_v("all_tpl_doc_var", "UPUL") or "UPUL") == "ISL":
+            self.replace_text_robust(doc, "UPROSZCZONY PLAN URZĄDZENIA LASU",
+                                     "INWENTARYZACJA STANU LASU")
+        doc.save(tmp)
+        self.log(f"[STR_TYT] Szablon: {wybor} (z pliku {nazwa}) — "
+                 "pola kreatora podmienione.")
+        return tmp
 
     def _zamien_daty_txt(self, txt_dir):
         """Zamienia daty w wyczyszczonych TXT (przed konwersją na Word).

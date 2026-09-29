@@ -60,6 +60,12 @@ def _select(cid, attr, label, values, default, free=False):
             "values": values, "default": default, "free": free, "save": True}
 
 
+def _strtyt(cid, attr, label, values, default, imgs):
+    """v2.0.111: wybór szablonu strony tytułowej z podglądami (B/D)."""
+    return {"id": cid, "kind": "strtyt", "attr": attr, "label": label,
+            "values": values, "default": default, "save": True, "imgs": imgs}
+
+
 def _info(text_):
     return {"kind": "info", "text": text_}
 
@@ -162,6 +168,17 @@ def build_schema():
                 _group(
                     "Kreator strony tytułowej (strona tytułowa i daty)",
                     [
+                        _strtyt(
+                            "all_tpl_szablon", "all_tpl_szablon_var",
+                            "Szablon strony tytułowej:",
+                            ["Wbudowany", "B — klasyczny (Times)", "D — minimal"],
+                            "Wbudowany",
+                            [{"src": "podglad_STR_TYT_B.png",
+                              "label": "B — klasyczny",
+                              "value": "B — klasyczny (Times)"},
+                             {"src": "podglad_STR_TYT_D.png",
+                              "label": "D — minimal",
+                              "value": "D — minimal"}]),
                         _select("all_tpl_doc", "all_tpl_doc_var", "Typ dokumentu:",
                                 ["UPUL", "ISL"], "UPUL"),
                         _select("all_tpl_prefix", "all_tpl_prefix_var", "Prefiks obrębu:",
@@ -184,10 +201,12 @@ def build_schema():
                         _text("all_wsk_do", "all_wsk_do_entry",
                               "WSK_ZB — 10-lecie do:", "31-12-2036", "np. 31-12-2036"),
                     ],
-                    tooltip=('Strona tytułowa zawsze powstaje z tych ustawień '
-                             '(jak w zakładce „Kreator Stron tytułowych\u201d, bez wsi '
-                             'konkretnej i wiersza powierzchni).\n'
-                             '„Stan na\u201d zastępuje daty we wszystkich generowanych '
+                    tooltip=('Wybierz szablon strony tytułowej: „Wbudowany” buduje '
+                             'się z pól poniżej; „B” i „D” to pliki od Ciebie — '
+                             'nazwa wsi i powierzchnia podstawia się z OPTAX tak '
+                             'samo, a gmina/powiat/województwo i daty — z pól '
+                             'poniżej.\n'
+                             '„Stan na” zastępuje daty we wszystkich generowanych '
                              'dokumentach Word, a pola 10-lecia — okres w WSK_ZB.'), collapsed=False),
                 _check("all_pelny_opis_og", "all_pelny_opis_og_var",
                        "Pełne opisy ogólne (z powiązaniami z gospodarką leśną "
