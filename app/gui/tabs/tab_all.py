@@ -2083,6 +2083,20 @@ class TabAllMixin:
                 self.check_stop()
                 c5 = self.task_remove_blank_pages(dir_04, dir_05)
 
+                # [1-CLICK v2.0.105] druga wersja scalonego PDF — „do wydruku”:
+                # pusta strona po każdym dokumencie (druk dwustronny z podziałem
+                # na dokumenty). Celowo PO usuwaniu pustych — separatory mają zostać.
+                if dir_05 and dir_05.exists():
+                    try:
+                        c6 = self.task_pdf_wydruk(dir_05)
+                        if c6:
+                            self.log(f"[WYDRUK] Gotowe: {c6} wersji do wydruku "
+                                     f"(pliki „_WYDRUK.pdf”).")
+                    except InterruptedError:
+                        raise
+                    except Exception as e:
+                        self.log(f"[WYDRUK] Nie udało się utworzyć wersji do wydruku: {e}")
+
                 # === PORZĄDKI: zostaje tylko finalny folder "PDF polaczone" ===
                 self.update_status("Porządkowanie folderów wynikowych...", "#0078D7")
                 try:

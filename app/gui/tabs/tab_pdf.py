@@ -387,6 +387,82 @@ class TabPdfMixin:
                     f.rename(docel)
                     self.log(f"  [NUMERACJA] {f.name} → {docel.name}")
 
+    def task_pdf_wydruk(self, in_dir):
+        """[1-CLICK v2.0.105] Druga wersja scalonego PDF — „do wydruku”.
+
+        Klasyczny plik zostaje bez zmian; obok niego powstaje
+        <nazwa>_WYDRUK.pdf do druku DWUSTRONNEGO: po każdym dokumencie
+        o NIEPARZYSTEJ liczbie stron wstawiamy jedną pustą stronę.
+        Dzięki temu każdy dokument (STR_TYT, opis ogólny, OPTAX,
+        REJESTR1…) zaczyna się od nowej KARTKI (parzysta liczba stron
+        przed nim), więc wydruk można podzielić na dokumenty bez
+        rozcinania kartek. Po dokumentach parzystych pusta strona nie
+        jest potrzebna — następny i tak startuje od frontu.
+
+        Granice dokumentów czytamy z zakładek (spisu treści), które
+        scalanie (task_merge_pdfs) wpisuje do każdego scalonego pliku.
+        Wywoływane PO usuwaniu pustych stron — separatory nie giną.
+        """
+        in_dir = Path(in_dir)
+        if not in_dir.exists():
+            return 0
+        pdfs = [p for p in in_dir.rglob("*.pdf")
+                if not p.stem.upper().endswith("_WYDRUK")]
+        if not pdfs:
+            return 0
+        count = 0
+        for pdf_path in pdfs:
+            self.check_stop()
+            doc = None
+            try:
+                doc = fitz.open(str(pdf_path))
+                toc = doc.get_toc(simple=True)
+                starts = sorted({p for lvl, _t, p in toc if lvl == 1})
+                if len(starts) < 2:
+                    doc.close(); doc = None
+                    continue    # jeden dokument (albo brak zakładek) — nic do separowania
+                n = doc.page_count
+                # pusta strona po dokumencie i (1-based), gdy ma NIEPARZYSTĄ
+                # liczbę stron — suma stron przed następnym ma być parzysta
+                wstawione = []
+                for i in range(len(starts) - 1):
+                    dl = starts[i + 1] - starts[i]
+                    if dl % 2 == 1:
+                        e = starts[i + 1] - 2          # 0-based ostatnia strona dok. i
+                        wstawione.append(e + 1)
+                if not wstawione:
+                    doc.close(); doc = None
+                    self.log(f"[WYDRUK] {pdf_path.name} — każdy dokument ma "
+                             f"parzystą liczbę stron, separatory niepotrzebne "
+                             f"(pomijam)")
+                    continue
+                # wstawiamy od końca pliku, żeby pozycje się nie rozjechały
+                for pos in sorted(wstawione, reverse=True):
+                    if 0 < pos < n:
+                        wzor = doc[pos - 1].rect
+                        doc.new_page(pos, width=wzor.width, height=wzor.height)
+                # poprawka spisu treści — strony za wstawionymi pustymi przesuwają się
+                nowe_toc = []
+                for lvl, tytul, strona in toc:
+                    przes = sum(1 for pos in wstawione if pos <= strona - 1)
+                    nowe_toc.append([lvl, tytul, strona + przes])
+                doc.set_toc(nowe_toc)
+                target = pdf_path.with_name(pdf_path.stem + "_WYDRUK.pdf")
+                doc.save(str(target), garbage=3, deflate=True)
+                doc.close(); doc = None
+                count += 1
+                self.log(f"[WYDRUK] {target.name} — {len(wstawione)} pustych "
+                         f"stron separatorów ({len(starts)} dokumentów, każdy "
+                         f"zaczyna się od nowej kartki)")
+            except Exception as e:
+                if doc is not None:
+                    try:
+                        doc.close()
+                    except Exception:
+                        pass
+                self.log(f"[WYDRUK] {pdf_path.name}: {e}")
+        return count
+
     def task_remove_blank_pages(self, in_dir, out_dir):
         pdfs = list(in_dir.rglob("*.pdf"))
         if not pdfs:
