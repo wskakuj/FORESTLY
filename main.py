@@ -108,7 +108,39 @@ def run_word_worker_cli():
 
 
 
+def _wypakuj_szablony_obok_exe():
+    """v2.0.135: w wersji EXE (onefile) szablony edytowalne przez
+    użytkownika (STR_TYT_wersja_2/3, opis_og_*) wypakowujemy OBOK
+    Forestly.exe, jeśli ich tam nie ma. Plik obok EXE ma zawsze
+    pierwszeństwo przed zasobem w środku EXE — można go podmienić
+    własnym (pierwsza kopia zostaje, nic nie jest nadpisywane)."""
+    if not getattr(sys, "frozen", False):
+        return
+    import shutil
+    from pathlib import Path as _P     # main.py nie importuje Path na szczycie
+    try:
+        exe_dir = _P(sys.executable).resolve().parent
+        meipass = _P(getattr(sys, "_MEIPASS", ""))
+        if not meipass.exists():
+            return
+        for nazwa in ("STR_TYT_wersja_2.docx", "STR_TYT_wersja_3.docx",
+                      "STR_TYT.docx", "opis_og_szablon.docx",
+                      "opis_og_szablon_mazowiecka.docx",
+                      "opis_og_szablon_taksator.docx",
+                      "Skroty.docx"):
+            zrodlo = meipass / nazwa
+            cel = exe_dir / nazwa
+            if zrodlo.exists() and not cel.exists():
+                try:
+                    shutil.copy2(str(zrodlo), str(cel))
+                except OSError:
+                    pass    # np. folder tylko do odczytu — zostaje zasób z EXE
+    except Exception:
+        pass
+
+
 def main():
+    _wypakuj_szablony_obok_exe()
     # Tryb procesu w tle: python main.py --word-worker IN OUT [opcje]
     if "--word-worker" in sys.argv:
         run_word_worker_cli()

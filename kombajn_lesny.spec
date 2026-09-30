@@ -36,6 +36,11 @@ hidden_imports += [
 datas = [
     ('STR_TYT.docx', '.'),
     ('STR_TYT_TYLKO-ISL-2.docx', '.'),
+    ('STR_TYT_wersja_2.docx', '.'),
+    ('STR_TYT_wersja_3.docx', '.'),
+    ('opis_og_szablon.docx', '.'),
+    ('opis_og_szablon_mazowiecka.docx', '.'),
+    ('opis_og_szablon_taksator.docx', '.'),
     ('Skroty.docx', '.'),
     ('BIAŁYNIN KRASÓWKA.xlsx', '.'),
     ('config', 'config'),
