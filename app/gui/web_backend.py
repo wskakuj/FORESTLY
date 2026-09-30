@@ -1573,7 +1573,36 @@ class WebBackend(
                     saved = self.get_setting(f"web.{cid}", None)
                     values[cid] = bool(c.get("default", False)) if saved is None else bool(saved)
                 elif kind == "select":
-                    values[cid] = c.get("default", "")
+                    # v2.0.133: zapamiętany wybór selecta przeżywa restart
+                    # programu — wcześniej zawsze wracała wartość domyślna,
+                    # więc np. typ dokumentu / prefiks obrębu trzeba było
+                    # ustawiać od nowa (a wysłany przy starcie UI-stan
+                    # nadpisywał zapisane wybory)
+                    saved = self.get_setting(f"web.{cid}", None)
+                    if saved is None:
+                        values[cid] = c.get("default", "")
+                    elif c.get("free") or str(saved) in (c.get("values") or []):
+                        values[cid] = saved
+                    else:      # stary zapis spoza dziś dostępnych wartości
+                        values[cid] = c.get("default", "")
+                elif kind == "strtyt":
+                    # v2.0.133: zapamiętany wybór szablonu STR_TYT
+                    # („Wersja 1/2/3”) wraca do UI po restarcie — dotąd
+                    # get_config w ogóle go nie zwracał, więc po każdym
+                    # uruchomieniu programu edytor zaczynał od „Wersja 1”
+                    saved = self.get_setting(f"web.{cid}", None)
+                    values[cid] = (saved if saved is not None
+                                   else (c.get("default", "Wersja 1")
+                                         or "Wersja 1"))
+                elif kind == "checks":
+                    # v2.0.133: zapamiętane zaznaczenia checkboxów
+                    saved = self.get_setting(f"web.{cid}", None)
+                    if isinstance(saved, dict):
+                        values[cid] = {ch: bool(saved.get(
+                            ch, ch == "Wszystkie")) for ch in c["choices"]}
+                    else:
+                        values[cid] = {ch: (ch == "Wszystkie")
+                                       for ch in c["choices"]}
                 elif kind == "segment":
                     saved = self.get_setting(f"web.{cid}", None)
                     values[cid] = (saved if saved is not None

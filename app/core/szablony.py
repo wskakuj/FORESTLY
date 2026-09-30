@@ -22,6 +22,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 # --------------------------------------------------------------- konstanty
@@ -1266,9 +1267,16 @@ def html_na_pdf(html_path, pdf_path, timeout=120):
         raise RuntimeError("Nie znaleziono przeglądarki (Edge/Chrome) "
                            "do wydruku PDF.")
     pdf_path.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="forestly_pdf_") as prof:
+    # v2.0.133: profile przeglądarki sprzątamy SAMI — TemporaryDirectory
+    # wywalał się na katalogu Crashpad (WinError 145 „katalog nie jest
+    # pusty”), który Edge/Chrome zostawia chwilę po zamknięciu —
+    # przy równoległym renderingu kilku procesów naraz. Sprzątanie
+    # z ponowieniem i ignorowaniem błędów NIE może wywalić renderingu.
+    prof = tempfile.mkdtemp(prefix="forestly_pdf_")
+    try:
         cmd = [exe, "--headless", "--disable-gpu", "--no-first-run",
                "--no-pdf-header-footer", "--print-to-pdf-no-header",
+               "--disable-crash-reporter", "--disable-crashpad",
                f"--user-data-dir={prof}",
                f"--print-to-pdf={pdf_path.resolve()}",
                html_path.resolve().as_uri()]
@@ -1276,6 +1284,14 @@ def html_na_pdf(html_path, pdf_path, timeout=120):
             subprocess.run(cmd, capture_output=True, timeout=timeout)
         except subprocess.TimeoutExpired:
             pass
+    finally:
+        import shutil as _sh
+        for opoznienie in (0, 0.7, 2.0):
+            if opoznienie:
+                time.sleep(opoznienie)
+            _sh.rmtree(prof, ignore_errors=True)
+            if not Path(prof).exists():
+                break
     ok = pdf_path.exists() and pdf_path.stat().st_size > 100
     if not ok:
         raise RuntimeError(f"Nie udało się wygenerować PDF: {pdf_path.name}")

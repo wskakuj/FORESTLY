@@ -47,7 +47,7 @@ def _check(cid, attr, label, default=False, tooltip=""):
 
 def _checks(cid, base, label, choices, tooltip=""):
     return {"id": cid, "kind": "checks", "attr_base": base, "label": label,
-            "choices": choices, "tooltip": tooltip}
+            "choices": choices, "tooltip": tooltip, "save": True}
 
 
 def _group(label, controls, tooltip="", collapsed=True):
