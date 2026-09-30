@@ -925,7 +925,7 @@ details.czcionki-details[open] > summary {
   display: flex; align-items: center; justify-content: center;
 }
 .wiz-box {
-  width: min(800px, 94vw); max-height: 92vh;
+  width: min(980px, 96vw); max-height: 92vh;
   display: flex; flex-direction: column;
   background: var(--panel-solid);
   border: 1px solid var(--border-strong);
@@ -1056,6 +1056,10 @@ body.mp-dragging { cursor: move; }
 .wiz-tile.sel { border-color: var(--accent, #0067C0); background: var(--accent-bg, rgba(0,103,192,.12)); }
 .wiz-tile-t { font-weight: 700; font-size: 15px; margin-bottom: 5px; }
 .wiz-tile-s { font-size: 12.5px; color: var(--muted, #98a0aa); line-height: 1.35; }
+.wiz-kontrola-card { margin-top: 26px; padding: 16px 18px; border: 1px dashed var(--border, #3a3f4a);
+  border-radius: 12px; background: var(--card, #1e222b); }
+.wiz-kontrola-card h2 { margin: 0 0 4px; font-size: 15px; }
+.wiz-kontrola-card .wiz-sub { margin-bottom: 10px; }
 .wiz-map-card { margin-top: 26px; padding: 16px 18px; border: 1px solid var(--border, #3a3f4a);
   border-radius: 12px; background: var(--panel, #23262d); }
 .wiz-map-field { margin-top: 10px; }
@@ -1224,3 +1228,181 @@ input.drop-over {
   border-radius: 10px; padding: 9px 22px; font-size: 14px; cursor: pointer;
 }
 .strtyt-lightbox-wybierz:hover { background: rgba(45, 212, 167, .12); }
+
+/* ==========================================================================
+   MIETEK v2.0 — edytor danych (v2.0.115)
+   ========================================================================== */
+.mv2 { display: flex; flex-direction: column; gap: 14px; }
+.mv2-top { display: flex; gap: 10px; }
+.mv2-top input[type="text"] { flex: 1; }
+.mv2-info {
+  padding: 16px 18px; border-radius: 12px; color: var(--text-dim);
+  border: 1px dashed var(--border-strong); font-size: 13.5px; line-height: 1.6;
+}
+.mv2-body { display: flex; flex-direction: column; gap: 12px; }
+.mv2-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.mv2-chip {
+  border: 1px solid var(--border-strong); background: var(--panel-solid);
+  color: var(--text); border-radius: 999px; padding: 5px 14px;
+  font-size: 12.5px; cursor: pointer; display: inline-flex; gap: 7px; align-items: center;
+}
+.mv2-chip small { color: var(--text-dim); font-size: 10.5px; }
+.mv2-chip:hover { border-color: var(--accent); }
+.mv2-chip.on { border-color: var(--accent); color: var(--accent);
+  background: rgba(45, 212, 167, .10); }
+.mv2-tools { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.mv2-tools input[type="text"] { flex: 1; min-width: 220px; }
+.mv2-status { color: var(--text-dim); font-size: 12px; white-space: nowrap; }
+.mv2-tabela {
+  overflow: auto; max-height: 62vh; border: 1px solid var(--border-strong);
+  border-radius: 12px; background: rgba(127, 140, 160, 0.03);
+}
+.mv2-tab { border-collapse: collapse; width: max-content; min-width: 100%; font-size: 12.5px; }
+.mv2-tab th {
+  position: sticky; top: 0; z-index: 2;
+  background: var(--panel-solid); color: var(--text-dim);
+  font-size: 11.5px; text-transform: none; text-align: left;
+  padding: 8px 10px; border-bottom: 2px solid var(--border-strong);
+  white-space: nowrap;
+}
+.mv2-tab td {
+  padding: 6px 10px; border-bottom: 1px solid var(--border);
+  color: var(--text); max-width: 340px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; cursor: cell;
+}
+.mv2-tab td:hover { background: rgba(127, 140, 160, 0.08); }
+.mv2-tab td.zmieniona {
+  background: rgba(251, 191, 36, .16);
+  box-shadow: inset 2px 0 0 var(--orange);
+}
+.mv2-tab td.zmieniona:hover { background: rgba(251, 191, 36, .24); }
+.mv2-lp { color: var(--text-dim); font-size: 11px; text-align: right; cursor: default; }
+.mv2-num { text-align: right; font-variant-numeric: tabular-nums; }
+.mv2-szer { white-space: normal; min-width: 200px; }
+.mv2-edit {
+  width: 100%; font: inherit; color: var(--text);
+  background: var(--panel-solid); border: 1px solid var(--accent);
+  border-radius: 6px; padding: 3px 6px; outline: none;
+}
+.mv2-puste { padding: 18px; color: var(--text-dim); font-size: 13px; }
+.mv2-gen {
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  border: 1px solid var(--border-strong); border-radius: 12px;
+  padding: 12px 14px; background: rgba(127, 140, 160, 0.04);
+}
+.mv2-gen-tytul { width: 100%; font-size: 13px; font-weight: 600; color: var(--text); }
+.mv2-gen select { min-width: 280px; }
+.mv2-gen input[type="text"] { flex: 1; min-width: 200px; }
+
+/* ---- kontrola powierzchni: tabela decyzji w podsumowaniu kreatora ---- */
+.wiz-kontrola-tabela { margin-top: 18px; padding: 14px 16px;
+  border: 1px solid var(--border, #3a3f4a); border-radius: 12px;
+  background: var(--panel, #23262d); }
+.wiz-kontrola-tabela h3 { margin: 0 0 4px; font-size: 14.5px; }
+.kp-status { color: var(--muted, #98a0aa); font-size: 12.5px; }
+.kp-obreb { margin-top: 12px; }
+.kp-hd { font-size: 12.5px; color: var(--fg, #e8e8e8); margin-bottom: 6px; }
+.kp-tab { width: 100%; border-collapse: collapse; font-size: 12px; }
+.kp-tab th { text-align: left; padding: 5px 8px; background: var(--panel-2, #2a2e37);
+  border-bottom: 1px solid var(--border-strong, #4a5060); white-space: nowrap; }
+.kp-tab td { padding: 4px 8px; border-bottom: 1px solid var(--border, #333844);
+  vertical-align: top; }
+.kp-tab th.n, .kp-tab td.n { text-align: right; font-variant-numeric: tabular-nums; }
+.kp-tab td.c { text-align: center; }
+.kp-brak td { background: rgba(216, 59, 1, .18); }
+.kp-brak td:first-child { box-shadow: inset 3px 0 0 #d83b01; }
+.kp-brak .kp-w { color: #ff9a80; }
+.kp-dzialki td { color: var(--muted, #98a0aa); font-size: 11px;
+  border-bottom: 1px dashed var(--border, #333844); }
+.kp-akcja { max-width: 240px; width: 100%; }
+.kp-tryb { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px;
+  padding: 10px 12px; border: 1px solid var(--border-strong, #4a5060);
+  border-radius: 10px; cursor: pointer; font-size: 12.5px;
+  background: rgba(255, 255, 255, .03); }
+.kp-tryb input { margin-top: 2px; }
+.kp-tryb b { color: var(--fg, #e8e8e8); }
+.kp-podglad { margin-top: 8px; font-size: 12.5px; color: var(--fg, #e8e8e8); }
+
+/* ---------------- Edycja PDF (v2.0.122) ---------------- */
+.pe { display: flex; flex-direction: column; gap: 10px; }
+.pe-top { display: flex; gap: 8px; }
+.pe-top input[type="text"] { flex: 1; }
+.pe-info { font-size: 12.5px; opacity: .8; }
+.pe-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.pe-tryb.on { outline: 2px solid var(--akcent, #2d7d46); }
+.pe-lab { font-size: 12px; opacity: .8; }
+.pe-status { font-size: 12.5px; opacity: .85; flex: 1; min-width: 120px; }
+.pe-dol { display: flex; gap: 12px; align-items: flex-start; min-height: 300px; }
+.pe-mini { display: flex; flex-direction: column; gap: 10px; width: 190px;
+  max-height: 72vh; overflow-y: auto; padding: 6px 8px;
+  border: 1px solid var(--border-strong, #4a5060); border-radius: 10px; }
+.pe-kafel { cursor: pointer; border: 2px solid transparent; border-radius: 6px;
+  padding: 4px; display: flex; flex-direction: column; gap: 3px; }
+.pe-kafel:hover { background: rgba(255,255,255,.05); }
+.pe-kafel.on { border-color: var(--akcent, #2d7d46); }
+.pe-kafel img { width: 100%; border-radius: 3px; background: #fff; }
+.pe-kafel.usunieta img { opacity: .35; }
+.pe-kafel.usunieta .pe-nr { text-decoration: line-through; color: #d05; }
+.pe-kafel-pasek { display: flex; gap: 6px; align-items: center;
+  font-size: 11px; }
+.pe-kafel-pasek button, .pe-kafel-strz button {
+  background: none; border: 1px solid var(--border-strong, #4a5060);
+  border-radius: 5px; color: inherit; cursor: pointer; padding: 1px 5px;
+  font-size: 11px; }
+.pe-kafel-pasek button:hover, .pe-kafel-strz button:hover {
+  background: rgba(255,255,255,.08); }
+.pe-kafel-strz { display: flex; gap: 6px; justify-content: center; }
+.pe-scena { flex: 1; overflow: auto; display: flex; justify-content: center;
+  align-items: flex-start; padding: 6px; }
+.pe-strona { position: relative; background: #fff; box-shadow: 0 2px 14px rgba(0,0,0,.45);
+  cursor: text; user-select: none; }
+.pe-strona img { display: block; width: 100%; }
+.pe-warstwa { position: absolute; inset: 0; }
+.pe-boxtekst { position: absolute; white-space: pre; line-height: 1.05;
+  pointer-events: none; }
+.pe-boxtekst.pe-edycja { pointer-events: auto; z-index: 5; }
+.pe-boxtekst.pe-edycja input { background: rgba(255,255,255,.92);
+  color: #000; border: 1px dashed #888; border-radius: 3px; padding: 0 3px;
+  min-width: 180px; }
+.pe-rect { position: absolute; background: rgba(255,255,255,.97);
+  border: 1px dashed #c33; box-sizing: border-box; pointer-events: none; }
+.pe-rect.pe-nowy { background: rgba(255,255,255,.8); }
+
+/* linie tekstu do klikalnej edycji (v2.0.123) */
+.pe-linia { position: absolute; cursor: text;
+  border: 1px dashed transparent; border-radius: 2px;
+  overflow: hidden; white-space: pre; }
+.pe-zaslona {                    /* biała zasłona starego tekstu */
+  position: absolute;
+  background: #fff;
+  pointer-events: none;
+  z-index: 2;
+}
+.pe-linia-zmieniona {            /* nowy tekst zamiast starego */
+  background: #fff;
+  white-space: pre;
+  color: #000;
+  border: 1px dashed rgba(0,0,0,.25);
+  padding: 0 1px;
+  cursor: grab;
+  z-index: 3;
+}
+.pe-linia-zmieniona:active { cursor: grabbing; }
+.pe-linia:hover { border-color: rgba(45,125,70,.9);
+  background: rgba(45,125,70,.12); }
+.pe-linia.zmieniona { background: rgba(45,125,70,.15);
+  border-color: rgba(45,125,70,.7); }
+.pe-linia-edycja input { max-width: 60vw; }
+.pe-kafel.pe-nad { outline: 3px dashed var(--akcent, #2d7d46);
+  outline-offset: 1px; }
+.pe.pe-drop::after { content: "Puść plik PDF, aby go otworzyć";
+  position: absolute; inset: 0; display: flex; align-items: center;
+  justify-content: center; font-size: 18px; font-weight: 600;
+  background: rgba(45,125,70,.25); border: 3px dashed
+  var(--akcent, #2d7d46); border-radius: 12px; pointer-events: none;
+  z-index: 5; }
+.pe { position: relative; }
+.pe-wersja { margin-left: auto; color: #8aa; font-size: 11px;
+  white-space: nowrap; padding-left: 8px; }
+.pe-linia-zmieniona, .pe-linia-edycja input {
+  font-family: "Segoe UI", Calibri, Arial, sans-serif; }

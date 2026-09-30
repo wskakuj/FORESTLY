@@ -160,6 +160,20 @@ def build_schema():
     tabs = [
         # ================================================================ MIETEK
         {
+            "key": "MIETEK|Mietek v2.0 — edytor danych",
+            "tooltip": "Przeglądaj i edytuj dane mietka (pliki DBF: W/R/O/D/Z/WSIE) "
+                       "w wygodnej siatce — zapis wprost do DBF z backupem .BAK. "
+                       "Dokumenty (OPTAX, REJESTR1, WSKAZ1…) generują się nowymi "
+                       "szablonami FORESTLY bezpośrednio z danych — bez Worda "
+                       "(STR_TYT — z ustawień kreatora).",
+            "controls": [
+                {"id": "mietki_v2", "kind": "mietek_v2",
+                 "label": "Edytor danych mietka"},
+            ],
+            "buttons": [],
+        },
+
+        {
             "key": "MIETEK|Pełny Automat (1-Click)",
             "tooltip": "Kompleksowy proces: halizny, TXT z DBF, Word, PDF i scalanie w gotowy dokument.",
             "controls": [
@@ -253,6 +267,12 @@ def build_schema():
                        "Użyj własnego pliku 'Skróty i symbole' (zamiast domyślnego z programu)", False),
                 _path("all_skroty", "all_skroty_entry", "Własny plik:",
                       "Wskaż własny plik ze skrótami...", kind="file"),
+                _check("all_kontrola", "all_kontrola_var",
+                       "Kontrola powierzchni REJESTR ↔ OPTAX (dodatkowy PDF)", False,
+                       "Obok scalonego pakietu powstanie KONTROLA_<wieś>.pdf: "
+                       "sumy powierzchni Rejestru i Opisu taksacyjnego oraz wykaz "
+                       "wydzieleń i działek z rozbieżnościami. Mietek pozostaje "
+                       "bez zmian — to wyłącznie kontrola."),
                 _check("all_obie_wersje", "all_obie_wersje_var",
                        "Obie wersje REJESTRU — dwa foldery wynikowe", False,
                        "Uruchamia Pełny Automat dwukrotnie: raz z pełnymi "
@@ -552,6 +572,20 @@ def build_schema():
                       "Gdzie zapisać plik wynikowy?"),
             ],
             "buttons": [_button("run", "Zarządzaj układem i scal pliki", "web_manual_merge")],
+        },
+
+        # ============================================================== PDF
+        {
+            "key": "MIETEK|Edycja PDF",
+            "tooltip": "Popraw dowolny plik PDF: dopisz brakujący tekst, "
+                       "zakryj błędny fragment i wpisz nowy, usuń / obróć / "
+                       "przesuń strony — i zapisz jako nowy plik (oryginał "
+                       "zostaje nietknięty).",
+            "controls": [
+                {"id": "pdf_edycja", "kind": "pdf_edycja",
+                 "label": "Edytor PDF"},
+            ],
+            "buttons": [],
         },
 
         # ============================================================== TAKSATOR

@@ -56,6 +56,7 @@ from app.gui.tabs.tab_excel_z_mdb import TabExcelZMdbMixin
 from app.gui.tabs.tab_tworzenie_mietkow import TabTworzenieMietkowMixin
 from app.gui.tabs.tab_nazwiska_mietek import TabNazwiskaMietekMixin
 from app.gui.tabs.tab_stare_opisy import TabStareOpisyMixin
+from app.gui.tabs.tab_mietek_v2 import TabMietekV2Mixin
 from app.gui.tabs.tab_mietek_rozbieznosci import TabMietekRozbieznosciMixin
 from app.gui.tabs.tab_mietek_plus10 import TabMietekPlus10Mixin
 from app.updater import UpdaterMixin
@@ -494,7 +495,7 @@ class WebBackend(
     TabPdfConverterMixin, TabRozliczanieMixin, TabHaliznyMixin,
     TabWydrukiMixin, TabExcelZMdbMixin, TabTworzenieMietkowMixin,
     TabNazwiskaMietekMixin, TabMietekRozbieznosciMixin, TabMietekPlus10Mixin,
-    TabStareOpisyMixin, UpdaterMixin,
+    TabStareOpisyMixin, TabMietekV2Mixin, UpdaterMixin,
 ):
     """Logika aplikacji bez CustomTkinter — z mostkiem do PyWebView."""
 
@@ -700,7 +701,7 @@ class WebBackend(
 
         # przyciski — uniwersalne atrapy (sterowanie widocznością robi JS)
         for tab in self.schema["tabs"]:
-            for b in tab["buttons"]:
+            for b in tab.get("buttons", ()):
                 pass  # przyciski istnieją tylko w frontendcie
 
         # remove_names_var potrzebny dla ALL/WORD — JEDNA wspólna wartość.
@@ -747,6 +748,12 @@ class WebBackend(
                 if isinstance(val, list):
                     val = val[0] if val else c.get("default", "")
                 self._set_fake(c["attr"], FakeVar(val))
+            # v2.0.121: wybór szablonu STR_TYT („Wersja 1/2/3”) — dotąd
+            # atrapa nie powstawała, więc kreator zawsze widział „Wersja 1”
+            elif kind == "strtyt":
+                val = self.get_setting(f"web.{c['id']}",
+                                       c.get("default", "Wersja 1") or "Wersja 1")
+                self._set_fake(c["attr"], FakeVar(str(val)))
             elif kind == "margins":
                 mode = c["mode"]
                 saved = load_margins().get(mode, {})
@@ -815,6 +822,11 @@ class WebBackend(
             elif kind == "check":
                 self._get_fake(c["attr"]).set(bool(val))
             elif kind == "select":
+                self._get_fake(c["attr"]).set(str(val))
+            # v2.0.121: wybór szablonu STR_TYT (miniaturki „Wersja 1/2/3”)
+            # ma kind „strtyt” — dotąd wartość wpadała w próżnię i po każdej
+            # zmianie w „Strona tytułowa i daty” wracał wbudowany szablon
+            elif kind == "strtyt":
                 self._get_fake(c["attr"]).set(str(val))
             elif kind == "segment" and c.get("attr"):
                 self._get_fake(c["attr"]).set(str(val))
@@ -971,6 +983,14 @@ class WebBackend(
                 wydruki.append(m.group(1))
                 continue
             if rx_uwaga.search(l):
+                # v2.0.132: komunikaty "skopiowano / już wygenerowane
+                # w 'Z nazwiskami'" to OCZEKIWANE zachowanie drugiego
+                # przebiegu (bez nazwisk) — to nie ostrzeżenie,
+                # nie zaśmiecamy podsumowania
+                if ("Z nazwiskami" in l
+                        and ("pomijam" in l.lower()
+                             or "Skopiowano" in l)):
+                    continue
                 uwagi.append(l.strip())
         folder = self._raport_folder(out_root)
         self._emit({"type": "raport", "czas": czas,
@@ -1102,6 +1122,46 @@ class WebBackend(
         pass
 
     # -------------------------------------------------- wybór plików/folderów
+
+    # ------------------------------------------------------------ EDYCJA PDF
+    def pdf_edycja_otworz(self, path):
+        """Otwiera PDF do edycji: podglądy stron (PNG base64) + wymiary."""
+        from app.core import pdf_edycja
+        r = pdf_edycja.otworz(path)
+        if r.get("ok"):
+            self._pdf_edycja_plik = str(path)
+            self.log(f"[EDYCJA PDF] Otwarto: {path} "
+                     f"({r['ile']} stron). Oryginał pozostaje bez zmian.")
+        else:
+            self.log(f"[EDYCJA PDF] {r.get('blad')}")
+        return r
+
+    def pdf_edycja_otworz_b64(self, nazwa, dane_b64):
+        """PDF upuszczony w oknie (drag&drop): zapisuje w temp i otwiera."""
+        from app.core import pdf_edycja
+        r = pdf_edycja.otworz_b64(nazwa, dane_b64)
+        if r.get("ok"):
+            self._pdf_edycja_plik = r["plik"]
+            self.log(f"[EDYCJA PDF] Wczytano z okna: {nazwa} "
+                     f"({r['ile']} stron).")
+        else:
+            self.log(f"[EDYCJA PDF] {r.get('blad')}")
+        return r
+
+    def pdf_edycja_zapisz(self, operacje, cel=None):
+        """Stosuje operacje edycji i zapisuje NOWY plik PDF."""
+        from app.core import pdf_edycja
+        path = getattr(self, "_pdf_edycja_plik", None)
+        if not path:
+            return {"ok": False,
+                    "blad": "Najpierw otwórz plik PDF do edycji."}
+        r = pdf_edycja.zapisz(path, operacje, cel)
+        if r.get("ok"):
+            self.log(f"[EDYCJA PDF] Zapisano: {r['plik']} "
+                     f"({r.get('ile')} stron).")
+        else:
+            self.log(f"[EDYCJA PDF] {r.get('blad')}")
+        return r
 
     def browse(self, control_id, kind):
         """Otwiera natywne okno wyboru (pywebview) i zwraca ścieżkę."""

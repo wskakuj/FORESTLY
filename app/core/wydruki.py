@@ -1194,6 +1194,173 @@ def _strona_rej(rows, pageno, agencja, obiekt):
 
 
 # ----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------- 
+# KONTROLA.TXT - kontrola powierzchni: Rejestr a opis taksacyjny
+# ---------------------------------------------------------------------------- 
+
+_PCL_KT = '\r\x1b(s16.67H\x1b&l5E\x1b&a14L'
+_KT_TITLE = ' Kontrola powierzchni Rejestru i opisu taksacyjnego'
+_KT_TOP = '┌──────┬─────────┬─────────┬─────────┬──────────────────┐'
+_KT_SEP = '├──────┼─────────┼─────────┼─────────┼──────────────────┤'
+_KT_H1 = '│ Oddz.│  Pow.   │  Pow.   │ Różnica│                  │'
+_KT_H2 = '│poddz.│ w rej.  │ w OPTAX │  [ha]   │ Uwagi            │'
+_KT_BOT = '└──────┴─────────┴─────────┴─────────┴──────────────────┘'
+
+
+def _kt_sort_key(key):
+    """Klucz sortowania wydzielenia '12ab' -> (12, '12ab')."""
+    i = 0
+    while i < len(key) and key[i].isdigit():
+        i += 1
+    try:
+        return (int(key[:i] or 9999), key)
+    except ValueError:
+        return (9999, key)
+
+
+def generuj_kontrola_pow_txt(obreb_dir, dane=None, agencja=None, usuniete=None):
+    """KONTROLA.TXT - porównanie powierzchni REJESTR (D*.DBF) i OPTAX (O*.DBF).
+
+    Nie zmienia żadnych danych - to wyłącznie raport kontrolny:
+    sumy obu źródeł, wydzielenia o różnych powierzchniach (lub obecne
+    tylko w jednym z nich) oraz wypis działek przypisanych do każdego
+    wydzielenia z rozbieżnością (działka, pozycja rejestru, właściciel,
+    powierzchnia) - żeby błąd dało się namierzyć w mietku.
+
+    usuniete: wydzielenia usunięte decyzją przed startem (zwraca je
+    zastosuj_decyzje) - trafiają do osobnej sekcji raportu z dopiskiem
+    'USUNIĘTO', zamiast znikać bez śladu.
+    """
+    obreb = Path(obreb_dir)
+    if dane is None:
+        dane = _wczytaj_obreb(obreb)
+    if dane is None:
+        return None
+    if agencja is None:
+        agencja = czytaj_agencje(obreb) or ''
+    obiekt, stan_na = czytaj_dane_wsi(obreb)
+
+    # --- sumy per wydzielenie (oddz+poddz) ---
+    rej = {}                    # key -> [suma, [(działka, nrrej, pow)]]
+    for d in dane['D']:
+        key = f"{d.get('ODDZIAL', '')}{d.get('PODODDZ', '')}".strip()
+        pow_d = float(d.get('POW') or 0)
+        w = rej.setdefault(key, [0.0, []])
+        w[0] += pow_d
+        w[1].append((str(d.get('NR_DZIAL', '') or '').strip(),
+                     d.get('NRREJ'), pow_d))
+    opt = {}                    # key -> suma POW_WYDZ
+    for o in dane['O']:
+        key = f"{o.get('ODDZIAL', '')}{o.get('PODODDZ', '')}".strip()
+        opt[key] = opt.get(key, 0.0) + float(o.get('POW_WYDZ') or 0)
+
+    wlasc = {}                  # NRREJ -> [nazwiska]
+    for w in dane['W']:
+        nr = w.get('NRREJ')
+        if nr is None:
+            continue
+        nazw = f"{str(w.get('NAZWISKO', '') or '').strip()} " \
+               f"{str(w.get('IMIE', '') or '').strip()}".strip()
+        if nazw:
+            wlasc.setdefault(nr, []).append(nazw)
+
+    suma_rej = sum(v[0] for v in rej.values())
+    suma_opt = sum(opt.values())
+
+    usuniete = list(usuniete or [])
+    pominiete_klucze = {str(u.get('wydz', '') or '').strip()
+                        for u in usuniete}
+
+    roznice = []
+    for key in set(rej) | set(opt):
+        if key in pominiete_klucze:
+            continue        # usunięte decyzją - osobna sekcja niżej
+        r_pow = rej.get(key, (0.0, []))[0]
+        o_pow = opt.get(key)
+        if o_pow is None:
+            roznice.append((key, r_pow, None, 'BRAK W OPTAX'))
+        elif key not in rej:
+            roznice.append((key, None, o_pow, 'BRAK W REJESTRZE'))
+        elif abs(r_pow - o_pow) > 0.00005:
+            roznice.append((key, r_pow, o_pow, ''))
+    roznice.sort(key=lambda tk: _kt_sort_key(tk[0]))
+
+    out = (dane['d_path'].parent if dane.get('d_path') else obreb) / 'KONTROLA.TXT'
+    lines = [_PCL_KT + agencja.ljust(114) + f"Strona {1:4d}",
+             _KT_TITLE.ljust(59) + f"Obiekt: {obiekt}  ".ljust(49)
+             + f"Stan na: {stan_na}",
+             '',
+             ' Suma powierzchni REJESTR  (działki)   :'
+             + _f4(suma_rej).rjust(12) + ' ha',
+             ' Suma powierzchni OPTAX   (wydzielenia):'
+             + _f4(suma_opt).rjust(12) + ' ha',
+             ' RÓŻNICA (REJESTR - OPTAX)             :'
+             + f"{suma_rej - suma_opt:+.4f}".rjust(12) + ' ha',
+             '']
+
+    if roznice:
+        lines.append(f' Wydzielenia z rozbieżnością: {len(roznice)}'
+                     f'   (łączna różnica {suma_rej - suma_opt:+.4f} ha)')
+        lines.append('')
+        lines.extend([_KT_TOP, _KT_H1, _KT_H2, _KT_SEP])
+        for key, r_pow, o_pow, uwaga in roznice:
+            lines.append('│' + key[:6].rjust(6) + '│'
+                         + (_f4(r_pow) if r_pow is not None else '-').rjust(9) + '│'
+                         + (_f4(o_pow) if o_pow is not None else '-').rjust(9) + '│'
+                         + (f"{(r_pow or 0) - (o_pow or 0):+.4f}").rjust(9) + '│'
+                         + uwaga.ljust(18) + '│')
+            # wypis działek tego wydzielenia (gdy jest w Rejestrze) -
+            # zwykłe wcięte linie pod wierszem wydzielenia
+            if key in rej:
+                for dzialka, nrrej, pow_d in rej[key][1]:
+                    kto = ' / '.join(wlasc.get(nrrej, [])) or '(brak nazwiska)'
+                    lines.append(f"  dz. {dzialka or '?'}, poz. rej. {nrrej},"
+                                 f" {kto}: {_f4(pow_d)} ha")
+        lines.append(_KT_BOT)
+    else:
+        lines.append(' Brak rozbieżności - powierzchnie Rejestru i OPTAX'
+                     ' są zgodne.')
+
+    # --- sekcja: wydzielenia usunięte decyzją przed startem ---
+    if usuniete:
+        us_r = sum(float(u.get('rej') or 0) for u in usuniete
+                   if u.get('akcja') == 'usun')
+        us_o = sum(float(u.get('opt') or 0) for u in usuniete
+                   if u.get('akcja') == 'usunO')
+        lines.append('')
+        lines.append(f' Wydzielenia usunięte decyzją przed startem: '
+                     f'{len(usuniete)}')
+        lines.append(f' (usunięto {us_r:.4f} ha z Rejestru, '
+                     f'{us_o:.4f} ha z opisu taksacyjnego)')
+        lines.append('')
+        lines.extend([_KT_TOP, _KT_H1, _KT_H2, _KT_SEP])
+        for u in sorted(usuniete, key=lambda x: _kt_sort_key(
+                str(x.get('wydz', '')))):
+            key = str(u.get('wydz', '') or '').strip()
+            if u.get('akcja') == 'usunO':
+                r_pow, o_pow = None, float(u.get('opt') or 0)
+                uwaga = 'USUNIĘTO (OPTAX)'
+            else:
+                r_pow, o_pow = float(u.get('rej') or 0), None
+                uwaga = 'USUNIĘTO (rejestr)'
+            lines.append('│' + key[:6].rjust(6) + '│'
+                         + (_f4(r_pow) if r_pow is not None else '-').rjust(9)
+                         + '│'
+                         + (_f4(o_pow) if o_pow is not None else '-').rjust(9)
+                         + '│'
+                         + ((f'{(r_pow or 0) - (o_pow or 0):+.4f}')
+                            .rjust(9)) + '│'
+                         + uwaga.ljust(18) + '│')
+            for dzialka, nrrej, pow_d in (u.get('dzialki') or []):
+                kto = ' / '.join(wlasc.get(nrrej, [])) or '(brak nazwiska)'
+                lines.append(f"  dz. {dzialka or '?'}, poz. rej. {nrrej},"
+                             f' {kto}: {_f4(pow_d)} ha')
+        lines.append(_KT_BOT)
+
+    _zapisz(out, lines, tail='')
+    return out
+
+
 # WSKAZ1.TXT — wykaz wskaźników (pusty przy braku danych)
 # ----------------------------------------------------------------------------
 

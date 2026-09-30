@@ -29,6 +29,7 @@ from app.core.word_worker import (
 )
 from app.core.wydruki import (
     generuj_wszystkie_po_przeniesieniu, generuj_halizny_txt,
+    generuj_kontrola_pow_txt,
 )
 from app.gui.tabs.tab_wydruki import AGENCJA_NAGLOWKA
 
@@ -1062,6 +1063,26 @@ class TabAllMixin:
                     self.log(f"  [TXT] {obr.name}: {', '.join(sorted(out))}")
                 else:
                     self.log(f"  [TXT] {obr.name}: brak O*.DBF — pomijam.")
+                # 3) KONTROLA.TXT — kontrola powierzchni REJESTR vs OPTAX
+                #    (nie zmienia danych mietka; tylko gdy włączona w kreatorze)
+                if self._all_kontrola_wlaczona():
+                    try:
+                        kp = generuj_kontrola_pow_txt(
+                            obr, agencja=AGENCJA_NAGLOWKA,
+                            usuniete=self._kontrola_usuniete_dla(obr))
+                        if kp:
+                            self.log(f"  [TXT] {obr.name}: KONTROLA.TXT "
+                                     f"(kontrola powierzchni)")
+                    except Exception as e:
+                        self.log(f"  [TXT] {obr.name}: błąd KONTROLA.TXT — {e}")
+                else:
+                    # wyłączone — usuń ewentualny KONTROLA.TXT z poprzedniego
+                    # biegu, żeby nie wchodził do wydruków
+                    for st in obr.rglob("KONTROLA*.TXT"):
+                        try:
+                            st.unlink()
+                        except OSError:
+                            pass
             except Exception as e:
                 self.log(f"  [TXT] {obr.name}: błąd — {e}")
                 traceback.print_exc()
@@ -1211,9 +1232,15 @@ class TabAllMixin:
 
             n_plik = 0
             pliki_txt = sorted(set(list(wies.glob("*.TXT")) + list(wies.glob("*.txt"))))
+            # KONTROLA nie wchodzi do folderu PDF — tam scalanie bierze
+            # wszystkie pliki, więc raport kontroli trafiłby do scalonego
+            # PDF; renderuje go później _kontrola_pow_etap (obok scalek)
+            (out_dir / "KONTROLA.pdf").unlink(missing_ok=True)
             for txt in pliki_txt:
                 typ = txt.stem.upper()
                 if typ not in szablony.RENDERERY:
+                    continue
+                if typ == "KONTROLA":
                     continue
                 if typ in pomij_typ:   # odznaczone w układzie PDF — pomijamy
                     continue
@@ -1238,6 +1265,137 @@ class TabAllMixin:
             self.set_progress(0.15 + 0.45 * n_done / total,
                                current_file=f"Szablony: {obiekt or str(rel)}")
             self.log(f"[SZABLONY] {str(rel) or '.'}: {n_plik} plików PDF.")
+
+    def kontrola_pow_scan(self, src):
+        """Skanuje mietki (folder źródłowy) pod kątem rozbieżności REJESTR/OPTAX.
+
+        Wywoływane z podsumowania kreatora — zwraca per obręb sumy
+        i wydzielenia z rozbieżnością (z działkami i właścicielami).
+        """
+        from app.core.kontrola_pow import policz_rozbieznosci
+        try:
+            src = str(src or "").strip()
+            if not src or not Path(src).exists():
+                return {"ok": False,
+                        "blad": "Najpierw wskaż Mietki (źródło) w kroku 1."}
+            kat_o = sorted({p.parent for p in Path(src).rglob("*.DBF")
+                            if p.name[:1].upper() == "O"})
+            obreby = []
+            for k in kat_o:
+                try:
+                    r = policz_rozbieznosci(k)
+                except Exception:
+                    continue
+                if r and r["wydz"]:
+                    obreby.append(r)
+            if not obreby:
+                return {"ok": True, "obreby": [], "zgodne": True}
+            return {"ok": True, "obreby": obreby}
+        except Exception as e:
+            return {"ok": False, "blad": f"Skan nie udał się: {e}"}
+
+    def kontrola_pow_decide(self, decyzje, tryb_kontrola=False):
+        """Zapisuje decyzje z tabeli podsumowania (zastosuje je start procesu).
+
+        decyzje: {folder_obrębu: [{wydz, akcja}, ...]}
+        Akceptuje też starszy format {folder: {wydz: {akcja}}} (na wszelki
+        wypadek — to właśnie niedopasowanie formatów psuło decyzje w v2.0.118).
+        tryb_kontrola: True = pełny automat ma zrobić TYLKO raport kontroli
+        powierzchni i się zakończyć (bez decyzji i bez pozostałych dokumentów).
+        Puste wywołanie czyści decyzje.
+        """
+        try:
+            czyste = {}
+            d = decyzje or {}
+            if isinstance(d, dict):
+                for folder, lista in d.items():
+                    zam = []
+                    # format właściwy: lista decyzji
+                    if isinstance(lista, list):
+                        pozycje = lista
+                    # starszy format: słownik {wydz: {akcja}}
+                    elif isinstance(lista, dict):
+                        pozycje = [dict(v or {}, wydz=k) for k, v in lista.items()]
+                    else:
+                        continue
+                    for z in pozycje:
+                        if not isinstance(z, dict):
+                            continue
+                        akcja = str(z.get("akcja", "") or "")
+                        if akcja in ("usun", "rozloz", "usunO"):
+                            zam.append({"wydz": str(z.get("wydz", "") or ""),
+                                        "akcja": akcja,
+                                        "opis": str(z.get("opis", "") or "")})
+                    if zam:
+                        czyste[str(folder)] = zam
+            self._kontrola_pow_decyzje = czyste
+            self._kontrola_pow_tryb = bool(tryb_kontrola)
+            return {"ok": True,
+                    "decyzji": sum(len(v) for v in czyste.values()),
+                    "tryb_kontrola": bool(tryb_kontrola)}
+        except Exception as e:
+            return {"ok": False, "blad": f"Nie udało się zapisać decyzji: {e}"}
+
+    def _all_kontrola_wlaczona(self):
+        """Czy w kreatorze włączono 'Kontrolę powierzchni REJESTR ↔ OPTAX'."""
+        v = getattr(self, "all_kontrola_var", None)
+        try:
+            return bool(v is not None and v.get())
+        except Exception:
+            return False
+
+    def _kontrola_usuniete_dla(self, obr):
+        """Wydzielenia usunięte decyzją dla obrębu (klucze stash'a to
+        foldery .001 znalezione przez kontrola_pow_scan)."""
+        out = []
+        try:
+            obr = Path(obr)
+            for folder, lista in (getattr(self, "_kontrola_pow_usuniete",
+                                          None) or {}).items():
+                try:
+                    p = Path(folder)
+                except Exception:
+                    continue
+                if p == obr or obr in p.parents:
+                    out.extend(lista or [])
+        except Exception:
+            pass
+        return out
+
+    def _kontrola_pow_etap(self, txt_dir, pdf_dir, final_dir):
+        """KONTROLA.TXT → PDF obok scalonych pakietów (nie wchodzi do scalek).
+
+        Dla każdej wsi: 'KONTROLA_<wieś>.pdf' obok '<wieś>_UPUL.pdf'.
+        Gdy nowe szablony wyrenderowały już KONTROLA.pdf w folderze PDF —
+        kopiujemy; w przeciwnym razie renderujemy z TXT (działa też przy
+        starych szablonach, bez Worda).
+        """
+        from app.core import szablony
+
+        txt_dir, pdf_dir, final_dir = Path(txt_dir), Path(pdf_dir), Path(final_dir)
+        pliki = sorted(txt_dir.rglob("KONTROLA*.TXT"))
+        if not pliki:
+            self.log("[KONTROLA] Brak plików KONTROLA.TXT — pomijam.")
+            return
+        _czc = self.get_setting("web.czcionki.ALL", None)
+        for txt in pliki:
+            self.check_stop()
+            rel = txt.parent.relative_to(txt_dir)
+            wies = rel.parts[-1] if rel.parts else ""
+            nazwa = f"{wies}_KONTROLA.pdf" if wies else "KONTROLA_POWIERZCHNI.pdf"
+            cel = final_dir / rel / nazwa
+            try:
+                cel.parent.mkdir(parents=True, exist_ok=True)
+                gotowy = pdf_dir / rel / "KONTROLA.pdf"
+                if gotowy.exists():
+                    shutil.copyfile(gotowy, cel)
+                else:
+                    szablony.generuj_raport_pdf(
+                        "KONTROLA", txt, cel,
+                        czcionki=_czc if isinstance(_czc, dict) else {})
+                self.log(f"[KONTROLA] Zapisano: {cel}")
+            except Exception as e:
+                self.log(f"[KONTROLA] Błąd przy {txt.name}: {e}")
 
     def _szablony_str_tyt_opis_og_wordem(self, txt_dir, word_dir, pdf_dir,
                                          pominiete=None):
@@ -1951,6 +2109,107 @@ class TabAllMixin:
                                  + (", WSKAZ1" if nowe_szablony else "")
                                  + "); pozostałe kopiuję z 'Z nazwiskami'.")
 
+                # === TRYB KONTROLNY: TYLKO raport kontroli powierzchni ===
+                # (decyzje z tabeli NIE są stosowane — mietek zostaje do
+                #  ręcznej poprawki; proces kończy się po raporcie)
+                if getattr(self, "_kontrola_pow_tryb", False):
+                    self._kontrola_pow_tryb = False
+                    self._kontrola_pow_decyzje = {}
+                    self.update_status(
+                        "Tryb kontrolny: raport kontroli powierzchni...",
+                        "#0078D7")
+                    self.log("[TRYB KONTROLNY] Generuję wyłącznie raport "
+                             "kontroli powierzchni (bez pozostałych "
+                             "dokumentów).")
+                    from app.core.wydruki import generuj_kontrola_pow_txt
+                    from app.core import szablony
+                    kat_o = sorted({q.parent for q in in_root.rglob("*.DBF")
+                                    if q.name[:1].upper() == "O"})
+                    _czc = self.get_setting("web.czcionki.ALL", None)
+                    _czc = _czc if isinstance(_czc, dict) else {}
+                    # v2.0.124: każdy raport to osobny start przeglądarki
+                    # (~2-6 s), więc przy kilku wsiach tryb kontrolny trwał
+                    # nieproporcjonalnie długo — TXT-y robimy po kolei
+                    # (szybkie czytanie DBF), a PDF-y renderujemy RÓWNOLEGLE
+                    self.check_stop()
+                    _zadania = []
+                    for _k in kat_o:
+                        try:
+                            _txt = generuj_kontrola_pow_txt(_k)
+                        except Exception as e:
+                            self.log(f"[TRYB KONTROLNY] Błąd przy {_k}: {e}")
+                            continue
+                        if not _txt:
+                            continue
+                        _wies = (_k.parent.name if _k != in_root
+                                 else _k.name) or "obreb"
+                        _zadania.append((_wies, _txt,
+                                         out_root / f"KONTROLA_{_wies}.pdf"))
+                    _n = 0
+                    if _zadania:
+                        from concurrent.futures import ThreadPoolExecutor
+                        _wtk = min(4, len(_zadania))
+                        if len(_zadania) > 1:
+                            self.log(f"[TRYB KONTROLNY] Renderuję {len(_zadania)} "
+                                     f"raport(ów) równolegle ({_wtk} na raz).")
+                        with ThreadPoolExecutor(max_workers=_wtk) as _ex:
+                            def _renderuj(_z):
+                                _w, _t, _p = _z
+                                szablony.generuj_raport_pdf(
+                                    "KONTROLA", _t, _p, czcionki=_czc)
+                                return _w, _p
+                            for _wies, _pdf in _ex.map(_renderuj, _zadania):
+                                self.log(f"[TRYB KONTROLNY] {_wies}: "
+                                         f"{_pdf.name}")
+                                _n += 1
+                    self.log(f"\n[TRYB KONTROLNY] Gotowe — {_n} raport(ów) "
+                             f"kontroli powierzchni w folderze wyników.\n"
+                             f"Popraw mietek ręcznie (np. w edytorze Mietek "
+                             f"v2.0) i uruchom pełny automat ponownie.")
+                    self.set_progress(1.0)
+                    self.update_status("Zakończono — raport kontroli powierzchni",
+                                       "#27ae60", animate=False)
+                    if hasattr(self, "pokaz_raport_koncowy"):
+                        self.pokaz_raport_koncowy(out_root)
+                    return
+
+                # === DECYZJE KONTROLI POWIERZCHNI (przed generowaniem TXT) ===
+                _decyzje_kp = getattr(self, "_kontrola_pow_decyzje", None) or {}
+                # wydzielenia usunięte decyzją — do raportu KONTROLA (dopisek
+                # „USUNIĘTO”); czyszczone na początku każdego biegu
+                self._kontrola_pow_usuniete = {}
+                if any(_decyzje_kp.values()):
+                    from app.core.kontrola_pow import zastosuj_decyzje
+                    self.update_status(
+                        "Kontrola powierzchni: zastosowywanie decyzji...",
+                        "#0078D7")
+                    self.log("[KONTROLA] Zastosowywanie decyzji kontroli "
+                             "powierzchni (z zapisem do DBF, kopia .BAK):")
+                    for _folder, _lista in _decyzje_kp.items():
+                        if not _folder or not Path(_folder).exists():
+                            self.log(f"[KONTROLA] Pomijam (folder nie "
+                                     f"istnieje): {_folder}")
+                            continue
+                        try:
+                            _logi, _sumy, _usuniete = zastosuj_decyzje(
+                                _folder, _lista)
+                            if _usuniete:
+                                self._kontrola_pow_usuniete[_folder] = \
+                                    _usuniete
+                            for _l in _logi:
+                                self.log("  " + _l)
+                            if _sumy:
+                                self.log(f"[KONTROLA] Sumy po decyzjach: "
+                                         f"Rejestr {_sumy['rej']:.4f} ha, "
+                                         f"OPTAX {_sumy['opt']:.4f} ha "
+                                         f"(różnica "
+                                         f"{_sumy['rej'] - _sumy['opt']:+.4f})")
+                        except Exception as e:
+                            self.log(f"[KONTROLA] Błąd przy {_folder}: {e}")
+                    # decyzje są jednorazowe — drugi przebieg ('Bez nazwisk')
+                    # nie stosuje ich drugi raz
+                    self._kontrola_pow_decyzje = {}
+
                 # === ETAP 0: GENEROWANIE TXT Z DBF MIETEKA ===
                 if _incr_baza is not None:
                     self.update_dashboard(0, "done", "Pominięto")
@@ -2177,6 +2436,13 @@ class TabAllMixin:
                     except Exception as e:
                         self.log(f"[WYDRUK] Nie udało się utworzyć wersji do wydruku: {e}")
 
+                # === KONTROLA POWIERZCHNI — osobny PDF obok scalonych ===
+                if self._all_kontrola_wlaczona():
+                    self.update_status("Kontrola powierzchni REJESTR ↔ OPTAX...",
+                                       "#0078D7")
+                    self.check_stop()
+                    if dir_05 and dir_05.exists():
+                        self._kontrola_pow_etap(dir_01, dir_03, dir_05)
                 # === PORZĄDKI: zostaje tylko finalny folder "PDF polaczone" ===
                 self.update_status("Porządkowanie folderów wynikowych...", "#0078D7")
                 try:
@@ -2414,4 +2680,3 @@ class TabAllMixin:
             else:
                 self.running = False
                 self.after(0, self.restore_all_buttons)
-

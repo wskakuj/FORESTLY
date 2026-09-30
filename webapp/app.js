@@ -299,6 +299,8 @@ function renderOneControl(c) {
     case "fonts": return renderFonts(c);
     case "dropfiles": return renderDropFiles(c);
     case "dashboard": return renderDashboard(c);
+    case "mietek_v2": return renderMietekV2(c);   /* v2.0.115: edytor danych mietka */
+    case "pdf_edycja": return renderPdfEdycja(c); /* v2.0.122: edycja PDF */
     case "info": return renderInfo(c);
     case "gdos_table": return renderGdos(c);
     case "group": return renderGroup(c);
@@ -416,7 +418,7 @@ function renderControls(view, tab) {
   }
   const actions = document.createElement("div");
   actions.className = "actions";
-  for (const b of tab.buttons) {
+  for (const b of (tab.buttons || [])) {
     const btn = document.createElement("button");
     const isRun = b.style !== "secondary";
     btn.className = "btn " + (isRun ? "primary run-btn" : "secondary");
@@ -457,7 +459,151 @@ function wizField(cid) {
   return n ? (n.closest(".field, .check-row") || n) : null;
 }
 
+/* ---- kontrola powierzchni REJESTR <-> OPTAX: skan + tabela decyzji ---- */
+const KP_AKCJE = {
+  "BRAK W OPTAX": [
+    ["zostaw", "— zostaw bez zmian —"],
+    ["usun", "Usuń z Rejestru (działki znikają z wydruków)"],
+  ],
+  "BRAK W REJESTRZE": [
+    ["zostaw", "— zostaw bez zmian —"],
+    ["usunO", "Usuń z opisu taksacyjnego"],
+  ],
+};
+
+function renderKontrolaPow(kz) {
+  (async () => {
+    const status = kz.querySelector(".kp-status");
+    try {
+      const src = wizVal("all_src");
+      if (!src) {
+        status.textContent = "Wskaż Mietki (źródło) w kroku 1 — tu pokaże " +
+                             "się kontrola powierzchni przed startem.";
+        return;
+      }
+      const r = await api().kontrola_pow_scan(src);
+      if (!r || !r.ok) {
+        status.textContent = (r && r.blad) || "Nie udało się sprawdzić powierzchni.";
+        return;
+      }
+      if (!r.obreby || !r.obreby.length) {
+        kz.innerHTML = "<h3>Kontrola powierzchni Rejestru i opisu taksacyjnego</h3>" +
+          "<div class=\"wiz-sub\">Powierzchnie <b>Rejestru</b> i <b>opisu " +
+          "taksacyjnego</b> są zgodne — nic do decydowania.</div>";
+        return;
+      }
+      kz.innerHTML = "<h3>Kontrola powierzchni Rejestru i opisu taksacyjnego</h3>" +
+        "<div class=\"wiz-sub\">Wydzielenia poniżej mają różne powierzchnie w " +
+        "Rejestrze i opisie taksacyjnym. Zdecyduj, co z nimi zrobić — decyzje " +
+        'zastosują się dopiero po kliknięciu „Generuj dokumenty" (z kopią .BAK ' +
+        "plików mietka).</div>";
+      if (!WIZ.kontrola) WIZ.kontrola = {};
+
+      const fmt4 = v => (v == null ? "—" : Number(v).toFixed(4));
+
+      for (const obr of r.obreby) {
+        const box = el("div", "kp-obreb");
+        const hd = el("div", "kp-hd");
+        hd.innerHTML = "<b>" + escapeHtml(obr.nazwa || "") + "</b>" +
+          " — Rejestr: <b>" + fmt4(obr.sumy.rej) + "</b> ha, OPTAX: <b>" +
+          fmt4(obr.sumy.opt) + "</b> ha, różnica: <b>" +
+          (obr.sumy.rej - obr.sumy.opt).toFixed(4) + "</b> ha";
+        box.appendChild(hd);
+        const tabela = el("table", "kp-tab");
+        tabela.innerHTML =
+          "<thead><tr><th>Wydziel.</th><th class=\"n\">Rejestr [ha]</th>" +
+          "<th class=\"n\">OPTAX [ha]</th><th class=\"n\">Różnica</th>" +
+          "<th>Uwaga</th><th>Decyzja</th></tr></thead>";
+        const tbody = el("tbody");
+        const podgladEl = el("div", "kp-podglad");
+
+        const zapiszDecyzje = (wydz, akcja) => {
+          /* format zgodny z backendem: {folder: [{wydz, akcja}]} */
+          const lista = WIZ.kontrola[obr.folder] =
+            (WIZ.kontrola[obr.folder] || []).filter(x => x.wydz !== wydz);
+          if (akcja && akcja !== "zostaw") lista.push({ wydz: wydz, akcja: akcja });
+          odswiez();
+        };
+        const odswiez = () => {
+          let rej = obr.sumy.rej, opt = obr.sumy.opt;
+          for (const w of obr.wydz) {
+            const d = ((WIZ.kontrola[obr.folder] || [])
+              .find(x => x.wydz === w.wydz) || {}).akcja;
+            if (d === "usun") rej -= (w.rej || 0);
+            if (d === "usunO") opt -= (w.opt || 0);
+          }
+          podgladEl.innerHTML = "Po decyzjach: Rejestr <b>" + rej.toFixed(4) +
+            "</b> ha, OPTAX <b>" + opt.toFixed(4) + "</b> ha, różnica <b>" +
+            (rej - opt).toFixed(4) + "</b> ha" +
+            (Math.abs(rej - opt) < 0.0001 ? " — zgodne ✔" : "");
+        };
+
+        for (const w of obr.wydz) {
+          const saved = ((WIZ.kontrola[obr.folder] || [])
+            .find(x => x.wydz === w.wydz) || {}).akcja || "zostaw";
+          const tr = el("tr", "kp-wiersz" +
+            (w.uwaga === "BRAK W OPTAX" ? " kp-brak" : ""));
+          const dzl = (w.dzialki || []).map(d =>
+            "dz. " + escapeHtml(d.dz) + " (" + escapeHtml(d.wlasc) + ")").join("; ");
+          const opcje = KP_AKCJE[w.uwaga] ||
+            [["zostaw", "— zostaw (do ręcznej poprawy w mietku) —"]];
+          const sel = el("select", "kp-akcja");
+          for (const [v, opis] of opcje) {
+            const o = el("option", "", opis); o.value = v;
+            if (saved === v) o.selected = true;
+            sel.appendChild(o);
+          }
+          sel.onchange = () => zapiszDecyzje(w.wydz, sel.value);
+          const tdUw = el("td", "c", escapeHtml(w.uwaga));
+          tr.innerHTML = "<td class=\"c kp-w\"><b>" + escapeHtml(w.wydz) +
+            "</b></td><td class=\"n\">" + fmt4(w.rej) + "</td>" +
+            "<td class=\"n\">" + fmt4(w.opt) + "</td>" +
+            "<td class=\"n\">" + ((w.rej != null && w.opt != null)
+              ? (w.rej - w.opt).toFixed(4) : "—") + "</td>";
+          tr.appendChild(tdUw);
+          const tdD = el("td"); tdD.appendChild(sel); tr.appendChild(tdD);
+          const trD = el("tr", "kp-dzialki");
+          const tdD2 = el("td", "", dzl || "—");
+          tdD2.colSpan = 6;
+          trD.appendChild(tdD2);
+          tbody.appendChild(tr);
+          tbody.appendChild(trD);
+        }
+        tabela.appendChild(tbody);
+        box.appendChild(tabela);
+        box.appendChild(podgladEl);
+        kz.appendChild(box);
+        odswiez();
+      }
+
+      /* tryb kontrolny: tylko raport kontroli, bez pozostałych dokumentów */
+      const trybBox = el("label", "kp-tryb");
+      const trybInp = el("input");
+      trybInp.type = "checkbox";
+      trybInp.checked = !!WIZ.kontrolaTryb;
+      trybInp.onchange = () => { WIZ.kontrolaTryb = trybInp.checked; };
+      const trybTxt = el("span", "",
+        "Tryb kontrolny — wygeneruj <b>tylko raport kontroli powierzchni</b> " +
+        "i zakończ (bez pozostałych dokumentów). Decyzje z tabeli nie zostaną " +
+        "zastosowane — poprawię mietek ręcznie i puszczę pełny automat ponownie.");
+      trybBox.appendChild(trybInp);
+      trybBox.appendChild(trybTxt);
+      kz.appendChild(trybBox);
+    } catch (e) {
+      if (status) status.textContent = "Nie udało się sprawdzić powierzchni: " + e;
+    }
+  })();
+}
+
+function _wizChk(id) {
+  const f = wizField(id);
+  if (!f) return false;
+  const c = f.querySelector('input[type="checkbox"]');
+  return !!(c && c.checked);
+}
+
 function wizVal(cid) {
+
   const n = WIZ.home && WIZ.home.querySelector('[data-cid="' + cssEscape(cid) + '"]');
   if (!n) return "";
   if (n.type === "checkbox") return n.checked;
@@ -706,6 +852,18 @@ function renderWizStep() {
     odswiezKafle();
     st.appendChild(big);
 
+    /* kontrola powierzchni REJESTR ↔ OPTAX (opcjonalnie): dodatkowy
+       PDF obok scalonego pakietu — bez zmian w danych mietka */
+    const kK = el("div", "wiz-kontrola-card");
+    kK.innerHTML = '<h2>Kontrola powierzchni REJESTR ↔ OPTAX (opcjonalnie)</h2>' +
+      '<div class="wiz-sub">Obok scalonego pakietu powstanie dodatkowy plik ' +
+      'KONTROLA_<wieś>.pdf: sumy powierzchni Rejestru i Opisu taksacyjnego ' +
+      'oraz wykaz wydzieleń i działek, gdzie się różnią (np. wydzielenie jest ' +
+      'w Rejestrze, a brak go w OPTAX). Mietek pozostaje bez zmian.</div>';
+    const fk = wizField("all_kontrola");
+    if (fk) kK.appendChild(fk);
+    st.appendChild(kK);
+
     /* mapa (opcjonalnie): wskaż plik albo przeciągnij i upuść */
     const karta = el("div", "wiz-map-card");
     karta.innerHTML = '<h2>Mapy (opcjonalnie)</h2>' +
@@ -813,6 +971,9 @@ function renderWizStep() {
         ? "OBIE WERSJE — dwa foldery ('Z nazwiskami' i 'Bez nazwisk')"
         : (wizVal("remove_names")
            ? "usuwane z REJESTRU" : "REJESTR z pełnymi nazwiskami")],
+      ["Kontrola powierzchni REJESTR ↔ OPTAX",
+       _wizChk("all_kontrola") ? "PDF z kontrolą obok scalonych"
+                               : "— bez kontroli —"],
       ["Mapy", wizVal("all_mapa") || "— bez map —"],
       ["Własne skróty i symbole", wizVal("all_custom_skroty")
         ? (wizVal("all_skroty") || "(nie wskazano pliku)") : "domyślne z programu"],
@@ -830,12 +991,23 @@ function renderWizStep() {
         '<div class="wiz-row-v">' + escapeHtml(r[1]) + '</div>'));
     });
     st.appendChild(sum);
+
+    /* ---- kontrola powierzchni REJESTR <-> OPTAX: tabela decyzji ---- */
+    const kz = el("div", "wiz-kontrola-tabela");
+    kz.innerHTML = '<h3>Kontrola powierzchni Rejestru i opisu taksacyjnego</h3>' +
+      '<div class="wiz-sub kp-status">Sprawdzam mietek…</div>';
+    st.appendChild(kz);
+    renderKontrolaPow(kz);
+
     const extra = el("button", "btn ghost", "Skonfiguruj układ PDF…");
     extra.onclick = () => openOrderDialog("ALL");
     nav.appendChild(extra);
     next.innerHTML = ICON("play") + "<span>Generuj dokumenty</span>";
     next.classList.add("wiz-run");
     next.onclick = async () => {
+      /* decyzje kontroli powierzchni -> backend (zastosuje je start) */
+      try { await api().kontrola_pow_decide(WIZ.kontrola || {},
+                                            !!WIZ.kontrolaTryb); } catch (e) {}
       WIZ.step = 7;
       renderWizStep();
       await runTask("start_pipeline:ALL");
@@ -2859,3 +3031,846 @@ window.addEventListener("DOMContentLoaded", async () => {
   renderAll(cfg);
   pollLoop();
 });
+
+/* ==========================================================================
+   MIETEK v2.0 — edytor danych (v2.0.115)
+   Siatka DBF-ów mietka: wczytanie, szukanie, edycja komórek, zapis do DBF
+   (backup .BAK) i generowanie dokumentów nowymi szablonami.
+   ========================================================================== */
+const MV2 = {
+  obreby: [], obr: null, plik: null, dane: null,
+  zmiany: {},   /* "i|pole" -> nowa wartość */
+  outDir: "",
+};
+
+function mv2LicznikZmian() {
+  return Object.keys(MV2.zmiany).length;
+}
+
+/* ===================== EDYCJA PDF (v2.0.128) ===================== */
+const PDFE = { plik: "", zoom: 1.6, zk: 1.6, strony: [], aktywna: 1,
+              tryb: "edytuj", rozmiar: 11, kolor: "#000000",
+              tymczasowy: false,
+              ops: null, cofnij: [] };
+
+function peNoweOps(n) {
+  return { edycje: [], teksty: [], usun: [], obroc: [],
+           kolejnosc: Array.from({length: n}, (_, i) => i + 1) };
+}
+
+function renderPdfEdycja(c) {
+  const box = el("div", "pe");
+  /* pasek górny: plik + otwórz */
+  const top = el("div", "pe-top");
+  const inp = el("input"); inp.type = "text";
+  inp.placeholder = "Ścieżka pliku PDF (albo przeciągnij plik tutaj)...";
+  inp.id = "pe-plik";
+  const btnB = el("button", "btn secondary", "Przeglądaj"); btnB.type = "button";
+  btnB.onclick = async () => {
+    const r = await api().browse("pdf_edycja_plik", "open");
+    if (r && r.path) { inp.value = r.path; peOtworz(r.path); }
+  };
+  const btnO = el("button", "btn", "Otwórz PDF"); btnO.type = "button";
+  btnO.onclick = () => peOtworz(inp.value);
+  top.appendChild(inp); top.appendChild(btnB); top.appendChild(btnO);
+  box.appendChild(top);
+
+  const info = el("div", "pe-info",
+    "Tryb „Edytuj tekst”: kliknij dowolny wiersz i popraw go (literówki, " +
+    "usunięcie liter) — poprawiony tekst wstaje ZAMIAST starego. Tekst " +
+    "istniejący w dokumencie możesz też złapać myszą i przesunąć w inne " +
+    "miejsce. „Dopisz tekst” dodaje nowy tekst w klikniętym punkcie. " +
+    "Zapis zmienia OTWARTY PLIK w tej samej lokalizacji (przed pierwszym " +
+    "zapisem powstaje kopia .BAK).");
+  box.appendChild(info);
+
+  const body = el("div", "pe-body"); body.style.display = "none";
+  box.appendChild(body);
+
+  /* pasek narzędzi */
+  const tools = el("div", "pe-tools");
+  const bEdytuj = el("button", "btn pe-tryb on", "✎ Edytuj tekst"); bEdytuj.type = "button";
+  const bTekst = el("button", "btn pe-tryb", "T Dopisz tekst"); bTekst.type = "button";
+  bEdytuj.onclick = () => peTryb("edytuj");
+  bTekst.onclick = () => peTryb("tekst");
+  const lab1 = el("span", "pe-lab", "Rozmiar:");
+  const selRoz = el("select"); selRoz.id = "pe-rozmiar";
+  [8, 9, 10, 11, 12, 14, 16, 18, 24].forEach(v => {
+    const o = el("option", null, v + " pt"); o.value = v;
+    if (v === 11) o.selected = true; selRoz.appendChild(o);
+  });
+  selRoz.onchange = () => PDFE.rozmiar = parseInt(selRoz.value, 10) || 11;
+  const lab2 = el("span", "pe-lab", "Kolor:");
+  const inpKol = el("input"); inpKol.type = "color"; inpKol.value = "#000000";
+  inpKol.id = "pe-kolor"; inpKol.oninput = () => PDFE.kolor = inpKol.value;
+  const btnC = el("button", "btn secondary", "↩ Cofnij"); btnC.type = "button";
+  btnC.onclick = () => peCofnij();
+  const status = el("span", "pe-status", ""); status.id = "pe-status";
+  const btnZ = el("button", "btn", "💾 Zapisz zmiany"); btnZ.type = "button";
+  btnZ.onclick = () => peZapisz();
+  tools.appendChild(bEdytuj); tools.appendChild(bTekst);
+  tools.appendChild(lab1); tools.appendChild(selRoz);
+  tools.appendChild(lab2); tools.appendChild(inpKol);
+  tools.appendChild(btnC); tools.appendChild(status); tools.appendChild(btnZ);
+  const wersja = el("span", "pe-wersja", "ED-PDF v128");
+  wersja.title = "Wersja edytora PDF — jeśli tu nie ma v128, plik app.js " +
+    "nie został podmieniony";
+  tools.appendChild(wersja);
+  body.appendChild(tools);
+
+  /* miniatury + strona */
+  const dol = el("div", "pe-dol");
+  const mini = el("div", "pe-mini"); mini.id = "pe-mini";
+  const scena = el("div", "pe-scena"); scena.id = "pe-scena";
+  dol.appendChild(mini); dol.appendChild(scena);
+  body.appendChild(dol);
+
+  /* drag & drop pliku PDF na całą zakładkę */
+  box.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    box.classList.add("pe-drop");
+  });
+  box.addEventListener("dragleave", () => box.classList.remove("pe-drop"));
+  box.addEventListener("drop", async (e) => {
+    e.preventDefault();
+    box.classList.remove("pe-drop");
+    const plik = (e.dataTransfer || {}).files && e.dataTransfer.files[0];
+    if (!plik) return;
+    if (!/\.pdf$/i.test(plik.name || "")) {
+      peStatus("To nie jest plik PDF.");
+      return;
+    }
+    peStatus("Wczytuję " + plik.name + "...");
+    const dane = await new Promise(res => {
+      const fr = new FileReader();
+      fr.onload = () => res(fr.result);
+      fr.readAsDataURL(plik);
+    });
+    const r = await api().pdf_edycja_otworz_b64(plik.name, dane);
+    if (r && r.ok) { inp.value = r.plik; peDane(r); peStatus(r.strony.length + " stron"); }
+    else peStatus((r && r.blad) || "Nie udało się wczytać pliku.");
+  });
+
+  /* przy zmianie rozmiaru okna — przelicz skalę strony (nakładki też) */
+  let peResizeTimer = null;
+  window.addEventListener("resize", () => {
+    if (!PDFE.ops) return;
+    clearTimeout(peResizeTimer);
+    peResizeTimer = setTimeout(peRenderuj, 150);
+  });
+  return box;
+}
+
+function peStatus(t) {
+  const s = document.getElementById("pe-status");
+  if (s) s.textContent = t;
+}
+
+function peTryb(t) {
+  PDFE.tryb = t;
+  const etykiety = {edytuj: "Edytuj", tekst: "Dopisz"};
+  document.querySelectorAll(".pe-tryb").forEach(b =>
+    b.classList.toggle("on", b.textContent.indexOf(etykiety[t]) >= 0));
+  peRenderuj();
+}
+
+function peDane(r) {
+  PDFE.plik = r.plik; PDFE.zoom = r.zoom; PDFE.strony = r.strony;
+  PDFE.tymczasowy = !!r.tymczasowy;
+  PDFE.aktywna = 1; PDFE.ops = peNoweOps(r.strony.length); PDFE.cofnij = [];
+  const body = document.querySelector(".pe-body");
+  if (body) body.style.display = "";
+  peRenderuj();
+}
+
+async function peOtworz(path) {
+  if (!path) return;
+  peStatus("Otwieram...");
+  const r = await api().pdf_edycja_otworz(path);
+  if (!r || !r.ok) {
+    peStatus((r && r.blad) || "Nie udało się otworzyć.");
+    return;
+  }
+  peDane(r);
+  peStatus(r.strony.length + " stron");
+}
+
+function peNrAktualna() {
+  return PDFE.ops ? PDFE.ops.kolejnosc[PDFE.aktywna - 1] : PDFE.aktywna;
+}
+
+function peRenderuj() {
+  const mini = document.getElementById("pe-mini");
+  const scena = document.getElementById("pe-scena");
+  if (!mini || !scena || !PDFE.ops) return;
+  mini.innerHTML = ""; scena.innerHTML = "";
+  const ops = PDFE.ops;
+  ops.kolejnosc.forEach((nrPoz, idx) => {
+    const s = PDFE.strony[nrPoz - 1];
+    if (!s) return;
+    const kafelek = el("div", "pe-kafel" + (idx + 1 === PDFE.aktywna ? " on" : ""));
+    kafelek.onclick = () => { PDFE.aktywna = idx + 1; peRenderuj(); };
+    kafelek.draggable = true;              /* przesuwanie stron przeciąganiem */
+    kafelek.dataset.nr = String(nrPoz);
+    kafelek.addEventListener("dragstart", (e) => {
+      e.dataTransfer.setData("text/plain", String(nrPoz));
+      e.dataTransfer.effectAllowed = "move";
+    });
+    kafelek.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      kafelek.classList.add("pe-nad");
+    });
+    kafelek.addEventListener("dragleave", () => kafelek.classList.remove("pe-nad"));
+    kafelek.addEventListener("drop", (e) => {
+      e.preventDefault();
+      kafelek.classList.remove("pe-nad");
+      const skad = parseInt(e.dataTransfer.getData("text/plain"), 10);
+      if (!skad || skad === nrPoz) return;
+      const k = ops.kolejnosc;
+      const iSkad = k.indexOf(skad), iCel = k.indexOf(nrPoz);
+      if (iSkad < 0 || iCel < 0) return;
+      k.splice(iSkad, 1);
+      k.splice(iCel, 0, skad);
+      peRenderuj();
+    });
+    const im = el("img"); im.src = s.png; im.draggable = false;
+    kafelek.appendChild(im);
+    const pasek = el("div", "pe-kafel-pasek");
+    const nrLab = el("span", "pe-nr", String(nrPoz) +
+      (ops.usun.indexOf(nrPoz) >= 0 ? " (usunięta)" : ""));
+    const bRot = el("button", null, "⟳"); bRot.type = "button"; bRot.title = "Obróć o 90°";
+    bRot.onclick = (e) => { e.stopPropagation();
+      const w = ops.obroc.find(o => o.nr === nrPoz);
+      if (w) w.kat = ((w.kat || 90) + 90) % 360;
+      else ops.obroc.push({nr: nrPoz, kat: 90});
+      PDFE.cofnij.push(["obroc", nrPoz]); peRenderuj(); };
+    const bDel = el("button", null, "✕"); bDel.type = "button"; bDel.title = "Usuń stronę";
+    bDel.onclick = (e) => { e.stopPropagation();
+      if (ops.usun.indexOf(nrPoz) >= 0) return;
+      ops.usun.push(nrPoz);
+      PDFE.cofnij.push(["usun", nrPoz]); peRenderuj(); };
+    pasek.appendChild(nrLab); pasek.appendChild(bRot); pasek.appendChild(bDel);
+    kafelek.appendChild(pasek);
+    const strz = el("div", "pe-kafel-strz");
+    const bG = el("button", null, "◀ w lewo"); bG.type = "button";
+    const bD = el("button", null, "w prawo ▶"); bD.type = "button";
+    bG.onclick = (e) => { e.stopPropagation();
+      if (idx > 0) { const k = ops.kolejnosc;
+        [k[idx-1], k[idx]] = [k[idx], k[idx-1]]; peRenderuj(); } };
+    bD.onclick = (e) => { e.stopPropagation();
+      const k = ops.kolejnosc;
+      if (idx < k.length - 1) { [k[idx+1], k[idx]] = [k[idx], k[idx+1]]; peRenderuj(); } };
+    strz.appendChild(bG); strz.appendChild(bD);
+    kafelek.appendChild(strz);
+    if (ops.usun.indexOf(nrPoz) >= 0) kafelek.classList.add("usunieta");
+    mini.appendChild(kafelek);
+  });
+
+  /* aktywna strona */
+  const nrOryg = peNrAktualna();
+  const s = PDFE.strony[nrOryg - 1];
+  if (!s) return;
+  const z = PDFE.zoom;
+  const strona = el("div", "pe-strona");
+  strona.style.width = (s.w * z) + "px";
+  strona.style.height = (s.h * z) + "px";
+  const im = el("img"); im.src = s.png; im.draggable = false;
+  strona.appendChild(im);
+  scena.appendChild(strona);
+
+  /* przeglądarka może ŚCISKAĆ stronę do szerokości okna — mierzymy
+     realną skalę obrazu (po jego załadowaniu) i w niej pozycjonujemy
+     nakładki, żeby edytowany tekst był dokładnie tam, gdzie widoczny */
+  const poczekajNaObraz = (im.complete && im.naturalWidth)
+    ? Promise.resolve()
+    : new Promise(res => { im.onload = res; im.onerror = res; });
+  return poczekajNaObraz.then(() => {
+    if (!document.body.contains(im)) return;   /* przerysowano w międzyczasie */
+    const dispW = im.getBoundingClientRect().width;
+    const k = (dispW > 0 && im.naturalWidth)
+      ? dispW / im.naturalWidth : 1;
+    PDFE.zk = z * k;
+    strona.style.height = (s.h * PDFE.zk) + "px";
+  const warstwa = el("div", "pe-warstwa");
+  strona.appendChild(warstwa);
+
+  /* linie tekstu: klik = edycja, przeciągnięcie = przesunięcie */
+  const edytowane = {};                 /* li -> op */
+  ops.edycje.forEach(o => { if (o.nr === nrOryg) edytowane[o.li] = o; });
+  (s.linie || []).forEach((ln, li) => {
+    const op = edytowane[li];
+    if (!op) {
+      /* wiersz bez zmian: podświetlenie + edycja / przesunięcie */
+      const d = el("div", "pe-linia");
+      d.style.left = (ln.bbox[0] * PDFE.zk) + "px";
+      d.style.top = (ln.bbox[1] * PDFE.zk) + "px";
+      d.style.width = Math.max(8, (ln.bbox[2] - ln.bbox[0]) * PDFE.zk) + "px";
+      d.style.height = Math.max(6, (ln.bbox[3] - ln.bbox[1]) * PDFE.zk) + "px";
+      d.title = "Kliknij, aby edytować; przeciągnij, aby przesunąć";
+      d.onclick = (e) => {
+        e.stopPropagation();
+        if (PDFE.tryb !== "edytuj") return;
+        peEdytujLinie(warstwa, nrOryg, li, ln);
+      };
+      peDndLinia(d, warstwa, nrOryg, li, ln);
+      warstwa.appendChild(d);
+    } else {
+      /* wiersz zmieniony/przesunięty: biało zasłaniamy stary tekst,
+         nowy pokazujemy w miejscu docelowym */
+      const zas = el("div", "pe-zaslona");
+      zas.style.left = ((ln.bbox[0] - 1) * PDFE.zk) + "px";
+      zas.style.top = ((ln.bbox[1] - 1) * PDFE.zk) + "px";
+      zas.style.width = ((ln.bbox[2] - ln.bbox[0] + 2) * PDFE.zk) + "px";
+      zas.style.height = ((ln.bbox[3] - ln.bbox[1] + 2) * PDFE.zk) + "px";
+      warstwa.appendChild(zas);
+      const d = el("div", "pe-linia pe-linia-zmieniona");
+      d.dataset.li = String(li);
+      d.style.left = (op.x * PDFE.zk) + "px";
+      d.style.top = ((op.y - op.rozmiar) * PDFE.zk) + "px";
+      d.style.fontSize = (op.rozmiar * PDFE.zk) + "px";
+      d.style.color = op.kolor || "#000";
+      d.textContent = op.tekst;
+      d.title = "Kliknij, aby poprawić; przeciągnij, aby przesunąć";
+      d.onclick = (e) => {
+        e.stopPropagation();
+        if (PDFE.tryb !== "edytuj") return;
+        peEdytujLinie(warstwa, nrOryg, li, ln);
+      };
+      peDndLinia(d, warstwa, nrOryg, li, ln);
+      warstwa.appendChild(d);
+    }
+  });
+
+  /* dopisane teksty — podgląd + przesuwanie myszą */
+  ops.teksty.filter(t => t.nr === nrOryg).forEach(t =>
+    peDndElement(warstwa, t, () => peBoxTekst(t), () => {}));
+
+  /* interakcje strony: dopisanie tekstu w klikniętym punkcie */
+  strona.onclick = (e) => {
+    if (PDFE.tryb !== "tekst") return;
+    if (e.target.closest(".pe-boxtekst") || e.target.closest(".pe-linia")) return;
+    const prost = strona.getBoundingClientRect();
+    const x = (e.clientX - prost.left) / PDFE.zk;
+    const y = (e.clientY - prost.top) / PDFE.zk;
+    peNowyTekst(warstwa, nrOryg, x, y);
+  };
+  scena.appendChild(strona);
+  });
+}
+
+/* przeciąganie ISTNIEJĄCEJ linii: pociągnięcie > 4px zamienia ją w
+   operację (stary tekst znika, nowy wędruje za myszą); kliknięcie
+   bez ruchu otwiera zwykłą edycję (obsłużone przez onclick) */
+function peDndLinia(d, warstwa, nr, li, ln) {
+  d.addEventListener("mousedown", (e) => {
+    if (PDFE.tryb !== "edytuj" || e.button !== 0) return;
+    const sx = e.clientX, sy = e.clientY;
+    let ruszyl = false;
+    const mv = (ev) => {
+      if (ruszyl) return;
+      if (Math.abs(ev.clientX - sx) < 5 && Math.abs(ev.clientY - sy) < 5) return;
+      ruszyl = true;
+      czysto();
+      /* pierwszy ruch: utwórz operację przesunięcia i przejdź
+         w tryb przeciągania świeżego elementu */
+      const stary = PDFE.ops.edycje.find(o => o.nr === nr && o.li === li);
+      const op = stary || {nr: nr, li: li, x: ln.x, y: ln.y,
+                           tekst: ln.tekst, rozmiar: ln.rozmiar,
+                           kolor: ln.kolor, bbox: ln.bbox,
+                           font: ln.font || ""};
+      if (!stary) { PDFE.ops.edycje.push(op); PDFE.cofnij.push(["edycja", op]); }
+      Promise.resolve(peRenderuj()).then(() => {
+        const el2 = document.querySelector(
+          '.pe-linia-zmieniona[data-li="' + li + '"]');
+        if (el2) pePrzeciagajLinie(el2, op, ev.clientX, ev.clientY);
+      });
+    };
+    const czysto = () => {
+      window.removeEventListener("mousemove", mv);
+      window.removeEventListener("mouseup", up);
+    };
+    const up = () => czysto();
+    window.addEventListener("mousemove", mv);
+    window.addEventListener("mouseup", up);
+  });
+}
+
+function pePrzeciagajLinie(d, op, cx, cy) {
+  const pr = d.getBoundingClientRect();
+  const dx = cx - pr.left, dy = cy - pr.top;
+  const ruch = (ev) => {
+    /* warstwa bieżąca — element może być w świeżo przerysowanym DOM */
+    const w = (d.closest(".pe-warstwa") || d.parentElement)
+      .getBoundingClientRect();
+    d.style.left = (ev.clientX - dx - w.left) + "px";
+    d.style.top = (ev.clientY - dy - w.top) + "px";
+  };
+  const gora = (ev) => {
+    window.removeEventListener("mousemove", ruch);
+    window.removeEventListener("mouseup", gora);
+    const w = (d.closest(".pe-warstwa") || d.parentElement)
+      .getBoundingClientRect();
+    op.x = (ev.clientX - dx - w.left) / PDFE.zk;
+    op.y = (ev.clientY - dy - w.top) / PDFE.zk + op.rozmiar;
+    peRenderuj();
+    peStatus("Tekst przesunięty — pamiętaj o „Zapisz zmiany”.");
+  };
+  window.addEventListener("mousemove", ruch);
+  window.addEventListener("mouseup", gora);
+}
+
+function peBoxTekst(t) {
+  const d = el("div", "pe-boxtekst");
+  d.style.left = (t.x * PDFE.zk) + "px";
+  d.style.top = ((t.y - t.rozmiar) * PDFE.zk) + "px";
+  d.style.fontSize = (t.rozmiar * PDFE.zk) + "px";
+  d.style.color = t.kolor || "#000";
+  d.textContent = t.tekst;
+  d.title = "Przeciągnij, aby przesunąć";
+  return d;
+}
+
+/* element (dopisany tekst) dający się przesunąć myszą */
+function peDndElement(warstwa, op, buduj, poZmianie) {
+  const elem = buduj();
+  elem.style.pointerEvents = "auto";
+  elem.addEventListener("mousedown", (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault(); e.stopPropagation();
+    const pr = elem.getBoundingClientRect();
+    const dx = e.clientX - pr.left, dy = e.clientY - pr.top;
+    const ruch = (ev) => {
+      const w = warstwa.getBoundingClientRect();
+      elem.style.left = (ev.clientX - dx - w.left) + "px";
+      elem.style.top = (ev.clientY - dy - w.top) + "px";
+    };
+    const gora = (ev) => {
+      window.removeEventListener("mousemove", ruch);
+      window.removeEventListener("mouseup", gora);
+      const w = warstwa.getBoundingClientRect();
+      op.x = (ev.clientX - dx - w.left) / PDFE.zk;
+      op.y = (ev.clientY - dy - w.top) / PDFE.zk;
+      poZmianie();
+    };
+    window.addEventListener("mousemove", ruch);
+    window.addEventListener("mouseup", gora);
+  });
+  warstwa.appendChild(elem);
+}
+
+/* edycja ISTNIEJĄCEJ linii tekstu: stara znika, nowa w jej miejscu */
+function peEdytujLinie(warstwa, nr, li, ln) {
+  const zk = PDFE.zk;
+  const stary = PDFE.ops.edycje.find(o => o.nr === nr && o.li === li);
+  const opX = stary ? stary.x : ln.bbox[0];
+  const opY = stary ? stary.y : ln.y;
+  const rozmiar = stary ? stary.rozmiar : ln.rozmiar;
+  const kolor = stary ? (stary.kolor || ln.kolor) : ln.kolor;
+  const d = el("div", "pe-boxtekst pe-edycja pe-linia-edycja");
+  d.style.left = (opX * zk) + "px";
+  d.style.top = ((opY - rozmiar) * zk) + "px";
+  const inp = el("input"); inp.type = "text";
+  inp.value = stary ? stary.tekst : ln.tekst;
+  inp.style.fontSize = (rozmiar * zk) + "px";
+  inp.style.color = kolor;
+  inp.style.width = Math.max(160, ((ln.bbox[2] - ln.bbox[0]) * zk) + 40) + "px";
+  d.appendChild(inp);
+  /* v2.0.128: biała zasłona pod starym tekstem OD RAZU — stary tekst
+     nie prześwituje pod polem edycji, zanim zatwierdzisz Enter */
+  const zas = el("div", "pe-zaslona");
+  zas.style.left = ((ln.bbox[0] - 1) * zk) + "px";
+  zas.style.top = ((ln.bbox[1] - 1) * zk) + "px";
+  zas.style.width = ((ln.bbox[2] - ln.bbox[0] + 2) * zk) + "px";
+  zas.style.height = ((ln.bbox[3] - ln.bbox[1] + 2) * zk) + "px";
+  warstwa.appendChild(zas);
+  warstwa.appendChild(d);
+  inp.focus(); inp.select();
+  let gotowe = false;
+  const zapisz = () => {
+    if (gotowe) return;
+    gotowe = true;
+    const tekst = inp.value;
+    try { d.remove(); } catch (err) {}
+    if (tekst === (stary ? stary.tekst : ln.tekst)) { peRenderuj(); return; }
+    const op = {nr: nr, li: li, x: opX, y: opY, tekst: tekst,
+                rozmiar: rozmiar, kolor: kolor, bbox: ln.bbox,
+                font: ln.font || ""};
+    const i = PDFE.ops.edycje.indexOf(stary);
+    if (i >= 0) PDFE.ops.edycje[i] = op;
+    else { PDFE.ops.edycje.push(op); PDFE.cofnij.push(["edycja", op]); }
+    peRenderuj();
+    peStatus("Tekst zmieniony — pamiętaj o „Zapisz zmiany”.");
+  };
+  inp.onkeydown = (e) => {
+    if (e.key === "Enter") zapisz();
+    if (e.key === "Escape") { gotowe = true; d.remove(); peRenderuj(); }
+  };
+  inp.onblur = () => { if (!gotowe && document.body.contains(d)) zapisz(); };
+}
+
+function peNowyTekst(warstwa, nr, x, y) {
+  const zk = PDFE.zk;
+  const d = el("div", "pe-boxtekst pe-edycja");
+  d.style.left = (x * zk) + "px"; d.style.top = ((y - PDFE.rozmiar) * zk) + "px";
+  const inp = el("input"); inp.type = "text";
+  inp.placeholder = "Wpisz tekst i Enter (Esc = anuluj)...";
+  inp.style.fontSize = (PDFE.rozmiar * zk) + "px";
+  inp.style.color = PDFE.kolor;
+  d.appendChild(inp);
+  warstwa.appendChild(d);
+  inp.focus();
+  let gotowe = false;
+  const zapisz = () => {
+    if (gotowe) return;
+    gotowe = true;
+    const tekst = inp.value.trim();
+    try { d.remove(); } catch (err) {}
+    if (tekst) {
+      const t = {nr: nr, x: x, y: y, tekst: tekst,
+                 rozmiar: PDFE.rozmiar, kolor: PDFE.kolor};
+      PDFE.ops.teksty.push(t);
+      PDFE.cofnij.push(["tekst", t]);
+      peRenderuj();
+    }
+  };
+  inp.onkeydown = (e) => {
+    if (e.key === "Enter") zapisz();
+    if (e.key === "Escape") { gotowe = true; d.remove(); }
+  };
+  inp.onblur = () => {
+    if (gotowe || !document.body.contains(d)) return;
+    if (inp.value.trim()) zapisz();
+    else { gotowe = true; d.remove(); }
+  };
+}
+
+function peCofnij() {
+  const o = PDFE.cofnij.pop();
+  if (!o) { peStatus("Nie ma czego cofnąć."); return; }
+  const [typ, co] = o;
+  if (typ === "tekst") PDFE.ops.teksty = PDFE.ops.teksty.filter(t => t !== co);
+  if (typ === "edycja") PDFE.ops.edycje = PDFE.ops.edycje.filter(q => q !== co);
+  if (typ === "usun") PDFE.ops.usun = PDFE.ops.usun.filter(n => n !== co);
+  if (typ === "obroc") {
+    const w = PDFE.ops.obroc.find(x => x.nr === co);
+    if (w) { w.kat = (w.kat || 90) - 90; if (w.kat <= 0) PDFE.ops.obroc = PDFE.ops.obroc.filter(x => x !== w); }
+  }
+  peRenderuj();
+  peStatus("Cofnięto.");
+}
+
+async function peZapisz() {
+  if (!PDFE.plik || !PDFE.ops) return;
+  let cel = PDFE.plik;
+  if (PDFE.tymczasowy) {
+    /* plik wgrany przeciągnięciem (kopia tymczasowa) — pytamy gdzie */
+    peStatus("Wybierz miejsce zapisu...");
+    const r = await api().browse("pdf_edycja_zapisz", "save");
+    if (!r || !r.path) { peStatus("Zapis anulowany."); return; }
+    cel = r.path;
+  }
+  peStatus("Zapisuję...");
+  const ops = {edycje: PDFE.ops.edycje, teksty: PDFE.ops.teksty,
+               usun: PDFE.ops.usun, obroc: PDFE.ops.obroc,
+               kolejnosc: PDFE.ops.kolejnosc};
+  const r = await api().pdf_edycja_zapisz(ops, cel);
+  if (r && r.ok) {
+    peStatus("Zapisano: " + r.plik +
+             (r.bak ? " (kopia .BAK obok pliku)" : ""));
+    /* odświeżamy edytor do stanu zapisanego pliku */
+    await peOtworz(r.plik);
+  } else {
+    peStatus((r && r.blad) || "Błąd zapisu.");
+  }
+}
+/* ================== /EDYCJA PDF ================== */
+
+
+
+
+function renderMietekV2(c) {
+  const box = el("div", "mv2");
+  /* --- pasek górny: folder + wczytaj --- */
+  const top = el("div", "mv2-top");
+  const inp = el("input"); inp.type = "text";
+  inp.placeholder = "Folder mietka (np. z WOL.001 w środku)...";
+  inp.id = "mv2-folder";
+  const btnB = el("button", "btn secondary", "Przeglądaj");
+  btnB.type = "button";
+  btnB.onclick = async () => {
+    const r = await api().browse("mietek_v2_folder", "folder");
+    if (r && r.path) { inp.value = r.path; }
+  };
+  const btnL = el("button", "btn", "Wczytaj mietek");
+  btnL.type = "button";
+  btnL.onclick = () => mv2Wczytaj(inp.value);
+  top.appendChild(inp); top.appendChild(btnB); top.appendChild(btnL);
+  box.appendChild(top);
+
+  /* --- informacja o błędzie / pusta --- */
+  const info = el("div", "mv2-info", "Wskaż folder mietka i kliknij " +
+    "„Wczytaj mietek”. Program pokaże pliki DBF (W/R/O/D/Z/WSIE) do przeglądania i edycji.");
+  box.appendChild(info);
+
+  /* --- ciało (po wczytaniu) --- */
+  const body = el("div", "mv2-body"); body.style.display = "none";
+  box.appendChild(body);
+
+  const pasekObr = el("div", "mv2-chips");
+  const pasekPlik = el("div", "mv2-chips");
+  const narzedzia = el("div", "mv2-tools");
+  const szukaj = el("input"); szukaj.type = "text";
+  szukaj.placeholder = "Szukaj (filtruje po wszystkich kolumnach)...";
+  szukaj.id = "mv2-szukaj";
+  szukaj.oninput = () => mv2RenderTabela();
+  const btnZ = el("button", "btn", "Zapisz zmiany");
+  btnZ.type = "button"; btnZ.id = "mv2-zapisz";
+  btnZ.onclick = () => mv2Zapisz();
+  const status = el("span", "mv2-status", "");
+  narzedzia.appendChild(szukaj);
+  narzedzia.appendChild(status);
+  narzedzia.appendChild(btnZ);
+
+  const tabelaBox = el("div", "mv2-tabela");
+  const gen = el("div", "mv2-gen");
+  gen.innerHTML = "<div class='mv2-gen-tytul'>Generuj dokumenty (nowe szablony, prosto z danych):</div>";
+  const selD = el("select"); selD.id = "mv2-dokument";
+  [["OPTAX", "Opisy taksacyjne lasu (OPTAX)"],
+   ["TAB_KLW3", "Tabela klas wieku (TAB_KLW3)"],
+   ["ZEST1", "Zestawienie powierzchni (ZEST1)"],
+   ["REJESTR1", "Rejestr działek (REJESTR1)"],
+   ["WSKAZ1", "Wskazania gospodarcze (WSKAZ1)"],
+   ["WYK_NEG", "Wykaz d-stanów negatywnych (WYK_NEG)"],
+   ["WSK_ZB", "Czynności na 10-lecie (WSK_ZB)"],
+   ["HALIZNY", "Halizny (HALIZNY)"]].forEach(([v, l]) => {
+    const o = el("option", null, escapeHtml(l)); o.value = v; selD.appendChild(o);
+  });
+  const btnPodglad = el("button", "btn secondary", "Podgląd");
+  btnPodglad.type = "button";
+  btnPodglad.onclick = () => mv2Generuj(true);
+  const btnZapiszPdf = el("button", "btn", "Zapisz PDF");
+  btnZapiszPdf.type = "button";
+  btnZapiszPdf.onclick = () => mv2Generuj(false);
+  const btnWszystko = el("button", "btn", "Generuj WSZYSTKIE dokumenty");
+  btnWszystko.type = "button";
+  btnWszystko.onclick = () => mv2GenerujWszystko();
+  const inpOut = el("input"); inpOut.type = "text";
+  inpOut.placeholder = "Folder wyników (domyślnie: wydruki_v2 obok mietka)";
+  inpOut.id = "mv2-outdir";
+  const btnOut = el("button", "btn secondary", "…");
+  btnOut.type = "button";
+  btnOut.onclick = async () => {
+    const r = await api().browse("mietek_v2_out", "folder");
+    if (r && r.path) inpOut.value = r.path;
+  };
+  gen.appendChild(selD); gen.appendChild(btnPodglad); gen.appendChild(btnZapiszPdf);
+  gen.appendChild(btnWszystko); gen.appendChild(inpOut); gen.appendChild(btnOut);
+
+  body.appendChild(pasekObr);
+  body.appendChild(pasekPlik);
+  body.appendChild(narzedzia);
+  body.appendChild(tabelaBox);
+  body.appendChild(gen);
+  return box;
+}
+
+async function mv2Wczytaj(folder) {
+  const info = document.querySelector(".mv2-info");
+  const body = document.querySelector(".mv2-body");
+  if (info) info.textContent = "Wczytuję...";
+  const r = await api().mietek_v2_load(folder || "");
+  if (!r.ok) {
+    if (info) { info.style.display = ""; info.textContent = r.blad || "Nie udało się wczytać."; }
+    if (body) body.style.display = "none";
+    toast(r.blad || "Nie udało się wczytać mietka");
+    return;
+  }
+  MV2.obreby = r.obreby || [];
+  MV2.obr = MV2.obreby[0] || null;
+  MV2.plik = null; MV2.dane = null; MV2.zmiany = {};
+  if (info) info.style.display = "none";
+  if (body) body.style.display = "";
+  mv2RenderObreby();
+  mv2RenderPliki();
+  mv2RenderTabela();
+}
+
+function mv2RenderObreby() {
+  const pasek = document.querySelector(".mv2-body .mv2-chips");
+  if (!pasek) return;
+  pasek.innerHTML = "";
+  if (MV2.obreby.length < 2) return;
+  for (const o of MV2.obreby) {
+    const c = el("button", "mv2-chip" + (MV2.obr === o ? " on" : ""),
+      escapeHtml(o.nazwa));
+    c.type = "button";
+    c.onclick = () => { MV2.obr = o; MV2.plik = null; MV2.zmiany = {}; mv2RenderObreby(); mv2RenderPliki(); mv2RenderTabela(); };
+    pasek.appendChild(c);
+  }
+}
+
+function mv2RenderPliki() {
+  const paski = document.querySelectorAll(".mv2-body .mv2-chips");
+  if (paski.length < 2) return;
+  const pasek = paski[1];
+  pasek.innerHTML = "";
+  if (!MV2.obr) return;
+  for (const p of MV2.obr.pliki) {
+    const c = el("button",
+      "mv2-chip mv2-typ-" + p.typ + (MV2.plik === p ? " on" : ""),
+      escapeHtml(p.nazwa) + " <small>" + p.rekordow + "</small>");
+    c.type = "button";
+    c.title = p.nazwa + " — " + p.rekordow + " rekordów";
+    c.onclick = async () => {
+      MV2.plik = p; MV2.zmiany = {};
+      mv2RenderPliki();
+      mv2RenderTabela();
+      const r = await api().mietek_v2_dane(p.id, "");
+      if (r.ok) { MV2.dane = r; mv2RenderTabela(); }
+      else toast(r.blad || "Nie udało się pobrać danych");
+    };
+    pasek.appendChild(c);
+  }
+}
+
+function mv2RenderTabela() {
+  const box = document.querySelector(".mv2-tabela");
+  if (!box) return;
+  const status = document.getElementById("mv2-szukaj");
+  const btnZ = document.getElementById("mv2-zapisz");
+  const st = document.querySelector(".mv2-status");
+  box.innerHTML = "";
+  if (btnZ) {
+    const n = mv2LicznikZmian();
+    btnZ.textContent = n ? "Zapisz zmiany (" + n + ")" : "Zapisz zmiany";
+    btnZ.disabled = !n;
+  }
+  if (!MV2.dane || !MV2.plik) {
+    box.appendChild(el("div", "mv2-puste",
+      MV2.obr ? "Wybierz plik powyżej (np. R — wieki i klasy, O — opisy taksacyjne)."
+              : ""));
+    return;
+  }
+  const fraza = (status ? status.value : "").trim().toLowerCase();
+  const kolumny = MV2.dane.kolumny;
+  const wiersze = MV2.dane.wiersze.map((w, j) => [MV2.dane.idx[j], w])
+    .filter(([i, w]) => !fraza || w.some(v => String(v).toLowerCase().includes(fraza)));
+  if (st) { /* cisza */ }
+  if (st) st.parentElement.querySelector(".mv2-status").textContent =
+    wiersze.length + " z " + MV2.dane.wiersze.length + " rekordów";
+
+  const tab = el("table", "mv2-tab");
+  const thead = el("thead");
+  const trh = el("tr");
+  trh.appendChild(el("th", "mv2-lp", "#"));
+  for (const k of kolumny) {
+    const th = el("th", null, escapeHtml(k.label));
+    th.title = k.name + (k.typ === "C" ? " (tekst, max " + k.len + ")" :
+      k.typ === "N" ? " (liczba)" : " (" + k.typ + ")");
+    trh.appendChild(th);
+  }
+  thead.appendChild(trh);
+  tab.appendChild(thead);
+  const tbody = el("tbody");
+  for (const [i, w] of wiersze) {
+    const tr = el("tr");
+    tr.appendChild(el("td", "mv2-lp", String(i + 1)));
+    w.forEach((v, c) => {
+      const td = el("td", null, escapeHtml(String(v)));
+      const k = kolumny[c];
+      if (k.typ === "N") td.classList.add("mv2-num");
+      if (k.typ === "C" && k.len >= 20) td.classList.add("mv2-szer");
+      const klucz = i + "|" + k.name;
+      if (MV2.zmiany[klucz] !== undefined) td.classList.add("zmieniona");
+      td.onclick = () => mv2Edytuj(td, i, k, v, klucz);
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  }
+  tab.appendChild(tbody);
+  box.appendChild(tab);
+}
+
+function mv2Edytuj(td, i, k, v, klucz) {
+  if (td.querySelector("input")) return;
+  const stara = MV2.zmiany[klucz] !== undefined ? MV2.zmiany[klucz] : v;
+  const inp = el("input"); inp.type = "text"; inp.value = stara;
+  inp.className = "mv2-edit";
+  if (k.typ === "N") inp.inputMode = "decimal";
+  td.textContent = "";
+  td.appendChild(inp);
+  inp.focus(); inp.select();
+  const zamknij = (zapisz) => {
+    if (zapisz) {
+      const nv = inp.value;
+      if (String(nv) !== String(v)) MV2.zmiany[klucz] = nv;
+      else delete MV2.zmiany[klucz];
+      td.textContent = nv;
+      if (String(nv) !== String(v)) td.classList.add("zmieniona");
+      else td.classList.remove("zmieniona");
+      mv2RenderTabela();   // odśwież licznik i filtry
+    } else {
+      td.textContent = MV2.zmiany[klucz] !== undefined ? MV2.zmiany[klucz] : v;
+    }
+  };
+  inp.onkeydown = (e) => {
+    if (e.key === "Enter") zamknij(true);
+    else if (e.key === "Escape") zamknij(false);
+    e.stopPropagation();
+  };
+  inp.onblur = () => zamknij(true);
+}
+
+async function mv2Zapisz() {
+  if (!MV2.plik || !mv2LicznikZmian()) return;
+  const zmiany = Object.entries(MV2.zmiany).map(([klucz, v]) => {
+    const [i, pole] = klucz.split("|");
+    return { i: parseInt(i, 10), pole: pole, v: v };
+  });
+  toast("Zapisuję do " + MV2.plik.nazwa + "...");
+  const r = await api().mietek_v2_zapisz(MV2.plik.id, zmiany);
+  if (!r.ok) { toast(r.blad || "Zapis nie udał się"); return; }
+  MV2.zmiany = {};
+  if (r.odrzucone && r.odrzucone.length)
+    toast("Odrzucone wartości: " + r.odrzucone.join("; "), 7000);
+  toast("Zapisano " + r.zapisano + " zmian do " + r.plik +
+        (r.bak ? " (kopia zapasowa: .BAK)" : ""), 5000);
+  const d = await api().mietek_v2_dane(MV2.plik.id, "");
+  if (d.ok) { MV2.dane = d; }
+  mv2RenderTabela();
+  /* odśwież liczniki rekordów w chipach */
+  const rr = await api().mietek_v2_load(document.getElementById("mv2-folder").value || "");
+  if (rr.ok) {
+    MV2.obreby = rr.obreby;
+    MV2.obr = MV2.obreby.find(o => o.id === (MV2.obr && MV2.obr.id)) || MV2.obreby[0];
+    if (MV2.plik) MV2.plik = MV2.obr.pliki.find(p => p.id === MV2.plik.id) || MV2.plik;
+    mv2RenderObreby(); mv2RenderPliki();
+  }
+}
+
+async function mv2Generuj(podglad) {
+  if (!MV2.obr) return;
+  const typ = (document.getElementById("mv2-dokument") || {}).value || "OPTAX";
+  const out = (document.getElementById("mv2-outdir") || {}).value || "";
+  const n = mv2LicznikZmian();
+  if (n) { toast("Najpierw zapisz zmiany (" + n + ") — albo je cofnij"); return; }
+  toast("Generuję " + typ + "...");
+  const r = await api().mietek_v2_generuj(MV2.obr.id, typ, out, !!podglad);
+  if (r.ok) toast("Gotowe: " + r.pdf, 6000);
+  else toast(r.blad || "Nie udało się");
+}
+
+async function mv2GenerujWszystko() {
+  if (!MV2.obr) return;
+  const out = (document.getElementById("mv2-outdir") || {}).value || "";
+  const n = mv2LicznikZmian();
+  if (n) { toast("Najpierw zapisz zmiany (" + n + ") — albo je cofnij"); return; }
+  toast("Generuję komplet dokumentów...");
+  const r = await api().mietek_v2_generuj_wszystko(MV2.obr.id, out);
+  if (r.zrobione && r.zrobione.length)
+    toast("Wygenerowano: " + r.zrobione.join(", "), 8000);
+  if (r.bledy && r.bledy.length)
+    toast("Problemy: " + r.bledy.join("; "), 9000);
+  if (r.folder && r.ok !== false)
+    api().mietek_v2_otworz(r.folder);
+}

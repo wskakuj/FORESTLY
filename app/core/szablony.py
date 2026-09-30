@@ -849,8 +849,128 @@ def _th_nasycenie_css(nasycenie):
             "  th .opis { color: " + dop + "; }\n")
 
 
+# --------------------------------------------------------------- KONTROLA
+def _kt_num(v):
+    """Wartość liczbowa komórki KONTROLA (może być '-', '+1.23', '')."""
+    v = v.strip()
+    return v in ("", "-") or re.match(r"^[+-]?[\d.]+$", v) is not None
+
+
+def parse_kontrola(path):
+    """Parsuje KONTROLA.TXT: sumy + wiersze wydzieleń + wiersze działek."""
+    dane = {"sumy": {}, "wiersze": [], "usuniete": []}
+    sekcja = "wiersze"          # "wiersze" | "usuniete"
+    for ln in wczytaj(path).split("\n"):
+        s = ln.strip()
+        if s.startswith("Wydzielenia usunięte decyzją"):
+            sekcja = "usuniete"
+            continue
+        m = re.match(r"Suma powierzchni (REJESTR|OPTAX)\s.*?:\s*([\d.]+)", s)
+        if m:
+            dane["sumy"][m.group(1)] = m.group(2)
+            continue
+        m = re.match(r"R\u00d3\u017bNICA \(REJESTR - OPTAX\)\s*:\s*([+-]?[\d.]+)", s)
+        if m:
+            dane["sumy"]["ROZNICA"] = m.group(1)
+            continue
+        if s.startswith("dz."):        # wiersz podrzędny: działka wydzielenia
+            if dane[sekcja]:
+                dane[sekcja][-1]["dzialki"].append(s)
+            continue
+        k = komorki(ln)
+        if k is None or czy_sep(ln) or len(k) < 5:
+            continue
+        if k[0].lower().startswith("oddz") or k[0].lower().startswith("poddz"):
+            continue                   # nagłówek tabeli
+        if k[0].isdigit() and k[1].isdigit():
+            continue                   # wiersz numeracji kolumn
+        if not (_kt_num(k[1]) and _kt_num(k[2]) and _kt_num(k[3])):
+            continue
+        dane[sekcja].append({"wydz": k[0], "rej": k[1], "opt": k[2],
+                             "rozn": k[3], "uwagi": k[4],
+                             "dzialki": []})
+    return dane
+
+
+def html_kontrola(path, obiekt, stan, bez_nazwisk=False, marginesy=None,
+                  czcionki=None):
+    d = parse_kontrola(path)
+    s, w = d["sumy"], d["wiersze"]
+    us = d.get("usuniete") or []
+
+    # blok sum: Rejestr vs OPTAX
+    sumy = ('<table><thead><tr>'
+            '<th class="n" style="width:33%">Suma REJESTR [ha]</th>'
+            '<th class="n" style="width:33%">Suma OPTAX [ha]</th>'
+            '<th class="n" style="width:34%">Różnica REJESTR - OPTAX [ha]</th>'
+            '</tr></thead><tbody>'
+            f'<tr class="razem"><td class="n">{s.get("REJESTR", "")}</td>'
+            f'<td class="n">{s.get("OPTAX", "")}</td>'
+            f'<td class="n">{s.get("ROZNICA", "")}</td></tr></tbody></table>')
+
+    tr = []
+    for r in w:
+        warn = "BRAK" in r["uwagi"]
+        cls = "warn" if warn else ""
+        tr.append(f'<tr class="{cls}">'
+                  f'<td class="c" style="font-weight:600">{r["wydz"]}</td>'
+                  f'<td class="n">{r["rej"]}</td><td class="n">{r["opt"]}</td>'
+                  f'<td class="n">{r["rozn"]}</td>'
+                  f'<td class="c">{r["uwagi"]}</td></tr>')
+        for dz in r["dzialki"]:
+            tr.append(f'<tr class="sub"><td></td>'
+                      f'<td colspan="4">{dz}</td></tr>')
+    if not w:
+        tr.append('<tr><td colspan="5" class="c" style="padding:8pt">'
+                  'Brak rozbieżności — powierzchnie Rejestru i opisu '
+                  'taksacyjnego są zgodne.</td></tr>')
+
+    tresc = (sumy
+             + '<table><thead><tr>'
+               '<th class="c" style="width:10%">Wydziel.<br>'
+               '<span class="opis">oddz. poddz.</span></th>'
+               '<th class="n" style="width:15%">Pow. w Rejestrze<br>'
+               '<span class="opis">działki</span></th>'
+               '<th class="n" style="width:15%">Pow. w OPTAX<br>'
+               '<span class="opis">wydzielenia</span></th>'
+               '<th class="n" style="width:15%">Różnica [ha]</th>'
+               '<th class="c">Uwagi</th></tr></thead><tbody>'
+             + "".join(tr) + '</tbody></table>')
+
+    # wydzielenia usunięte decyzją przed startem — osobna tabela
+    if us:
+        tru = []
+        for r in us:
+            tru.append('<tr class="usun">'
+                       f'<td class="c" style="font-weight:600">{r["wydz"]}</td>'
+                       f'<td class="n">{r["rej"]}</td><td class="n">{r["opt"]}</td>'
+                       f'<td class="n">{r["rozn"]}</td>'
+                       f'<td class="c">{r["uwagi"]}</td></tr>')
+            for dz in r["dzialki"]:
+                tru.append('<tr class="sub"><td></td>'
+                           f'<td colspan="4">{dz}</td></tr>')
+        tresc += ('<h3 style="margin:14pt 0 4pt">Wydzielenia usunięte '
+                  'decyzją przed startem</h3>'
+                  '<table><thead><tr>'
+                  '<th class="c" style="width:12%">Oddz.<br>'
+                  '<span class="opis">wydzielenia</span></th>'
+                  '<th class="n" style="width:20%">Pow. w rej. [ha]</th>'
+                  '<th class="n" style="width:20%">Pow. w OPTAX [ha]</th>'
+                  '<th class="n" style="width:15%">Różnica [ha]</th>'
+                  '<th class="c">Uwagi</th></tr></thead><tbody>'
+                  + "".join(tru) + '</tbody></table>')
+
+    extra_css = ("  tr.warn td { color:#7a1010; font-weight:600; }\n"
+                 "  tr.sub td { font-size:8.5pt; }\n"
+                 "  tr.usun td { color:#8a6d00; font-weight:600; }\n")
+    return _strona("Kontrola powierzchni Rejestru i opisu taksacyjnego",
+                   obiekt, stan, tresc, extra_css=extra_css,
+                   marginesy=marginesy, czcionki=czcionki)
+
+
 RENDERERY = {
     "REJESTR1": html_rejestr1,
+    "KONTROLA": html_kontrola,
     "OPTAX": html_optax,
     "TAB_KLW3": html_tabklw3,
     "WSKAZ1": html_wskaz1,
