@@ -124,6 +124,7 @@ def _wypakuj_szablony_obok_exe():
         if not meipass.exists():
             return
         for nazwa in ("STR_TYT_wersja_2.docx", "STR_TYT_wersja_3.docx",
+                      "STR_TYT_wersja_2.html", "STR_TYT_wersja_3.html",
                       "STR_TYT.docx", "opis_og_szablon.docx",
                       "opis_og_szablon_mazowiecka.docx",
                       "opis_og_szablon_taksator.docx",

@@ -882,6 +882,72 @@ class TabAllMixin:
                  "pola kreatora podmienione.")
         return tmp
 
+    def _str_tyt_html_szablon(self):
+        """v2.0.137: szablon HTML strony tytułowej dla wybranego wariantu.
+
+        Jeśli plik STR_TYT_wersja_X.html istnieje, strona tytułowa jest
+        generowana BEZPOŚREDNIO jako PDF (HTML → przeglądarka headless),
+        z pominięciem Worda. Dzięki temu elementy ozdobne (linie) nie mogą
+        zniknąć przy eksporcie Worda — to stało się na części komputerów.
+        Zwraca ścieżkę HTML albo None (wtedy stara ścieżka DOCX → Word)."""
+        def _v(attr, default=""):
+            e = getattr(self, attr, None)
+            return e.get().strip() if e is not None else default
+
+        wybor = _v("all_tpl_szablon_var", "Wersja 1")
+        if wybor.startswith("Wersja 3") or wybor.startswith("D"):
+            nazwa = "STR_TYT_wersja_3.html"
+        elif wybor.startswith("Wersja 2") or wybor.startswith("B"):
+            nazwa = "STR_TYT_wersja_2.html"
+        else:
+            return None
+        from app.core.word_worker import get_resource_path
+        p = get_resource_path(nazwa)
+        if p and Path(p).exists():
+            return p
+        return None
+
+    def _str_tyt_html_dla_wsi(self, html_tpl, out_pdf, wies, powierzchnia):
+        """v2.0.137: strona tytułowa z szablonu HTML → PDF (bez Worda).
+
+        Tokeny: {GMINA} {POWIAT} {WOJEWÓDZTWO} {STAN_NA} {OKRES}
+        {NAZWA_WSI} {POWIERZCHNIA_WSI}. Zwraca True, gdy PDF zapisany."""
+        def _v(attr, default=""):
+            e = getattr(self, attr, None)
+            try:
+                return e.get().strip() if e is not None else default
+            except Exception:
+                return default
+
+        from app.core import szablony as _sz
+        html = Path(html_tpl).read_text(encoding="utf-8")
+        podm = {
+            "{GMINA}": (_v("all_tpl_gmina_var") or "—").upper(),
+            "{POWIAT}": (_v("all_tpl_powiat_var") or "—").upper(),
+            "{WOJEWÓDZTWO}": (_v("all_tpl_woj_var") or "—").upper(),
+            "{STAN_NA}": _v("all_tpl_stan_na_entry") or "—",
+            "{OKRES}": _v("all_tpl_okres_entry") or "—",
+            "{NAZWA_WSI}": wies or "NIEZNANA_WIEŚ",
+            "{POWIERZCHNIA_WSI}": powierzchnia or "[BRAK_DANYCH]",
+        }
+        for a, b in podm.items():
+            html = html.replace(a, b)
+        # typ dokumentu: szablony mają tytuł UPUL — dla ISL podmieniamy
+        if (_v("all_tpl_doc_var", "UPUL") or "UPUL") == "ISL":
+            html = html.replace("UPROSZCZONY PLAN URZĄDZENIA LASU",
+                                 "INWENTARYZACJA STANU LASU")
+        fd, tmp_html = tempfile.mkstemp(suffix=".html", prefix="STR_TYT_")
+        os.close(fd)
+        try:
+            with open(tmp_html, "w", encoding="utf-8") as fh:
+                fh.write(html)
+            return _sz.html_na_pdf(tmp_html, out_pdf)
+        finally:
+            try:
+                os.remove(tmp_html)
+            except OSError:
+                pass
+
     def _zamien_daty_txt(self, txt_dir):
         """Zamienia daty w wyczyszczonych TXT (przed konwersją na Word).
 
@@ -1430,8 +1496,17 @@ class TabAllMixin:
             self.log("[STR_TYT] Strona tytułowa odznaczona w układzie PDF "
                      "— pomijam generowanie.")
             tpl_tmp = None
+            self._str_tyt_html_tpl = None
         else:
             tpl_tmp = self._zbuduj_szablon_str_tyt_dla_all()
+            # v2.0.137: jeśli dla wybranego wariantu jest szablon HTML,
+            # strona tytułowa powstaje od razu jako PDF (bez Worda)
+            self._str_tyt_html_tpl = self._str_tyt_html_szablon()
+            if self._str_tyt_html_tpl:
+                self.log("[STR_TYT] Szablon: HTML→PDF ("
+                         + self._str_tyt_html_tpl.name
+                         + ") — strona tytułowa bez Worda, "
+                         "linie ozdobne zabezpieczone.")
         if tpl_tmp:
             try:
                 self.update_status(
@@ -1449,6 +1524,21 @@ class TabAllMixin:
                     if not razem or razem == "[BRAK_DANYCH]":
                         razem = "[BRAK_DANYCH]"
                     rel = optax_path.parent.relative_to(txt_dir)
+                    # v2.0.137: strona tytułowa bezpośrednio HTML→PDF (bez Worda)
+                    _html_tpl = getattr(self, "_str_tyt_html_tpl", None)
+                    if _html_tpl:
+                        try:
+                            out_pdf = pdf_dir / rel / "STR_TYT.pdf"
+                            if self._str_tyt_html_dla_wsi(_html_tpl, out_pdf,
+                                                          obiekt, razem):
+                                self.log(f"[STR_TYT] Utworzono: {out_pdf} "
+                                         f"(HTML→PDF; Wieś: {obiekt}, Pow: {razem})")
+                                continue
+                            self.log("[UWAGA][STR_TYT] HTML→PDF nie udało się — "
+                                     "wracam do Worda dla tej wsi.")
+                        except Exception:
+                            self.log("[UWAGA][STR_TYT] Błąd HTML→PDF — wracam "
+                                     "do Worda:\n" + traceback.format_exc())
                     doc = Document(tpl_tmp)
                     self.replace_text_robust(
                         doc, "NAZWA WSI", obiekt or "NIEZNANA_WIES")
@@ -1499,7 +1589,8 @@ class TabAllMixin:
         c = self.task_convert_to_pdf(word_dir, pdf_dir)
         self.log(f"[STR_TYT/OPIS OG] Przekonwertowano {c} plik(ów) Word na PDF.")
 
-    def task_generate_str_tyt(self, word_dir, template_path, village_ph, area_ph):
+    def task_generate_str_tyt(self, word_dir, template_path, village_ph, area_ph,
+                              html_tpl=None, pdf_dir=None):
         word_dir = Path(word_dir)
         optax_files = sorted(
             [
@@ -1560,6 +1651,23 @@ class TabAllMixin:
                         if area_match
                         else "[BRAK_DANYCH]"
                     )
+
+                    # v2.0.137: strona tytułowa bezpośrednio HTML→PDF (bez Worda)
+                    if html_tpl and pdf_dir is not None:
+                        try:
+                            rel_pdf = optax_path.parent.relative_to(word_dir)
+                            out_pdf = Path(pdf_dir) / rel_pdf / "STR_TYT.pdf"
+                            if self._str_tyt_html_dla_wsi(
+                                    html_tpl, out_pdf, village_name, area_str):
+                                self.log(
+                                    f"  └─ Utworzono: {out_pdf} "
+                                    f"(HTML→PDF; Wieś: {village_name})")
+                                continue
+                            self.log("  [UWAGA][STR_TYT] HTML→PDF nie udało się — "
+                                     "wracam do Worda dla tej wsi.")
+                        except Exception:
+                            self.log("  [UWAGA][STR_TYT] Błąd HTML→PDF — wracam "
+                                     "do Worda:\n" + traceback.format_exc())
 
                     doc = Document(template_path)
                     self.replace_text_robust(doc, village_ph, village_name)
@@ -2332,8 +2440,16 @@ class TabAllMixin:
                         tpl_tmp = self._zbuduj_szablon_str_tyt_dla_all()
                     if tpl_tmp:
                         try:
-                            self.task_generate_str_tyt(dir_02, tpl_tmp,
-                                                       "NAZWA WSI", "wielkość")
+                            # v2.0.137: HTML→PDF — strona tytułowa bez Worda
+                            _html = self._str_tyt_html_szablon()
+                            if _html:
+                                self.log("[STR_TYT] Szablon: HTML→PDF ("
+                                         + _html.name
+                                         + ") — strona tytułowa bez Worda, "
+                                         "linie ozdobne zabezpieczone.")
+                            self.task_generate_str_tyt(
+                                dir_02, tpl_tmp, "NAZWA WSI", "wielkość",
+                                html_tpl=_html, pdf_dir=dir_03)
                         finally:
                             try:
                                 Path(tpl_tmp).unlink()
