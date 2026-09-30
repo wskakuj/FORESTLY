@@ -1280,10 +1280,22 @@ def html_na_pdf(html_path, pdf_path, timeout=120):
                f"--user-data-dir={prof}",
                f"--print-to-pdf={pdf_path.resolve()}",
                html_path.resolve().as_uri()]
+        proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL)
+        _AKTYWNA_PRZEGLADARKA["proc"] = proc
         try:
-            subprocess.run(cmd, capture_output=True, timeout=timeout)
+            # v2.0.139: Popen zamiast subprocess.run — aktywny proces
+            # jest w rejestrze, więc „Zatrzymaj” może go ubić od razu
+            proc.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
-            pass
+            try:
+                proc.kill()
+                proc.wait(timeout=5)
+            except Exception:
+                pass
+        finally:
+            if _AKTYWNA_PRZEGLADARKA.get("proc") is proc:
+                _AKTYWNA_PRZEGLADARKA["proc"] = None
     finally:
         import shutil as _sh
         for opoznienie in (0, 0.7, 2.0):
@@ -1296,6 +1308,24 @@ def html_na_pdf(html_path, pdf_path, timeout=120):
     if not ok:
         raise RuntimeError(f"Nie udało się wygenerować PDF: {pdf_path.name}")
     return True
+
+
+# v2.0.139: rejestr aktywnego renderowania HTML→PDF — „Zatrzymaj”
+# ubija proces przeglądarki natychmiast, zamiast czekać do 120 s.
+_AKTYWNA_PRZEGLADARKA = {"proc": None}
+
+
+def zabij_przegladarke():
+    """Natychmiast ubija trwające renderowanie HTML→PDF (jeśli trwa)."""
+    proc = _AKTYWNA_PRZEGLADARKA.get("proc")
+    if proc is not None:
+        try:
+            if proc.poll() is None:
+                proc.kill()
+            return True
+        except Exception:
+            pass
+    return False
 
 
 def generuj_raport_pdf(typ, txt_path, pdf_path, bez_nazwisk=False,

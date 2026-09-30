@@ -44,6 +44,7 @@ datas = [
     ('opis_og_szablon_mazowiecka.docx', '.'),
     ('opis_og_szablon_taksator.docx', '.'),
     ('Skroty.docx', '.'),
+    ('DejaVuSans.ttf', '.'),
     ('BIAŁYNIN KRASÓWKA.xlsx', '.'),
     ('config', 'config'),
     ('pusty', 'pusty'),

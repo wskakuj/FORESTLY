@@ -27,6 +27,8 @@ from app.config import (
 from app.core.word_worker import (
     get_resource_path,
 )
+from datetime import datetime
+
 from app.core.wydruki import (
     generuj_wszystkie_po_przeniesieniu, generuj_halizny_txt,
     generuj_kontrola_pow_txt,
@@ -1415,6 +1417,244 @@ class TabAllMixin:
             return bool(v is not None and v.get())
         except Exception:
             return False
+
+    # ===================== v2.0.138: zakładka Kontrola powierzchni =====================
+
+    def start_kontrola_pow_pipeline(self):
+        """Start pipeline'u z osobnej zakładki 'Kontrola powierzchni
+        Rejestr–OPTAX': tylko raport (bez zmianiania danych Mietka)."""
+        mietki = (self.kontrola_pow_mietki_entry.get().strip()
+                  if getattr(self, "kontrola_pow_mietki_entry", None) else "")
+        out_dir = (self.kontrola_pow_out_entry.get().strip()
+                   if getattr(self, "kontrola_pow_out_entry", None) else "")
+        if not mietki or not Path(mietki).exists():
+            messagebox.showwarning(
+                "Błąd", "Wskaż istniejący folder z Mietkami "
+                        "(obręby z plikami D*.DBF / O*.DBF).")
+            return
+        if not out_dir:
+            messagebox.showwarning(
+                "Błąd", "Wskaż folder docelowy dla raportów kontroli.")
+            return
+        if self.running:
+            return
+        self.last_output_dir = Path(out_dir)
+        self._disable_ui_for_process()
+        self.log("[KONTROLA REJESTR–OPTAX] URUCHOMIENIE\n"
+                 f"MIETKI: {mietki}\nWYJŚCIE: {out_dir}")
+        self.set_progress(0)
+        threading.Thread(
+            target=self.run_kontrola_pow_thread,
+            args=(mietki, out_dir), daemon=True).start()
+
+    def run_kontrola_pow_thread(self, mietki_dir_str, out_dir_str):
+        """Wątek: raporty kontroli powierzchni.
+
+        v2.0.139: wszystkie obręby drukowane są JEDNYM uruchomieniem
+        przeglądarki (uprzednio osobne dla każdej wsi — na Windowsie
+        start Edge/Chrome + skan profilu przez antywirusa trwał kilka
+        sekund NA KAŻDY raport). Zbiorczy HTML powstaje przez sklejenie
+        raportów z łamaniem strony, drukowany raz, a potem PDF jest
+        cięty na raporty per wieś. Nie modyfikuje danych Mietka —
+        TXT powstaje chwilowo i od razu idzie do katalogu tymczasowego."""
+        from app.core import szablony
+        from app.core.wydruki import generuj_kontrola_pow_txt, czytaj_dane_wsi
+        wygenerowane = []
+        try:
+            self.update_status("Kontrola powierzchni Rejestr–OPTAX...",
+                               "#0078D7")
+            mietki = Path(mietki_dir_str)
+            out_dir = Path(out_dir_str)
+            out_dir.mkdir(parents=True, exist_ok=True)
+            kat_o = sorted({p.parent for p in mietki.rglob("*.DBF")
+                            if p.name[:1].upper() == "O"})
+            if not kat_o:
+                self.log("[KONTROLA] Nie znaleziono obrębów — brak plików "
+                         "O*.DBF we wskażonym folderze (sprawdź podfoldery).")
+                self.update_status("Brak obrębów", "#D83B01", animate=False)
+                return
+            n = len(kat_o)
+            self.log(f"[KONTROLA] Znaleziono obrębów: {n} — czytam dane...")
+            _czc = self.get_setting("web.czcionki.ALL", None)
+            if not isinstance(_czc, dict):
+                _czc = {}
+            cz = _czc.get("KONTROLA")
+            raporty = []          # (wieś unikalna, txt)
+            with tempfile.TemporaryDirectory(prefix="kontrola_pow_") as tmp_s:
+                tmp = Path(tmp_s)
+                for i, kat in enumerate(kat_o):
+                    self.check_stop()
+                    self.set_progress(0.5 * i / n, current_file=kat.name)
+                    try:
+                        txt = generuj_kontrola_pow_txt(kat)
+                    except Exception as e:
+                        self.log(f"  [Błąd] {kat.name}: {e}")
+                        continue
+                    if not txt or not Path(txt).exists():
+                        continue
+                    # TXT nie zostaje w folderze Mietka — od razu do tmp
+                    txt = Path(shutil.move(str(txt),
+                                           str(tmp / f"KONTROLA_{i:03d}.TXT")))
+                    try:
+                        obiekt, _stan = czytaj_dane_wsi(kat)
+                    except Exception:
+                        obiekt = ""
+                    wies = (str(obiekt or "").strip()
+                            or kat.name or kat.parent.name
+                            or f"OBREB{i + 1}")
+                    # dwie wsie o tej samej nazwie (np. po kopii folderu)
+                    # — dopisz folder obrębu, żeby PDF się nie nadpisał
+                    bazowa = wies
+                    while any(w == wies for w, _ in raporty):
+                        wies = f"{bazowa}_{kat.name}"
+                    raporty.append((wies, txt))
+
+                if not raporty:
+                    self.log("[KONTROLA] Nie udało się przygotować żadnego "
+                             "raportu.")
+                    self.update_status("Nic nie wygenerowano", "#D83B01",
+                                       animate=False)
+                    return
+
+                # ---- JEDNO uruchomienie przeglądarki dla wszystkich ----
+                self.set_progress(0.55, current_file="renderowanie PDF "
+                                                 "(jednorazowo)")
+                self.log(f"[KONTROLA] Drukuję {len(raporty)} raport(ów) — "
+                         "jedno uruchomienie przeglądarki...")
+                czesci = []
+                html0 = None
+                for _wies, txt in raporty:
+                    self.check_stop()
+                    obiekt, stan, _okres = szablony.meta_z_pliku(txt)
+                    h = szablony.html_kontrola(txt, obiekt, stan,
+                                               czcionki=cz)
+                    if html0 is None:
+                        html0 = h
+                    body = h.split("<body", 1)[1].split(">", 1)[1]
+                    body = body.rsplit("</body>", 1)[0]
+                    czesci.append(
+                        ('<div style="page-break-before:always"></div>'
+                         if czesci else "") + body)
+                caly = (html0.split("<body", 1)[0] + "<body>\n"
+                        + "\n".join(czesci) + "\n</body></html>")
+                fhtml = tmp / "KONTROLA_ALL.html"
+                fhtml.write_text(caly, encoding="utf-8")
+                pall = tmp / "KONTROLA_ALL.pdf"
+                self.check_stop()
+                szablony.html_na_pdf(fhtml, pall)
+
+                # ---- cięcie zbiorczego PDF na raporty per wieś ----
+                self.set_progress(0.85, current_file="zapisywanie raportów")
+                import fitz
+                d = fitz.open(pall)
+                starty = [i for i in range(d.page_count)
+                          if "Obiekt:" in d[i].get_text()]
+                if len(starty) == len(raporty):
+                    for j, (wies, _txt) in enumerate(raporty):
+                        a = starty[j]
+                        b = (starty[j + 1] if j + 1 < len(starty)
+                             else d.page_count)
+                        cel = out_dir / f"KONTROLA_{wies}.pdf"
+                        dz = fitz.open()
+                        dz.insert_pdf(d, from_page=a, to_page=b - 1)
+                        dz.save(str(cel))
+                        dz.close()
+                        wygenerowane.append((wies, cel))
+                        self.log(f"  └─ KONTROLA_{wies}.pdf")
+                    d.close()
+                else:
+                    d.close()
+                    # niezgodna liczba łamań — awaryjnie po staremu
+                    self.log("[UWAGA][KONTROLA] Nie udało się pociąć "
+                             "zbiorczego PDF — generuję raporty "
+                             "pojedynczo...")
+                    for wies, txt in raporty:
+                        self.check_stop()
+                        cel = out_dir / f"KONTROLA_{wies}.pdf"
+                        szablony.generuj_raport_pdf("KONTROLA", txt, cel,
+                                                     czcionki=_czc)
+                        wygenerowane.append((wies, cel))
+                        self.log(f"  └─ KONTROLA_{wies}.pdf")
+
+            if wygenerowane:
+                self._kontrola_pow_zbiorczy(out_dir, wygenerowane)
+                self.log(f"\n[KONTROLA] Gotowe — {len(wygenerowane)} "
+                         f"raport(ów) + zbiorczy w: {out_dir}")
+                self.update_status(
+                    f"Gotowo — {len(wygenerowane)} raport(ów) + zbiorczy",
+                    "#107C10", animate=False)
+                self.after(0, lambda: messagebox.showinfo(
+                    "Kontrola powierzchni",
+                    f"Wygenerowano {len(wygenerowane)} raport(ów) "
+                    "oraz raport zbiorczy.\nFolder: " + str(out_dir)))
+            else:
+                self.log("[KONTROLA] Nie udało się wygenerować żadnego "
+                         "raportu.")
+                self.update_status("Nic nie wygenerowano", "#D83B01",
+                                   animate=False)
+            self.set_progress(1)
+        except InterruptedError:
+            self.update_status("Przerwano", "#D83B01", animate=False)
+            self.log("\nZADANIE PRZERWANE PRZEZ UŻYTKOWNIKA.")
+        except Exception:
+            # przerwane w trakcie renderowania (ubita przeglądarka) — to nie
+            # błąd, tylko „Przerwano"
+            if self.stop_event.is_set():
+                self.update_status("Przerwano", "#D83B01", animate=False)
+                self.log("\nZADANIE PRZERWANE PRZEZ UŻYTKOWNIKA.")
+            else:
+                self.log(traceback.format_exc())
+                self.update_status("Błąd", "#D83B01", animate=False)
+        finally:
+            self.running = False
+            self.after(0, self.restore_all_buttons)
+
+    def _kontrola_pow_zbiorczy(self, out_dir, wygenerowane):
+        """Zbiorczy KONTROLA_ZBIORCZA.pdf: strona tytułowa + wszystkie
+        raporty (po jednym na obręb, w kolejności alfabetycznej wsi)."""
+        import fitz
+        doc = fitz.open()
+        tyt = doc.new_page()
+        W, H = tyt.rect.width, tyt.rect.height
+        data = datetime.now().strftime("%d.%m.%Y")
+        # DejaVu z folderu programu — polskie znaki (ą/ę/ś/ź) nie wchodzą
+        # w podstawowe fonty PDF (Helvetica = Latin-1). get_resource_path
+        # działa i w PyCharm (project_root), i w EXE (obok EXE / _MEIPASS).
+        from app.core.word_worker import get_resource_path
+        _djv_sc = get_resource_path("DejaVuSans.ttf")
+        djv = Path(_djv_sc) if _djv_sc else None
+        if djv and djv.exists():
+            tyt.insert_font(fontname="DJV", fontfile=str(djv))
+            _fn = "DJV"
+            _font = fitz.Font(fontfile=str(djv))
+        else:
+            _fn = "helv"
+            _font = None
+
+        def _srodek(tekst, y, size):
+            tw = (_font.text_length(tekst, fontsize=size) if _font
+                  else fitz.get_text_length(tekst, fontname=_fn,
+                                            fontsize=size))
+            tyt.insert_text(((W - tw) / 2, y), tekst, fontsize=size,
+                            fontname=_fn)
+
+        _srodek("KONTROLA POWIERZCHNI", H * 0.36, 24)
+        _srodek("REJESTR - OPTAX", H * 0.36 + 32, 24)
+        _srodek(f"(raport zbiorczy, {data})", H * 0.36 + 62, 11)
+        _srodek("Obręby w raporcie:", H * 0.52, 13)
+        y = H * 0.52 + 24
+        for wies, _sc in sorted(wygenerowane):
+            _srodek(wies, y, 11)
+            y += 16
+        _srodek("AGENCJA „CEZAR” · Forestly", H * 0.95, 8)
+        for _wies, sc in sorted(wygenerowane, key=lambda x: x[0]):
+            d2 = fitz.open(str(sc))
+            doc.insert_pdf(d2)
+            d2.close()
+        zbiorczy = out_dir / "KONTROLA_ZBIORCZA.pdf"
+        doc.save(str(zbiorczy))
+        doc.close()
+        self.log(f"  └─ KONTROLA_ZBIORCZA.pdf ({len(wygenerowane)} obrębów)")
 
     def _kontrola_usuniete_dla(self, obr):
         """Wydzielenia usunięte decyzją dla obrębu (klucze stash'a to

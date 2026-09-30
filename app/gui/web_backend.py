@@ -1246,6 +1246,7 @@ class WebBackend(
             "start_mietek_title_pages": self.start_mietek_title_pages_pipeline,
             "start_title_pages": self.start_title_pages_pipeline,
             "start_rozbieznosci": lambda: self.start_mietek_rozbieznosci_pipeline(bez_nazwisk=False),
+            "start_kontrola_pow": self.start_kontrola_pow_pipeline,
             "start_rozbieznosci_bez": lambda: self.start_mietek_rozbieznosci_pipeline(bez_nazwisk=True),
             "start_nazwiska_mietek": self.start_nazwiska_mietek_pipeline,
             "start_excel": self.start_excel_pipeline,
@@ -1291,6 +1292,15 @@ class WebBackend(
     def stop(self):
         self.stop_event.set()
         self.log("[STOP] Zatrzymywanie po bieżącym kroku...")
+        # v2.0.139: renderowanie HTML→PDF ubijamy NATYCHMIAST — wcześniej
+        # „Zatrzymaj” czekał na koniec bieżącego print-to-pdf (do 120 s)
+        try:
+            from app.core import szablony as _sz
+            if _sz.zabij_przegladarke():
+                self.log("[STOP] Przerwano renderowanie PDF (przeglądarka "
+                         "zamknięta).")
+        except Exception:
+            pass
         # po chwili ubij procesy Office zostawione w tle — zwalniają
         # blokady na folderach wynikowych (patrz app/core/office_guard)
         threading.Thread(target=self._office_sweep_after_stop,

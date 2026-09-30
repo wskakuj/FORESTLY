@@ -4,7 +4,18 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="5553df60-78eb-40cf-b78a-3e24e8981b9c" name="Changes" comment="" />
+    <list default="true" id="5553df60-78eb-40cf-b78a-3e24e8981b9c" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.github/workflows/build.yml" beforeDir="false" afterPath="$PROJECT_DIR$/.github/workflows/build.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/config.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/core/szablony.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/szablony.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/gui/tabs/tab_all.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/gui/tabs/tab_all.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/gui/web_backend.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/gui/web_backend.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/gui/web_schema.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/gui/web_schema.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build.bat" beforeDir="false" afterPath="$PROJECT_DIR$/build.bat" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/kombajn_lesny.spec" beforeDir="false" afterPath="$PROJECT_DIR$/kombajn_lesny.spec" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/settings.json" beforeDir="false" afterPath="$PROJECT_DIR$/settings.json" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />

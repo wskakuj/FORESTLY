@@ -494,6 +494,28 @@ def build_schema():
             ],
         },
         {
+            "key": "MIETEK|Kontrola powierzchni Rejestr–OPTAX",
+            "tooltip": "Raport rozbieżności powierzchni między Rejestrem (D*.DBF) "
+                       "a opisem taksacyjnym (OPTAX, O*.DBF) — bez zmieniania "
+                       "danych: osobny PDF dla każdej wsi + raport zbiorczy.",
+            "controls": [
+                _path("kontrola_pow_mietki", "kontrola_pow_mietki_entry",
+                      "1. Folder z Mietkami (obręby z D*.DBF / O*.DBF):",
+                      "Program przejrzy podfoldery i znajdzie wszystkie obręby"),
+                _path("kontrola_pow_out", "kontrola_pow_out_entry",
+                      "2. Folder docelowy raportów:",
+                      "Gdzie zapisać KONTROLA_<wieś>.pdf i raport zbiorczy?"),
+                _info("Raport pokazuje sumy powierzchni obu źródeł oraz wydzielenia "
+                      "z różnicą (albo obecne tylko w jednym z nich), wraz z wypisem "
+                      "działek: działka, pozycja rejestru, właściciel, powierzchnia — "
+                      "żeby błąd dało się namierzyć w mietku. Dane Mietka NIE są "
+                      "zmieniane."),
+            ],
+            "buttons": [
+                _button("run", "Generuj raport kontroli", "start_kontrola_pow"),
+            ],
+        },
+        {
             "key": "MIETEK|Mietki +10 lat",
             "tooltip": "Przesuwa wiek w opisach taksacyjnych (zastępuje makro VBA).",
             "controls": [

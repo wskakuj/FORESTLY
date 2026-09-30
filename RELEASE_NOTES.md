@@ -1,3 +1,3 @@
-# Co nowego w v2.0.137
-- nowa metoda stron tytułowych
+# Co nowego w v2.0.139
+- - dodana oddzielna zakładka "Kontrola powierzchni Rejestr - OPTAX"
 
