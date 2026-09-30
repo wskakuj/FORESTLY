@@ -806,6 +806,12 @@ class TabAllMixin:
                 or wybor.startswith("B") or wybor.startswith("D")):
             try:
                 return self._zbuduj_str_tyt_z_szablonu(wybor, _v)
+            except FileNotFoundError:
+                self.log("[UWAGA][STR_TYT] Brak pliku szablonu w folderze programu — "
+                         "użyto WBUDOWANEGO wzorca (Wersja 1).\n"
+                         "  Wybrano: " + wybor +
+                         "\n  Szukano: STR_TYT_wersja_2.docx / STR_TYT_wersja_3.docx "
+                         "(w folderze, w którym jest FORESTLY).")
             except Exception:
                 self.log("[STR_TYT] Nie udało się zbudować strony tytułowej z wybranego "
                          "szablonu — używam wbudowanego wzorca:\n"

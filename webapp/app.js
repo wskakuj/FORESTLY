@@ -3,7 +3,7 @@
 
 /* wersja tego pliku — widoczna w sidebarze obok wersji programu;
    jeśli się różni, app.js nie podmienił się przy rozpakowaniu paczki */
-const APP_JS_VER = "2.0.101";
+const APP_JS_VER = "2.0.134";
 
 const $ = (sel, root) => (root || document).querySelector(sel);
 const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
@@ -2740,6 +2740,8 @@ function showRaport(ev) {
     body.appendChild(w);
   };
 
+  if (ev.strtyt && ev.strtyt.length)
+    sekcja(`Strona tytułowa (${ev.strtyt.length})`, ev.strtyt);
   if (ev.wsie && ev.wsie.length)
     sekcja(`Wsie (${ev.wsie.length})`, ev.wsie);
   if (ev.pakiety && ev.pakiety.length)

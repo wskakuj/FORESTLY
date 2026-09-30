@@ -961,7 +961,7 @@ class WebBackend(
             sek = max(1, int(time.time() - t0))
             czas = (f"{sek // 60} min {sek % 60} s" if sek >= 60
                     else f"{sek} s")
-        wsie, pakiety, wydruki, uwagi = [], [], [], []
+        wsie, pakiety, wydruki, uwagi, strtyt = [], [], [], [], []
         rx_wies = _re.compile(
             r"\[STR_TYT\] Utworzono: .+?STR_TYT\.docx \(Wieś: (.+?), Pow: (.+?)\)")
         rx_pak = _re.compile(r"Połączono: (.+?\.pdf)")
@@ -982,6 +982,12 @@ class WebBackend(
             if m:
                 wydruki.append(m.group(1))
                 continue
+            # v2.0.134: która wersja strony tytułowej poszła do wydruku
+            # („Wersja 2 (z pliku ...)” / „wbudowany wzorzec kreatora”)
+            if ("[STR_TYT] Szablon:" in l
+                    or "Zbudowano szablon bazowy" in l):
+                strtyt.append(l.strip())
+                continue
             if rx_uwaga.search(l):
                 # v2.0.132: komunikaty "skopiowano / już wygenerowane
                 # w 'Z nazwiskami'" to OCZEKIWANE zachowanie drugiego
@@ -996,6 +1002,7 @@ class WebBackend(
         self._emit({"type": "raport", "czas": czas,
                     "etykieta": getattr(self, "_przebieg_etykieta", "") or "",
                     "wsie": wsie, "pakiety": pakiety, "wydruki": wydruki,
+                    "strtyt": strtyt[:3],
                     "uwagi": uwagi[:60],
                     "folder": str(folder) if folder else ""})
         # automatyczne otwarcie okna z plikami docelowymi
