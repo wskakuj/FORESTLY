@@ -298,29 +298,59 @@ def build_schema():
         },
         {
             "key": "MIETEK|Nowe Szablony",
-            "tooltip": ("Pojedynczy raport nowym wyglądem (TXT → HTML → PDF, bez Worda) — "
-                        "ten sam styl, co Pełny Automat z włączonymi nowymi szablonami."),
+            "tooltip": ("Nowe szablony wydruków (HTML → PDF, bez Worda). Dwa źródła "
+                        "danych: pliki TXT / DBF mietka albo stare pliki Word "
+                        "z Pełnego Automatu."),
             "controls": [
-                _path("ns_src", "entries.NS.src", "Folder z Mietkami (obręby):",
-                      "Folder, w którym leżą foldery obrębów (np. CHORZEWO\\WOL.001\\...DBF)"),
-                _path("ns_dst", "entries.NS.dst", "Folder docelowy (PDF):", "Wskaż lokalizację..."),
-                _select("ns_typ", "ns_typ_var", "Raport do wygenerowania:",
-                        ["WYK_NEG", "REJESTR1", "OPTAX", "TAB_KLW3", "WSKAZ1",
-                         "WSK_ZB", "ZEST1", "HALIZNY"],
-                        "WYK_NEG"),
-                _check("ns_bez_nazwisk", "ns_bez_nazwisk_var",
-                       "Bez nazwisk (dotyczy REJESTR1 i WSKAZ1)", True,
-                       "Działa tak samo jak opcja 'Usuwaj nazwiska' w Pełnym Automacie."),
-                _margins("NS"),
-                _czcionki("NS"),
-                _info("Program sam wygeneruje pliki TXT wybranego raportu z DBF-ów "
-                      "każdego obrębu (jak zakładka 'MIETEK -> TXT'; pliki TXT powstaną "
-                      "obok DBF-ów) i zamieni je na PDF-y nowym wyglądem. "
-                      "Styl — jak w Pełnym Automacie; marginesy własne dla tej zakładki "
-                      "(na start przejmują ustawienia z kreatora Pełnego Automatu)."),
+                _segment("ns_zrodlo", "Źródło danych:",
+                         ["Pliki TXT / DBF mietka", "Stare pliki Word (Pełny Automat)"],
+                         "Pliki TXT / DBF mietka",
+                         tooltip="Z mietka (DBF → TXT → PDF) albo ze starych plików Word.",
+                         groups={"Pliki TXT / DBF mietka": "txt",
+                                 "Stare pliki Word (Pełny Automat)": "word"}),
+                # ---------- tryb: pliki TXT / DBF mietka ----------
+                _grp(_path("ns_src", "entries.NS.src", "Folder z Mietkami (obręby):",
+                           "Folder, w którym leżą foldery obrębów (np. CHORZEWO\\WOL.001\\...DBF)"), "txt"),
+                _grp(_path("ns_dst", "entries.NS.dst", "Folder docelowy (PDF):",
+                           "Wskaż lokalizację..."), "txt"),
+                _grp(_select("ns_typ", "ns_typ_var", "Raport do wygenerowania:",
+                             ["WYK_NEG", "REJESTR1", "OPTAX", "TAB_KLW3", "WSKAZ1",
+                              "WSK_ZB", "ZEST1", "HALIZNY"], "WYK_NEG"), "txt"),
+                _grp(_check("ns_bez_nazwisk", "ns_bez_nazwisk_var",
+                            "Bez nazwisk (dotyczy REJESTR1 i WSKAZ1)", True,
+                            "Działa tak samo jak opcja 'Usuwaj nazwiska' w Pełnym Automacie."), "txt"),
+                _grp(_margins("NS"), "txt"),
+                _grp(_czcionki("NS"), "txt"),
+                _grp(_info("Program sam wygeneruje pliki TXT wybranego raportu z DBF-ów "
+                           "każdego obrębu (jak zakładka 'MIETEK -> TXT'; pliki TXT powstaną "
+                           "obok DBF-ów) i zamieni je na PDF-y nowym wyglądem."), "txt"),
+                # ---------- tryb: stare pliki Word ----------
+                _info_grupa("Przerabia WSZYSTKIE stare pliki Word z Pełnego Automatu "
+                            "(OPTAX, REJESTR1, TAB_KLW3, WSK_ZB, WSKAZ1, WYK_NEG, ZEST1, "
+                            "HALIZNY, „opis og_<wieś>”, STR_TYT) na nowe szablony. "
+                            "Oryginały zostają nietknięte; puste raporty są pomijane; "
+                            "pliki .doc konwertuje tymczasowo Word.", "word"),
+                _grp(_path("stare_root", "stare_opisy_root_entry",
+                           "1. Folder ze starymi plikami:",
+                           "np. folder „ułożone” z podfolderami wsi albo folder jednej wsi"), "word"),
+                _grp(_path("stare_out", "stare_opisy_out_entry",
+                           "2. Folder docelowy zapisu:",
+                           "Gdzie zapisać nowe pliki? (puste = obok oryginałów)"), "word"),
+                _grp(_strtyt(
+                    "stare_strtyt_szablon", "stare_strtyt_szablon_var",
+                    "3. Szablon strony tytułowej:",
+                    ["Wersja 1", "Wersja 2", "Wersja 3"],
+                    "Wersja 1",
+                    [{"src": "podglad_STR_TYT_1.png",
+                      "label": "Wersja 1 — wbudowana", "value": "Wersja 1"},
+                     {"src": "podglad_STR_TYT_2.png",
+                      "label": "Wersja 2 — klasyczna", "value": "Wersja 2"},
+                     {"src": "podglad_STR_TYT_3.png",
+                      "label": "Wersja 3 — minimalna", "value": "Wersja 3"}]), "word"),
             ],
             "buttons": [
-                _button("run", "▶  Generuj PDF", "start_nowe_szablony"),
+                _button("run", "▶  Generuj PDF", "start_nowe_szablony", group="txt"),
+                _button("run_word", "Przerób na nowy szablon", "start_stare_opisy", group="word"),
             ],
         },
         {
@@ -444,43 +474,6 @@ def build_schema():
                       "zostaną wstawione automatycznie"),
             ],
             "buttons": [_button("run", "Generuj opisy ogólne", "start_opis_og")],
-        },
-        {
-            "key": "MIETEK|Stare → nowe szablony",
-            "tooltip": "Przerabia wszystkie STARE pliki Word z Pełnego Automatu "
-                       "(OPTAX, REJESTR1, TAB_KLW3, WSK_ZB, WSKAZ1, WYK_NEG, ZEST1, "
-                       "HALIZNY, opis og_<wieś>, STR_TYT) na nowe szablony.",
-            "controls": [
-                _info("Wskaż folder ze starymi plikami — program znajdzie "
-                      "pliki wsi (OPTAX, REJESTR1, TAB_KLW3, WSK_ZB, WSKAZ1, "
-                      "WYK_NEG, ZEST1, HALIZNY, „opis og_<wieś>” — bezpośrednio "
-                      "albo w podfolderach wsi, np. cała struktura „ułożone”) "
-                      "i przerobi je na nowe szablony: raporty → HTML + PDF "
-                      "(dokładnie te same, co w Pełnym Automacie), opis ogólny "
-                      "→ nowy szablon „opis og_<wieś>.docx”. Oryginały zostają "
-                      "nietknięte. Puste raporty (np. WYK_NEG bez negocjacji) "
-                      "są pomijane. Pliki .doc są tymczasowo konwertowane przez "
-                      "Worda (jedna instancja — Word może mignąć na pasku "
-                      "zadań, to normalne)."),
-                _path("stare_root", "stare_opisy_root_entry",
-                      "1. Folder ze starymi plikami:",
-                      "np. folder „ułożone” z podfolderami wsi albo folder jednej wsi"),
-                _path("stare_out", "stare_opisy_out_entry",
-                      "2. Folder docelowy zapisu:",
-                      "Gdzie zapisać nowe pliki? (puste = obok oryginałów)"),
-                _strtyt(
-                    "stare_strtyt_szablon", "stare_strtyt_szablon_var",
-                    "3. Szablon strony tytułowej:",
-                    ["Wersja 1", "Wersja 2", "Wersja 3"],
-                    "Wersja 1",
-                    [{"src": "podglad_STR_TYT_1.png",
-                      "label": "Wersja 1 — wbudowana", "value": "Wersja 1"},
-                     {"src": "podglad_STR_TYT_2.png",
-                      "label": "Wersja 2 — klasyczna", "value": "Wersja 2"},
-                     {"src": "podglad_STR_TYT_3.png",
-                      "label": "Wersja 3 — minimalna", "value": "Wersja 3"}]),
-            ],
-            "buttons": [_button("run", "Przerób na nowy szablon", "start_stare_opisy")],
         },
         {
             "key": "MIETEK|Wykaz Rozbieżności",
@@ -877,6 +870,9 @@ def build_schema():
         # pełna mapa terytorium: {WOJEWÓDZTWO: {POWIAT: [gminy]}} — frontend
         # odświeża listy powiatów/gmin po zmianie województwa/powiatu
         "tpl_territory": dict(TERRITORY_DATA) if TERRITORY_DATA else {},
+        # ostatnio dodane / usprawnione — kafelki na ekranie Start
+        "nowosci": NOWOSCI,
+        "usprawnione": USPRAWNIONE,
         "tabs": tabs,
     }
 
@@ -948,13 +944,17 @@ INSTRUKCJE = {
                      "z nazwiskami i bez nazwisk.",
     },
     "MIETEK|Nowe Szablony": {
-        "co": "Wygenerowanie jednego raportu (np. OPTAX) nowym, estetycznym "
-              "szablonem HTML→PDF — bez użycia Worda.",
+        "co": "Nowe szablony wydruków (HTML → PDF, bez Worda). Jedna zakładka, "
+              "dwa źródła danych — z mietka albo ze starych plików Word.",
         "jak": [
-            "Wskaż folder z plikami TXT mietka.",
-            "Wybierz typ raportu i folder docelowy.",
-            "Kliknij, aby wygenerować.",
+            "Wybierz źródło przełącznikiem „Źródło danych”.",
+            "Pliki TXT / DBF mietka: wskaż folder z obrębami i folder docelowy, "
+            "wybierz typ raportu i kliknij „Generuj PDF”.",
+            "Stare pliki Word: wskaż folder ze starymi plikami (i opcjonalnie folder "
+            "docelowy oraz wersję strony tytułowej), potem „Przerób na nowy szablon”.",
         ],
+        "wskazowka": "W trybie „Stare pliki Word” program przerabia wszystkie raporty "
+                     "oraz opis ogólny na nowy wygląd — oryginały zostają nietknięte.",
     },
     "MIETEK|Generowanie: MIETEK -> TXT": {
         "co": "Zamiana danych z plików DBF mietka na pliki wydrukowe (TXT) — "
@@ -999,14 +999,6 @@ INSTRUKCJE = {
             "Wskaż folder z wsiami (z plikami WSK_ZB).",
             "Opcjonalnie wskaż folder z wynikami GDOŚ (formy ochrony przyrody).",
             "Uruchom.",
-        ],
-    },
-    "MIETEK|Stare → nowe szablony": {
-        "co": "Przerobienie starych plików Word z Pełnego Automatu na nowe "
-              "szablony FORESTLY.",
-        "jak": [
-            "Wskaż folder ze starymi plikami.",
-            "Uruchom — program odczyta treść i odtworzy ją w nowym wyglądzie.",
         ],
     },
     "MIETEK|Wykaz Rozbieżności": {
@@ -1200,3 +1192,38 @@ INSTRUKCJE = {
         ],
     },
 }
+
+
+# ---------------------------------------------------------------------------
+# OSTATNIO DODANE / USPRAWNIONE (ekran Start)
+# ---------------------------------------------------------------------------
+# Dwie listy pokazywane na dole ekranu Start:
+#   * NOWOSCI       — nowe zakładki/funkcje (zielone kafelki),
+#   * USPRAWNIONE   — usprawnienia w zakładkach, które JUŻ były (niebieskie).
+# Dopisuj nowy wpis NA POCZĄTKU po każdej aktualizacji (najnowszy pierwszy).
+# Na Starcie widać 3 pierwsze wpisy, których zakładka faktycznie istnieje.
+# "wersja" to tylko etykietka (plakietka) — możesz ją dowolnie ustawić.
+NOWOSCI = [
+    {"key": "MIETEK|Czyszczenie rejestru", "wersja": "v2.0.140",
+     "label": "Czyszczenie rejestru",
+     "opis": "Usuwa działki bez litery i właścicieli bez rozliczonej działki."},
+    {"key": "MIETEK|Kontrola powierzchni Rejestr–OPTAX", "wersja": "v2.0.139",
+     "label": "Kontrola powierzchni Rejestr–OPTAX",
+     "opis": "Raport rozbieżności powierzchni: Rejestr vs opis taksacyjny."},
+    {"key": "MIETEK|Mietek v2.0 — edytor danych", "wersja": "v2.0.115",
+     "label": "Mietek v2.0 — edytor danych",
+     "opis": "Przeglądanie i edycja danych mietka (DBF) w tabeli."},
+]
+
+# Usprawnienia w zakładkach, które już istniały (niebieskie kafelki).
+USPRAWNIONE = [
+    {"key": "MIETEK|Nowe Szablony", "wersja": "v2.0.140",
+     "label": "Nowe Szablony — jedno okno",
+     "opis": "Scalone z „Stare → nowe szablony” + 3 miniatury strony tytułowej."},
+    {"key": "MIETEK|Opisy ogólne", "wersja": "v2.0.140",
+     "label": "Opisy ogólne — formy z GDOŚ",
+     "opis": "Czyta formy ochrony także z nazw arkuszy GDOŚ (Rezerwaty, Parki Narodowe…)."},
+    {"key": "MIETEK|Pełny Automat (1-Click)", "wersja": "v2.0.139",
+     "label": "Pełny Automat — PDF w .exe",
+     "opis": "Stabilne generowanie PDF (HTML → PDF) także z Forestly.exe."},
+]

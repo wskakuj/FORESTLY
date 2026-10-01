@@ -204,6 +204,28 @@ function toggleSection(g, section) {
   if (closed) list.push(section);
   saveCollapsedSections(list);
 }
+/* „Ostatnio dodane / usprawnione” — kafelki na dole ekranu Start (max 3 + 3) */
+function nowosciSection() {
+  const keys = new Set(SCHEMA.tabs.map(t => t.key));
+  const dodane = (SCHEMA.nowosci || []).filter(n => n && keys.has(n.key)).slice(0, 3);
+  const uspr = (SCHEMA.usprawnione || []).filter(n => n && keys.has(n.key)).slice(0, 3);
+  if (!dodane.length && !uspr.length) return "";
+  const tile = (n, cls) =>
+    '<div class="nowosci-card ' + cls + '" data-target="' + escapeHtml(n.key) + '">' +
+    (n.wersja ? '<div class="nw-badge">' + escapeHtml(n.wersja) + '</div>' : "") +
+    '<div class="nw-title">' + escapeHtml(n.label || (n.key.split("|")[1] || n.key)) + '</div>' +
+    (n.opis ? '<div class="nw-sub">' + escapeHtml(n.opis) + '</div>' : "") +
+    '<div class="nw-go">Otwórz →</div></div>';
+  let html = '<div class="nowosci-head"><span class="nw-dot"></span>Ostatnio dodane / usprawnione</div>';
+  if (dodane.length)
+    html += '<div class="nowosci-cap">Dodane</div>' +
+      '<div class="nowosci-grid">' + dodane.map(n => tile(n, "nw-added")).join("") + '</div>';
+  if (uspr.length)
+    html += '<div class="nowosci-cap cap-imp">Usprawnione</div>' +
+      '<div class="nowosci-grid">' + uspr.map(n => tile(n, "nw-improved")).join("") + '</div>';
+  return html;
+}
+
 function buildStartView(nav, content) {
   const item = document.createElement("div");
   item.className = "nav-item start";
@@ -242,8 +264,9 @@ function buildStartView(nav, content) {
       '<div class="sh-sub">Halizny → TXT → Word → PDF → scalanie. Cały proces jednym kliknięciem.</div></div>' +
       '<div class="sh-go">Otwórz →</div>' +
     "</div>" +
-    '<div class="start-grid">' + cards + "</div>";
-  $$(".start-hero,.start-card", view).forEach(c => {
+    '<div class="start-grid">' + cards + "</div>" +
+    nowosciSection();
+  $$(".start-hero,.start-card,.nowosci-card", view).forEach(c => {
     if (c.dataset.target) c.onclick = () => showTab(c.dataset.target);
   });
   content.insertBefore(view, content.firstChild);

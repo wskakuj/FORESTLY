@@ -1428,3 +1428,52 @@ input.drop-over {
   background: rgba(45, 212, 167, .08); border: 1px solid rgba(45, 212, 167, .28);
   border-radius: 10px; padding: 10px 12px;
 }
+
+/* ===================== kafelki „Ostatnio dodane” (ekran Start) ============= */
+.nowosci-head {
+  display: flex; align-items: center; gap: 9px;
+  margin: 28px 0 12px; font-weight: 700; font-size: 15px; color: var(--text);
+}
+.nowosci-head .nw-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px rgba(45, 212, 167, .16);
+}
+.nowosci-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+@media (max-width: 900px) { .nowosci-grid { grid-template-columns: 1fr; } }
+.nowosci-card {
+  position: relative; cursor: pointer;
+  background: linear-gradient(180deg, rgba(45, 212, 167, .10), rgba(56, 163, 248, .06));
+  border: 1px solid rgba(45, 212, 167, .45);
+  border-radius: 14px; padding: 16px 16px 14px;
+  transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+}
+.nowosci-card:hover {
+  transform: translateY(-2px); border-color: var(--accent);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .35), 0 0 0 1px rgba(45, 212, 167, .25);
+}
+.nowosci-card .nw-badge {
+  display: inline-block; font-size: 10.5px; font-weight: 800; letter-spacing: .04em;
+  text-transform: uppercase; color: #06231a;
+  background: var(--accent); border-radius: 999px; padding: 3px 9px; margin-bottom: 9px;
+}
+.nowosci-card .nw-title { font-weight: 750; font-size: 15px; color: var(--text); }
+.nowosci-card .nw-sub { font-size: 12.5px; color: var(--text-dim); margin-top: 5px; line-height: 1.5; }
+.nowosci-card .nw-go { margin-top: 12px; font-size: 12.5px; font-weight: 700; color: var(--accent); }
+
+/* podpisy grup i niebieskie kafelki „usprawnione” */
+.nowosci-cap {
+  margin: 6px 0 10px; font-size: 12px; font-weight: 700;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--text-dim);
+}
+.nowosci-cap.cap-imp { color: #6cb8f6; }
+.nowosci-card.nw-improved {
+  background: linear-gradient(180deg, rgba(56, 163, 248, .13), rgba(99, 102, 241, .06));
+  border-color: rgba(56, 163, 248, .5);
+}
+.nowosci-card.nw-improved:hover {
+  border-color: #38a3f8;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .35), 0 0 0 1px rgba(56, 163, 248, .28);
+}
+.nowosci-card.nw-improved .nw-badge { background: #38a3f8; color: #04223a; }
+.nowosci-card.nw-improved .nw-go { color: #38a3f8; }

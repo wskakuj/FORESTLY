@@ -19,6 +19,7 @@ Wymagania: git (zalogowany — klon robiony przez HTTPS z zapamiętanym hasłem)
 """
 
 import re
+import os
 import subprocess
 import sys
 import webbrowser
@@ -30,20 +31,45 @@ NOTES = REPO / "RELEASE_NOTES.md"
 GITHUB_URL = "https://github.com/wskakuj/FORESTLY"
 
 
-def git(*args, check=True):
-    """Uruchamia git w katalogu repo, zwraca stdout (lub exits przy błędzie)."""
-    r = subprocess.run(["git", "-C", str(REPO), *args],
-                       capture_output=True, text=True,
-                       encoding="utf-8", errors="replace")
+def git(*args, check=True, timeout=20, prompt=False, capture=True):
+    """Uruchamia git w katalogu repo, zwraca stdout (lub exits przy błędzie).
+
+    timeout  — maksymalny czas (s) na jedno polecenie. Bez tego polecenia
+               sieciowe (ls-remote / push) potrafiły „wisieć” w nieskończoność,
+               gdy git czekał na login/hasło albo sieć nie odpowiadała.
+    prompt   — gdy False, wyłączamy interaktywne pytanie git o dane logowania
+               (GIT_TERMINAL_PROMPT=0) — zamiast wisieć, polecenie od razu
+               zwróci błąd (używane przy odczycie tagów).
+    capture  — gdy False, wyjście git idzie wprost na ekran (widać ewentualne
+               pytanie o hasło i postęp wysyłki) — używane przy push.
+    """
+    env = dict(os.environ)
+    if not prompt:
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        env["GCM_INTERACTIVE"] = "Never"
+    try:
+        r = subprocess.run(["git", "-C", str(REPO), *args],
+                           capture_output=capture, text=True,
+                           encoding="utf-8", errors="replace",
+                           timeout=timeout, env=env)
+    except subprocess.TimeoutExpired:
+        print(f"\n✗ git {' '.join(args)} — przekroczono czas ({timeout} s).")
+        print("  Najczęściej: git czeka na login/hasło albo nie ma połączenia z GitHubem.")
+        print("  Nic nie wysłano. Sprawdź internet i dane logowania, potem uruchom ponownie.")
+        sys.exit(1)
+    out = (r.stdout or "").strip() if capture else ""
     if check and r.returncode != 0:
         print("\n✗ BŁĄD git " + " ".join(args))
-        if r.stdout.strip():
-            print(r.stdout.strip())
-        if r.stderr.strip():
-            print(r.stderr.strip())
+        if capture:
+            if out:
+                print(out)
+            if r.stderr and r.stderr.strip():
+                print(r.stderr.strip())
+        else:
+            print("   (szczegóły błędu powyżej)")
         print("\nNic nie wysłano — popraw problem i uruchom release.py ponownie.")
         sys.exit(1)
-    return r.stdout.strip()
+    return out
 
 
 def read_current_version():
@@ -74,7 +100,8 @@ def remote_tag_list():
     Działa też bez lokalnego 'git fetch' i bez zalogowania (publiczne repo),
     a gdy nie ma sieci — zwraca pustą listę (release.py nie zgłasza błędu).
     """
-    out = git("ls-remote", "--tags", "origin", check=False)
+    out = git("ls-remote", "--tags", "origin", check=False, timeout=15,
+              prompt=False)
     tags = []
     for line in out.splitlines():
         m = re.search(r"refs/tags/(v\d+\.\d+\.\d+)$", line.strip())
@@ -186,6 +213,7 @@ def main():
     #    ustawia ją na wersję do wydania); gdyby tag był już zajęty,
     #    podpowiadamy kolejny wolny numer
     cur = read_current_version()
+    print("Sprawdzam tagi na GitHubie… (gdy brak sieci — pomijam)")
     remote = latest_remote_tag()
     remote_tags = remote_tag_list()
     if remote:
@@ -252,10 +280,10 @@ def main():
     if staged:
         git("commit", "-m", msg)
     print("Wysyłam zmiany na GitHub (push)…")
-    git("push")
+    git("push", prompt=True, capture=False, timeout=180)
     print(f"Taguję {ans} i wysyłam tag — Actions budują EXE…")
     git("tag", ans)
-    git("push", "origin", ans)
+    git("push", "origin", ans, prompt=True, capture=False, timeout=180)
 
     print("\n✓ WYPUŚCZONO WERSJĘ " + ans)
     print(f"  Postęp budowy : {GITHUB_URL}/actions")
