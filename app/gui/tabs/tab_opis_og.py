@@ -513,18 +513,44 @@ class TabOpisOgMixin:
     # ------------------------------------------------ GDOŚ: formy ochrony przyrody
 
     GDOS_OBSZARY_PLIK = "gdos_obszary.json"
-    # arkusz GDOŚ -> etykieta formy (None = park krajobrazowy bez etykiety)
-    GDOS_SHEETY = [
-        ("ObszarySpecjalnejOchronyPolygon", "OSO"),
-        ("SpecjalneObszaryOchronyPolygon", "SOO"),
-        ("RezerwatyPolygon", "REZERWAT"),
-        ("ParkiNarodowePolygon", "PARK NARODOWY"),
-        ("ParkiKrajobrazowePolygon", None),
-        ("UzytkiEkologicznePolygon", "UŻYTK EKOLOGICZNY"),
-        ("ZespolyPrzyrodniczoKrajobrazowe", "ZESPÓŁ PRZYRODNICZO-KRAJOBRAZOWY"),
-        ("ObszaryChronionegoKrajobrazuPol", "OBSZAR CHRONIONEGO KRAJOBRAZU"),
-        ("StanowiskaDokumentacyjnePolygon", "STANOWISKO DOKUMENTACYJNE"),
+    # Formy ochrony rozpoznawane po nazwie arkusza. Trzymamy zarowno nazwy
+    # techniczne z eksportu GDOŚ (np. „RezerwatyPolygon”), jak i nazwy
+    # „ludzkie” (np. „Rezerwaty”, „Obszar Specjalnej Ochrony”, „Parki
+    # Narodowe”) — bo eksporty bywają różnie nazwane. Wpis:
+    #   (fragmenty znormalizowanej nazwy arkusza, kod formy, etykieta w opisie)
+    GDOS_FORMY = [
+        (("SPECJALNEOBSZAR",), "SOO", "Obszar Natura 2000 SOO"),
+        (("SPECJALNEJOCHRONY",), "OSO", "Obszar Natura 2000 OSO"),
+        (("REZERWAT",), "REZERWAT", "Rezerwat"),
+        (("PARKNARODOW", "PARKINARODOW"), "PARK NARODOWY", "Park Narodowy"),
+        (("PARKKRAJOBRAZ", "PARKIKRAJOBRAZ"), None, "Park Krajobrazowy"),
+        (("UZYTKEKOLOG", "UZYTKIEKOLOG"), "UŻYTEK EKOLOGICZNY",
+         "Użytek ekologiczny"),
+        (("ZESPOLPRZYRODNICZO", "ZESPOLYPRZYRODNICZO"),
+         "ZESPÓŁ PRZYRODNICZO-KRAJOBRAZOWY", "Zespół przyrodniczo-krajobrazowy"),
+        (("CHRONIONEGOKRAJOBRAZ",), "OBSZAR CHRONIONEGO KRAJOBRAZU",
+         "Obszar chronionego krajobrazu"),
+        (("STANOWISKODOKUMENTACYJN", "STANOWISKADOKUMENTACYJN"),
+         "STANOWISKO DOKUMENTACYJNE", "Stanowisko dokumentacyjne"),
     ]
+
+    @classmethod
+    def _gdos_forma_z_arkusza(cls, nazwa_arkusza):
+        """(kod formy, etykieta) rozpoznane po nazwie arkusza, albo None.
+
+        Działa zarówno dla nazw technicznych („ObszarySpecjalnejOchronyPolygon”),
+        jak i „ludzkich” („Obszar Specjalnej Ochrony”), bo porównujemy
+        znormalizowane fragmenty nazwy (bez spacji, cyfr, ogonków, WIELKIE litery).
+        """
+        # _gdos_norm nie składa „ł”, a w nazwach arkuszy bywa (Zespoły) —
+        # dla rozpoznawania formy sprowadzamy je do zwykłego „l”.
+        norm = cls._gdos_norm(str(nazwa_arkusza or "")).replace("Ł", "L")
+        if not norm:
+            return None
+        for fragmenty, kod, etykieta in cls.GDOS_FORMY:
+            if any(fr in norm for fr in fragmenty):
+                return kod, etykieta
+        return None
 
     @staticmethod
     def _fix_gdos_mojibake(s):
@@ -625,9 +651,11 @@ class TabOpisOgMixin:
 
         kb = self._gdos_kb()
         obszary = []
-        for sheet, typ in self.GDOS_SHEETY:
-            if sheet not in wb.sheetnames:
+        for sheet in wb.sheetnames:
+            forma = self._gdos_forma_z_arkusza(sheet)
+            if not forma:
                 continue
+            typ, label = forma
             grupy = {}
             for row in wb[sheet].iter_rows(min_row=2, values_only=True):
                 if not row or len(row) < 7:
@@ -662,7 +690,8 @@ class TabOpisOgMixin:
                 if entry is not None:
                     nazwa = entry["nazwa"]
                 z = grupy.setdefault(nazwa, {"pelne": [], "czesciowe": [], "kb": entry,
-                                              "typ": typ or "PARK KRAJOBRAZOWY"})
+                                              "typ": typ or "PARK KRAJOBRAZOWY",
+                                              "label": label})
                 if str(status or "").strip().upper().startswith("CZ"):
                     z["czesciowe"].append(a1s)
                 else:
@@ -680,6 +709,15 @@ class TabOpisOgMixin:
         par = [] if skrocony else ["Zlokalizowano następujące formy ochrony przyrody"]
         for z in obszary:
             typ, nazwa, kbe = z["typ"], z["nazwa"], z["kb"]
+            label = z.get("label") or ""
+            # Nazwa formy w opisie: dokładamy etykietę z nazwy arkusza
+            # (np. „Rezerwat …”, „Park Narodowy …”, „Obszar chronionego
+            # krajobrazu …”) — ale tylko gdy nie ma jej już w samej nazwie
+            # obszaru z GDOŚ (żeby nie dublować, np. „Rezerwat Rezerwat …”).
+            nazwa_op = nazwa
+            if label and typ not in ("OSO", "SOO"):
+                if label.lower() not in nazwa.lower():
+                    nazwa_op = f"{label} {nazwa}"
             pelne = sorted(set(z["pelne"]), key=self._gdos_ak)
             czesc = sorted(set(z["czesciowe"]), key=self._gdos_ak)
             if wszystkie_a1 and pelne and set(pelne) | set(czesc) >= wszystkie_a1:
@@ -694,7 +732,7 @@ class TabOpisOgMixin:
                     par.append((f"Obszar Natura 2000 {typ} {nazwa} {gdzie}"
                                 if gdzie else f"Obszar Natura 2000 {typ} {nazwa}") + ".")
                 else:
-                    par.append((f"{nazwa} {gdzie}" if gdzie else nazwa) + ".")
+                    par.append((f"{nazwa_op} {gdzie}" if gdzie else nazwa_op) + ".")
                 continue
             if typ in ("OSO", "SOO"):
                 if kbe and kbe.get("kod"):
@@ -704,7 +742,7 @@ class TabOpisOgMixin:
                     par.append(f"- Obszar Natura 2000 {typ} {nazwa} {gdzie}. "
                                "[TU UZUPEŁNIJ: kod obszaru i publikację PZO]")
             else:
-                par.append(f"- {nazwa} {gdzie}.")
+                par.append(f"- {nazwa_op} {gdzie}.")
             if kbe and not skrocony:
                 if typ in ("OSO", "SOO") and kbe.get("powiazanie"):
                     par.append(f"Powiązanie z gospodarką leśną - {nazwa}: {kbe['powiazanie']}")

@@ -56,6 +56,7 @@ from app.gui.tabs.tab_excel_z_mdb import TabExcelZMdbMixin
 from app.gui.tabs.tab_tworzenie_mietkow import TabTworzenieMietkowMixin
 from app.gui.tabs.tab_nazwiska_mietek import TabNazwiskaMietekMixin
 from app.gui.tabs.tab_stare_opisy import TabStareOpisyMixin
+from app.gui.tabs.tab_rozliczenie_mietka import TabRozliczenieMietkaMixin
 from app.gui.tabs.tab_mietek_v2 import TabMietekV2Mixin
 from app.gui.tabs.tab_mietek_rozbieznosci import TabMietekRozbieznosciMixin
 from app.gui.tabs.tab_mietek_plus10 import TabMietekPlus10Mixin
@@ -495,7 +496,7 @@ class WebBackend(
     TabPdfConverterMixin, TabRozliczanieMixin, TabHaliznyMixin,
     TabWydrukiMixin, TabExcelZMdbMixin, TabTworzenieMietkowMixin,
     TabNazwiskaMietekMixin, TabMietekRozbieznosciMixin, TabMietekPlus10Mixin,
-    TabStareOpisyMixin, TabMietekV2Mixin, UpdaterMixin,
+    TabStareOpisyMixin, TabMietekV2Mixin, TabRozliczenieMietkaMixin, UpdaterMixin,
 ):
     """Logika aplikacji bez CustomTkinter — z mostkiem do PyWebView."""
 
@@ -1247,6 +1248,7 @@ class WebBackend(
             "start_title_pages": self.start_title_pages_pipeline,
             "start_rozbieznosci": lambda: self.start_mietek_rozbieznosci_pipeline(bez_nazwisk=False),
             "start_kontrola_pow": self.start_kontrola_pow_pipeline,
+            "start_czyszczenie_rejestru": self.start_czyszczenie_rejestru,
             "start_rozbieznosci_bez": lambda: self.start_mietek_rozbieznosci_pipeline(bez_nazwisk=True),
             "start_nazwiska_mietek": self.start_nazwiska_mietek_pipeline,
             "start_excel": self.start_excel_pipeline,

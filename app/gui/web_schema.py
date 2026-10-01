@@ -468,11 +468,17 @@ def build_schema():
                 _path("stare_out", "stare_opisy_out_entry",
                       "2. Folder docelowy zapisu:",
                       "Gdzie zapisać nowe pliki? (puste = obok oryginałów)"),
-                _path("stare_strtyt_tpl", "stare_strtyt_tpl_entry",
-                      "3. Szablon STR_TYT (opcjonalnie):",
-                      "Twój nowy szablon strony tytułowej — wypełniany nazwą wsi "
-                      "i powierzchnią z OPTAX (placeholdery: NAZWA WSI, wielkość)",
-                      save=False, kind="file"),
+                _strtyt(
+                    "stare_strtyt_szablon", "stare_strtyt_szablon_var",
+                    "3. Szablon strony tytułowej:",
+                    ["Wersja 1", "Wersja 2", "Wersja 3"],
+                    "Wersja 1",
+                    [{"src": "podglad_STR_TYT_1.png",
+                      "label": "Wersja 1 — wbudowana", "value": "Wersja 1"},
+                     {"src": "podglad_STR_TYT_2.png",
+                      "label": "Wersja 2 — klasyczna", "value": "Wersja 2"},
+                     {"src": "podglad_STR_TYT_3.png",
+                      "label": "Wersja 3 — minimalna", "value": "Wersja 3"}]),
             ],
             "buttons": [_button("run", "Przerób na nowy szablon", "start_stare_opisy")],
         },
@@ -513,6 +519,36 @@ def build_schema():
             ],
             "buttons": [
                 _button("run", "Generuj raport kontroli", "start_kontrola_pow"),
+            ],
+        },
+        {
+            "key": "MIETEK|Czyszczenie rejestru",
+            "tooltip": "Usuwa z mietka działki bez przypisanej litery (pododdziału) "
+                       "oraz właścicieli bez rozliczonej działki — i odświeża "
+                       "wygenerowane raporty (HTML + PDF). Tworzy raport usuniętych.",
+            "controls": [
+                _info("Wskaż folder z mietkiem — pliki DBF (W/R/O/D/WSIE) mogą "
+                      "leżeć w podfolderach, także głębiej (np. CHORZEWO\\WOL.001). "
+                      "Program dla każdego obrębu: usuwa działki (D*.DBF) bez "
+                      "przypisanego pododdziału (litery wydzielenia, np. „1a” ma "
+                      "literę „a”), a następnie usuwa właścicieli / pozycje "
+                      "rejestrowe (W*.DBF) bez żadnej rozliczonej działki. "
+                      "Przed zapisem powstaje kopia .BAK (pierwsza kopia zostaje "
+                      "nietknięta). Pliki O*.DBF i R*.DBF nie są zmieniane."),
+                _path("rozl_mietki_root", "rozl_mietki_root_entry",
+                      "1. Folder z Mietkiem (pliki DBF w podfolderach):",
+                      "np. folder z podfolderami wsi/obrębów, np. CHORZEWO\\WOL.001"),
+                _path("rozl_mietki_out", "rozl_mietki_out_entry",
+                      "2. Folder z raportami do odświeżenia (opcjonalnie):",
+                      "Folder z wygenerowanymi „nowymi szablonami” (HTML + pdf) — "
+                      "tu program odświeży REJESTR1 i ZEST1"),
+                _check("rozl_mietki_odswiez", "rozl_mietki_odswiez_var",
+                       "Odśwież też wygenerowane raporty (HTML + PDF)", True),
+                _check("rozl_mietki_dry", "rozl_mietki_dry_var",
+                       "Tylko raport — NIE usuwaj danych (podgląd)", False),
+            ],
+            "buttons": [
+                _button("run", "Wyczyść rejestr", "start_czyszczenie_rejestru"),
             ],
         },
         {
@@ -827,6 +863,11 @@ def build_schema():
         },
     ]
 
+    # v2.0.140: do każdej zakładki dokładamy krótką, prostą instrukcję —
+    # frontend pokazuje ją pod przyciskiem „Instrukcja” w nagłówku zakładki.
+    for _t in tabs:
+        _t["instrukcja"] = INSTRUKCJE.get(_t["key"])
+
     return {
         "app_name": "Forestly",
         "version": CURRENT_VERSION,
@@ -867,3 +908,295 @@ def _tpl_controls(mode):
         _path(f"tpl_{mode}_out", b + "output_entry", "Miejsce zapisu szablonu:",
               "Folder, w którym zapisać plik", kind="folder"),
     ]
+
+
+# ---------------------------------------------------------------------------
+# INSTRUKCJE ZAKŁADEK (v2.0.140)
+# ---------------------------------------------------------------------------
+# Proste, „ludzkie” wyjaśnienie dla każdej zakładki: co się w niej robi („co”)
+# i jak się nią posługiwać („jak” — kroki). Frontend pokazuje to pod
+# przyciskiem „Instrukcja” w nagłówku zakładki. Klucz = pełny klucz zakładki
+# z „key” („SEKCJA|Nazwa zakładki”).
+#
+# Uzupełnienie treści NIE wymaga zmian w app.js — wystarczy dopisać/zmienić
+# wpis w tym słowniku.
+
+INSTRUKCJE = {
+    # ============================================================ MIETEK
+    "MIETEK|Mietek v2.0 — edytor danych": {
+        "co": "Przeglądanie i ręczna poprawa danych mietka (pliki DBF) w wygodnej "
+              "tabeli — bez wychodzenia z programu.",
+        "jak": [
+            "Wskaż folder z mietkiem.",
+            "Wybierz obręb, a potem plik (W / R / O / D / Z / WSIE).",
+            "Kliknij komórkę, popraw wartość i naciśnij „Zapisz”.",
+            "Z tego samego miejsca możesz od razu wygenerować dokument (PDF) z danych.",
+        ],
+        "wskazowka": "Zapis robi kopię zapasową .BAK — pierwszą kopię program "
+                     "zostawia nietkniętą, więc zawsze można wrócić do stanu sprzed zmian.",
+    },
+    "MIETEK|Pełny Automat (1-Click)": {
+        "co": "Cała droga od mietków do gotowego, scalonego PDF — jednym przebiegiem.",
+        "jak": [
+            "W kreatorze wskaż folder z mietkami i folder, gdzie mają trafić wyniki.",
+            "Ustaw stronę tytułową i daty (stan na / okres).",
+            "Wybierz, czy dodać opis ogólny i formy ochrony przyrody (GDOŚ).",
+            "Uruchom — program sam generuje wydruki z DBF, robi Word/PDF, dokłada "
+            "skróty i mapy, scala i numeruje dokumenty.",
+        ],
+        "wskazowka": "Możesz włączyć „Obie wersje” — powstaną dwa gotowe zestawy: "
+                     "z nazwiskami i bez nazwisk.",
+    },
+    "MIETEK|Nowe Szablony": {
+        "co": "Wygenerowanie jednego raportu (np. OPTAX) nowym, estetycznym "
+              "szablonem HTML→PDF — bez użycia Worda.",
+        "jak": [
+            "Wskaż folder z plikami TXT mietka.",
+            "Wybierz typ raportu i folder docelowy.",
+            "Kliknij, aby wygenerować.",
+        ],
+    },
+    "MIETEK|Generowanie: MIETEK -> TXT": {
+        "co": "Zamiana danych z plików DBF mietka na pliki wydrukowe (TXT) — "
+              "te same, które dawniej tworzył program MS-DOS.",
+        "jak": [
+            "Wskaż folder z mietkami.",
+            "Zaznacz, które wydruki mają powstać (albo „Wszystkie”).",
+            "Uruchom — pliki zapisują się obok plików DBF.",
+        ],
+    },
+    "MIETEK|Konwersja: MIETEK -> Word": {
+        "co": "Etap 1: oczyszczenie surowych plików TXT z systemu MIETEK "
+              "i ułożenie ich w pliki Word.",
+        "jak": [
+            "Wskaż folder z plikami TXT i folder docelowy.",
+            "Zaznacz typy dokumentów do przetworzenia.",
+            "Uruchom.",
+        ],
+    },
+    "MIETEK|Konwersja: Word -> PDF": {
+        "co": "Etap 2: zamiana gotowych plików Word na PDF i scalenie ich "
+              "w jeden dokument.",
+        "jak": [
+            "Wskaż folder z plikami Word i folder docelowy.",
+            "Uruchom — program przekonwertuje dokumenty i połączy je w jeden PDF.",
+        ],
+    },
+    "MIETEK|Kreator Stron tytułowych": {
+        "co": "Tworzenie strony tytułowej planu (Word i PDF) — dla jednej wsi "
+              "albo masowo dla wielu.",
+        "jak": [
+            "Uzupełnij dane: typ dokumentu, obręb, województwo/powiat/gmina, daty.",
+            "Wskaż szablon i folder zapisu.",
+            "Kliknij, aby wygenerować. Tryb „Wiele wsi” tworzy strony dla "
+            "wszystkich wsi z danych.",
+        ],
+    },
+    "MIETEK|Opisy ogólne": {
+        "co": "Automatyczne tworzenie pliku „opis og_<wieś>.docx” — opis ogólny "
+              "uproszczonego planu.",
+        "jak": [
+            "Wskaż folder z wsiami (z plikami WSK_ZB).",
+            "Opcjonalnie wskaż folder z wynikami GDOŚ (formy ochrony przyrody).",
+            "Uruchom.",
+        ],
+    },
+    "MIETEK|Stare → nowe szablony": {
+        "co": "Przerobienie starych plików Word z Pełnego Automatu na nowe "
+              "szablony FORESTLY.",
+        "jak": [
+            "Wskaż folder ze starymi plikami.",
+            "Uruchom — program odczyta treść i odtworzy ją w nowym wyglądzie.",
+        ],
+    },
+    "MIETEK|Wykaz Rozbieżności": {
+        "co": "Porównanie powierzchni z mietków (DBF) z ewidencją w Excelu — "
+              "wykaz różnic.",
+        "jak": [
+            "Wskaż folder z mietkami.",
+            "Wskaż plik (albo folder) z ewidencją XLS.",
+            "Uruchom.",
+        ],
+    },
+    "MIETEK|Kontrola powierzchni Rejestr–OPTAX": {
+        "co": "Raport rozbieżności powierzchni między Rejestrem a opisem "
+              "taksacyjnym (OPTAX) — bez zmieniania danych mietka.",
+        "jak": [
+            "Wskaż folder mietków i folder wynikowy.",
+            "Uruchom — powstaje osobny PDF dla każdej wsi oraz raport zbiorczy.",
+        ],
+    },
+    "MIETEK|Czyszczenie rejestru": {
+        "co": "Usuwa z mietka pozycje nierozliczone: działki bez przypisanej "
+              "litery (pododdziału) oraz właścicieli bez rozliczonej działki. "
+              "Potrafi też odświeżyć wygenerowane raporty.",
+        "jak": [
+            "Wskaż folder z mietkiem — pliki DBF mogą leżeć w podfolderach, "
+            "także głębiej (np. CHORZEWO\\WOL.001).",
+            "Opcjonalnie wskaż folder z wygenerowanymi raportami (nowe szablony) "
+            "i zaznacz „Odśwież też wygenerowane raporty”.",
+            "Uruchom. Program usuwa działki bez litery oraz właścicieli/pozycje "
+            "rejestrowe bez rozliczonej działki, a na koniec odświeża REJESTR1 "
+            "i ZEST1 (HTML + PDF) z oczyszczonego mietka.",
+        ],
+        "wskazowka": "To zmienia dane mietka — przed zapisem powstaje kopia .BAK "
+                     "obok pliku DBF (pierwsza kopia zostaje nietknięta). Chcesz "
+                     "najpierw tylko zobaczyć, co zostałoby usunięte? Zaznacz "
+                     "„Tylko raport — NIE usuwaj danych”.",
+    },
+    "MIETEK|Mietki +10 lat": {
+        "co": "Przesunięcie wieku w opisach taksacyjnych o wybraną liczbę lat "
+              "(zastępuje dawne makro VBA).",
+        "jak": [
+            "Wskaż folder mietka.",
+            "Podaj liczbę lat i wybierz pola do zmiany.",
+            "Najpierw podejrzyj wynik, a gdy jest poprawny — zastosuj zmiany.",
+        ],
+    },
+    "MIETEK|NAZWISKA -> MIETEK": {
+        "co": "Zbudowanie plików W*.DBF (właściciele) na podstawie ewidencji "
+              "z Excela, ze strukturą MS-DOS.",
+        "jak": [
+            "Wskaż plik ewidencji XLS.",
+            "Wskaż folder wzorcowy i folder wynikowy.",
+            "Uruchom.",
+        ],
+    },
+    "MIETEK|Baza obszarów GDOŚ": {
+        "co": "Edytor bazy obszarów ochrony przyrody (Natura 2000, parki) "
+              "używanej przy tworzeniu opisów ogólnych.",
+        "jak": [
+            "Przeglądaj i popraw wpisy w tabeli.",
+            "Bazę możesz też zaimportować lub wyeksportować do Excela.",
+        ],
+        "wskazówka": "Nowe obszary dopisują się automatycznie z wyników GDOŚ — "
+                     "kody i powiązania z gospodarką leśną możesz uzupełnić później.",
+    },
+    "MIETEK|Ręczne scalanie PDF": {
+        "co": "Ręczne wczytanie luźnych plików PDF, ustawienie kolejności "
+              "i połączenie ich w jeden dokument.",
+        "jak": [
+            "Wskaż folder z plikami PDF.",
+            "Ustaw kolejność (przeciąganiem albo strzałkami).",
+            "Kliknij, aby scalić.",
+        ],
+    },
+    "MIETEK|Edycja PDF": {
+        "co": "Poprawa dowolnego pliku PDF: dopisanie tekstu, zakrycie błędnego "
+              "fragmentu, usuwanie / obrót / przesuwanie stron.",
+        "jak": [
+            "Otwórz plik PDF.",
+            "Na podglądzie strony dopisz tekst albo załóż zakrycie (możesz też "
+            "przestawić strony).",
+            "Zapisz wynik jako nowy plik.",
+        ],
+        "wskazówka": "Oryginalny plik zostaje nietknięty — program zapisuje "
+                     "zmiany pod nową nazwą.",
+    },
+
+    # ========================================================== TAKSATOR
+    "TAKSATOR|Układanie Exceli do druku": {
+        "co": "Przygotowanie arkuszy Excel do druku: ukrycie zbędnych arkuszy, "
+              "sortowanie i dobranie czcionek.",
+        "jak": [
+            "Wskaż folder z plikami Excel i folder wynikowy.",
+            "Uruchom.",
+        ],
+    },
+    "TAKSATOR|Wyłożenie Exceli": {
+        "co": "Złożenie stron tytułowych, opisów i raportów w gotowe paczki PDF "
+              "dla każdej wsi.",
+        "jak": [
+            "Wskaż foldery ze stronami tytułowymi, opisami i raportami.",
+            "Wskaż folder wynikowy.",
+            "Uruchom.",
+        ],
+    },
+    "TAKSATOR|Kreator Stron tytułowych": {
+        "co": "Tworzenie stron tytułowych na podstawie danych z zestawień Excel "
+              "(jedna wieś albo masowo).",
+        "jak": [
+            "Wskaż szablon oraz plik Excel z danymi.",
+            "Wskaż folder zapisu i wybierz tryb.",
+            "Kliknij, aby wygenerować.",
+        ],
+    },
+    "TAKSATOR|Opisy ogólne": {
+        "co": "Tworzenie opisów ogólnych (opis og_<wieś>.docx) na podstawie "
+              "raportów Excel do druku.",
+        "jak": [
+            "Wskaż folder z raportami Excel (arkusz „Zestawienie”).",
+            "Opcjonalnie wskaż folder z wynikami GDOŚ.",
+            "Uruchom.",
+        ],
+    },
+    "TAKSATOR|Excel -> PDF": {
+        "co": "Konwersja raportów i opisów na osobne pliki PDF, rozdzielone do "
+              "folderów poszczególnych wsi.",
+        "jak": [
+            "Wskaż folder źródłowy i folder docelowy.",
+            "Uruchom.",
+        ],
+    },
+    "TAKSATOR|Usuwanie 0 w MDB": {
+        "co": "Kopia bazy Access (.mdb) do nowego folderu i poprawa adresów "
+              "leśnych (usuwanie zbędnych zer).",
+        "jak": [
+            "Wskaż plik .mdb i folder docelowy.",
+            "Uruchom.",
+        ],
+    },
+
+    # ======================================================= ROZLICZANIE
+    "ROZLICZANIE|Rozliczanie powierzchni": {
+        "co": "Rozliczenie powierzchni z ewidencji względem geodezji "
+              "(plik .val).",
+        "jak": [
+            "Wskaż plik ewidencji XLS.",
+            "Wskaż plik .val (geodezja).",
+            "Wskaż folder wynikowy i uruchom.",
+        ],
+    },
+    "ROZLICZANIE|Tworzenie i wpisywanie mietków": {
+        "co": "Wygenerowanie struktury MS-DOS (mietków) z bazą DBF z ewidencji "
+              "oraz wpisanie krzyżówek.",
+        "jak": [
+            "Wskaż bazę z ewidencji i folder wynikowy.",
+            "Podaj listę nazw (wsi).",
+            "Uruchom.",
+        ],
+    },
+    "ROZLICZANIE|Halizny": {
+        "co": "Przeniesienie halizn (wydzieleń niezalesionych) w plikach D*.DBF.",
+        "jak": [
+            "Wskaż folder z mietkami.",
+            "Uruchom.",
+        ],
+    },
+    "ROZLICZANIE|Zestawienie zbiorcze": {
+        "co": "Zebranie wszystkich plików „<WIEŚ>_Rozliczone.xlsx” w jeden "
+              "arkusz: sumy dla każdej wsi, wiersz RAZEM oraz rozpiska "
+              "działek przybyło/ubyło.",
+        "jak": [
+            "Wskaż folder z plikami rozliczeń.",
+            "Uruchom.",
+        ],
+    },
+    "ROZLICZANIE|Excel z MDB": {
+        "co": "Wyciągnięcie danych z bazy Access (.mdb) do pliku Excel.",
+        "jak": [
+            "Wskaż plik .mdb i folder docelowy.",
+            "Uruchom.",
+        ],
+    },
+
+    # ======================================================= KONWERTER PDF
+    "KONWERTER PDF|Konwerter PDF": {
+        "co": "Konwersja dokumentów Office i obrazów do PDF.",
+        "jak": [
+            "Wskaż folder źródłowy i folder docelowy (albo przeciągnij pliki "
+            "na listę).",
+            "Uruchom.",
+        ],
+    },
+}

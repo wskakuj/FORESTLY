@@ -343,6 +343,43 @@ class TabStareOpisyMixin:
                 mapa["STR_TYT"] = p
         return mapa
 
+    @staticmethod
+    def _stare_strtyt_szablon_sciezka(wybor):
+        """Ścieżka wbudowanego szablonu strony tytułowej dla „Wersja 1/2/3”."""
+        from app.core.word_worker import get_resource_path
+        w = (wybor or "").strip()
+        if w.startswith("Wersja 3") or w.startswith("D"):
+            kandydaci = ("STR_TYT_wersja_3.docx", "STR_TYT_szablon_D.docx")
+        elif w.startswith("Wersja 2") or w.startswith("B"):
+            kandydaci = ("STR_TYT_wersja_2.docx", "STR_TYT_szablon_B.docx")
+        else:   # „Wersja 1” — wbudowany wzorzec
+            kandydaci = ("STR_TYT.docx",)
+        for n in kandydaci:
+            try:
+                p = get_resource_path(n)
+            except Exception:
+                p = None
+            if p and Path(p).exists():
+                return Path(p)
+        return None
+
+    @staticmethod
+    def _stare_teryt_z_tekstu(text):
+        """Wyłuskuje gminę/powiat/województwo z tekstu starej strony tytułowej."""
+        out = {}
+        t = " ".join(str(text or "").split())
+
+        def _grab(kw):
+            m = re.search(kw + r"\s*[:\-]?\s*([A-ZĄĆĘŁŃÓŚŹŻ]"
+                          r"[\wąćęłńóśźżĄĆĘŁŃÓŚŹŻ\- ]{1,40}?)"
+                          r"(?=[,.;()]|\s{2,}|$)", t)
+            return m.group(1).strip() if m else ""
+
+        out["gmina"] = _grab(r"gmin[aię]\w*")
+        out["powiat"] = _grab(r"powia[tu]\w*")
+        out["wojewodztwo"] = _grab(r"wojew[óo]dztw\w*")
+        return out
+
     def _stare_opisy_run(self):
         from app.core.word_worker import get_resource_path
         from app.core import szablony
@@ -364,16 +401,14 @@ class TabStareOpisyMixin:
         out.mkdir(parents=True, exist_ok=True)
         self.last_output_dir = out
 
-        # opcjonalny szablon STR_TYT (nowa strona tytułowa usera)
-        strtyt_e = getattr(self, "stare_strtyt_tpl_entry", None)
-        strtyt_tpl = None
-        strtyt_raw = strtyt_e.get().strip() if strtyt_e else ""
-        if strtyt_raw:
-            if Path(strtyt_raw).exists():
-                strtyt_tpl = Path(strtyt_raw)
-            else:
-                self.log(f"[STARE OPISY] Szablon STR_TYT nie istnieje: "
-                         f"{strtyt_raw} — strony tytułowe zostaną pominięte.")
+        # szablon strony tytułowej — wybór z 3 miniatur (jak w Pełnym Automacie)
+        strtyt_var = getattr(self, "stare_strtyt_szablon_var", None)
+        strtyt_wybor = (strtyt_var.get().strip() if strtyt_var else "") or "Wersja 1"
+        strtyt_tpl = self._stare_strtyt_szablon_sciezka(strtyt_wybor)
+        if strtyt_tpl is None:
+            self.log(f"[STARE OPISY] Nie znaleziono szablonu strony tytułowej "
+                     f"„{strtyt_wybor}” w folderze programu — strony tytułowe "
+                     f"zostaną pominięte.")
 
         tpl = get_resource_path(TPL_STARE_FILENAME)
         if not Path(tpl).exists():
@@ -396,8 +431,8 @@ class TabStareOpisyMixin:
 
         self.log(f"[STARE OPISY] Start — wsi: {len(wsie)} "
                  f"(szablon opisu: {Path(tpl).name}"
-                 + (f", szablon STR_TYT: {strtyt_tpl.name}" if strtyt_tpl
-                    else "; bez STR_TYT (nie podano szablonu)") + ")")
+                 + (f", strona tytułowa: {strtyt_wybor}" if strtyt_tpl
+                    else "; bez strony tytułowej") + ")")
 
         self._stare_word = None
         tmpdir = tempfile.mkdtemp(prefix="stare_szablony_")
@@ -408,7 +443,8 @@ class TabStareOpisyMixin:
                 wies = folder.name if folder != root else root.name
                 self.update_status(f"Stare szablony: {wies} ({i}/{len(wsie)})")
                 if self._stare_przerob_wies(folder, wies, out, tpl, strtyt_tpl,
-                                           szablony, Document, tmpdir):
+                                           szablony, Document, tmpdir,
+                                           strtyt_wybor):
                     done_wsi += 1
         finally:
             word = getattr(self, "_stare_word", None)
@@ -426,7 +462,7 @@ class TabStareOpisyMixin:
     # ------------------------------------------------ jedna wieś
 
     def _stare_przerob_wies(self, folder, wies, out, tpl, strtyt_tpl,
-                            szablony, Document, tmpdir):
+                            szablony, Document, tmpdir, strtyt_wybor=""):
         """Przerabia wszystkie pliki jednej wsi (raporty + opis og + STR_TYT).
         Zwraca True, gdy cokolwiek powstało. Word COM (dla .doc) startuje
         raz na całe uruchomienie — trzymany w self._stare_word."""
@@ -599,6 +635,40 @@ class TabStareOpisyMixin:
                 doc = Document(str(strtyt_tpl))
                 self._stare_zamien(doc, "NAZWA WSI", wies_doc)
                 self._stare_zamien(doc, "wielkość", pow_txt)
+                # szablony „Wersja 2/3” mają dodatkowe pola — uzupełniamy je
+                # danymi z raportów (stan/okres) i ze starej strony tytułowej
+                # (gmina/powiat/województwo); brakujące zostają jako „—”
+                self._stare_zamien(doc, "POWIERZCHNIA_WSI", pow_txt)
+                _stan_t, _okres_t = "", ""
+                for _ty in ("OPTAX", "REJESTR1", "WSK_ZB"):
+                    _tp = txt_map.get(_ty)
+                    if not _tp:
+                        continue
+                    try:
+                        _ob, _st, _ok = szablony.meta_z_pliku(_tp)
+                    except Exception:
+                        _st = _ok = ""
+                    if not _stan_t and _st:
+                        _stan_t = _st
+                    if not _okres_t and _ok:
+                        _okres_t = _ok
+                _stary_tyt = ""
+                _st_info = docx_map.get("STR_TYT")
+                if _st_info and _st_info[0]:
+                    try:
+                        _stary_tyt = "\n".join(
+                            self._stare_linie(Document(str(_st_info[0]))))
+                    except Exception:
+                        _stary_tyt = ""
+                _teryt = self._stare_teryt_z_tekstu(_stary_tyt)
+                self._stare_zamien(doc, "{GMINA}",
+                                   (_teryt.get("gmina") or "—").upper())
+                self._stare_zamien(doc, "{POWIAT}",
+                                   (_teryt.get("powiat") or "—").upper())
+                self._stare_zamien(doc, "{WOJEWÓDZTWO}",
+                                   (_teryt.get("wojewodztwo") or "—").upper())
+                self._stare_zamien(doc, "{STAN_NA}", _stan_t or "—")
+                self._stare_zamien(doc, "{OKRES}", _okres_t or "—")
                 safe = "".join(c for c in wies_doc
                                if c.isalpha() or c.isdigit() or c in " -_").strip()
                 docelowy.mkdir(parents=True, exist_ok=True)

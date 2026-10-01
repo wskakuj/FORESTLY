@@ -104,8 +104,28 @@ function renderAll(cfg) {
     const view = document.createElement("div");
     view.className = "tab-view";
     view.dataset.key = tab.key;
-    view.innerHTML = `<h1>${escapeHtml(name)}</h1>` +
-      (tab.tooltip ? `<div class="tab-desc">${escapeHtml(tab.tooltip)}</div>` : "");
+    /* nagłówek zakładki + przycisk „Instrukcja” (v2.0.140) */
+    const head = document.createElement("div");
+    head.className = "tab-head";
+    const h1 = document.createElement("h1");
+    h1.textContent = name;
+    head.appendChild(h1);
+    if (tab.instrukcja) {
+      const ib = document.createElement("button");
+      ib.type = "button";
+      ib.className = "btn ghost small inst-btn";
+      ib.innerHTML = ICON("info") + "<span>Instrukcja</span>";
+      ib.title = "Co robi ta zakładka i jak jej użyć";
+      ib.onclick = () => openInstrukcja(tab);
+      head.appendChild(ib);
+    }
+    view.appendChild(head);
+    if (tab.tooltip) {
+      const desc = document.createElement("div");
+      desc.className = "tab-desc";
+      desc.textContent = tab.tooltip;
+      view.appendChild(desc);
+    }
     renderControls(view, tab);
     content.appendChild(view);
   }
@@ -1109,7 +1129,8 @@ const ICONS = {
   trash:   '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
   plus:    '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
   save:    '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>',
-  chevron: '<polyline points="6 9 12 15 18 9"/>'
+  chevron: '<polyline points="6 9 12 15 18 9"/>',
+  info:    '<circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="8" r="0.6" fill="currentColor"/>'
 };
 function ICON(name) {
   const path = ICONS[name];
@@ -2821,6 +2842,47 @@ function showDialog(ev) {
     const root = $("#toast-root");
     root.appendChild(t);
   }
+}
+
+/* ------------------------------------------------ okno „Instrukcja” zakładki */
+/* Proste wyjaśnienie zakładki (co robi / jak użyć), treść z web_schema.py. */
+function openInstrukcja(tab) {
+  const ins = tab.instrukcja || {};
+  const nazwa = (tab.key.split("|")[1] || "").trim();
+  const backdrop = el("div", "modal-backdrop");
+  const modal = el("div", "modal inst-modal");
+  modal.appendChild(el("h3", null, "Instrukcja — " + escapeHtml(nazwa)));
+  const body = el("div", "inst-body");
+  if (ins.co) {
+    body.appendChild(el("div", "inst-h", "Co robi ta zakładka"));
+    body.appendChild(el("div", "inst-p", escapeHtml(ins.co)));
+  }
+  if (Array.isArray(ins.jak) && ins.jak.length) {
+    body.appendChild(el("div", "inst-h", "Jak jej użyć"));
+    const ol = el("ol", "inst-steps");
+    for (const krok of ins.jak) ol.appendChild(el("li", null, escapeHtml(krok)));
+    body.appendChild(ol);
+  }
+  if (ins.wskazowka) {
+    body.appendChild(el("div", "inst-tip", "💡 " + escapeHtml(ins.wskazowka)));
+  }
+  if (!body.childNodes.length) {
+    body.appendChild(el("div", "inst-p", "Dla tej zakładki nie ma jeszcze instrukcji."));
+  }
+  modal.appendChild(body);
+  const row = el("div", "modal-row");
+  const ok = el("button", "btn primary", "Rozumiem");
+  ok.onclick = () => backdrop.remove();
+  row.appendChild(ok);
+  modal.appendChild(row);
+  backdrop.appendChild(modal);
+  backdrop.onclick = e => { if (e.target === backdrop) backdrop.remove(); };
+  const esc = ev => {
+    if (ev.key === "Escape") { backdrop.remove(); document.removeEventListener("keydown", esc); }
+  };
+  document.addEventListener("keydown", esc);
+  $("#modal-root").appendChild(backdrop);
+  setTimeout(() => ok.focus(), 50);
 }
 
 function toast(msg, kind, action) {

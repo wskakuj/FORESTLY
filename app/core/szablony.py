@@ -1254,8 +1254,87 @@ def znajdz_przegladarke():
     return None
 
 
+def _env_dla_przegladarki():
+    """Środowisko dla procesu przeglądarki BEZ zmiennych PyInstallera/Pythona.
+
+    W wersji .exe (PyInstaller onefile) proces potomny dziedziczy _MEIPASS,
+    PYTHONHOME/PYTHONPATH oraz wpisy _MEI* w PATH. Edge/Chrome bywają wtedy
+    niestabilne przy --print-to-pdf (raz wygenerują PDF, raz nie — dokładnie
+    jak „w PyCharm działa, w EXE nie”). Czyścimy te zmienne tak samo, jak
+    robi to aktualizator (app/updater.py).
+    """
+    pomin = {"_MEIPASS", "_MEIPASS2", "PYTHONHOME", "PYTHONPATH",
+             "TCL_LIBRARY", "TK_LIBRARY", "_PYVENV_LAUNCHER_",
+             "__PYVENV_LAUNCHER__"}
+    env = {}
+    for k, v in os.environ.items():
+        ku = k.upper()
+        if ku in pomin or ku.startswith("_MEI") or ku.startswith("_PYI"):
+            continue
+        if ku == "PATH":
+            czesci = [p for p in str(v).split(os.pathsep)
+                      if p and "_MEI" not in p.upper() and "_PYI" not in p.upper()]
+            env[k] = os.pathsep.join(czesci)
+        else:
+            env[k] = v
+    return env
+
+
+def _probuj_wydrukowac(exe, html_path, pdf_path, prof, tryb, timeout, err_path):
+    """Jedna próba HTML→PDF. Zwraca kod wyjścia procesu (albo None przy wyjątku)."""
+    cmd = [exe, tryb, "--disable-gpu", "--no-first-run",
+           "--no-pdf-header-footer", "--print-to-pdf-no-header",
+           "--disable-crash-reporter", "--disable-crashpad",
+           "--disable-extensions", "--disable-background-networking",
+           f"--user-data-dir={prof}",
+           f"--print-to-pdf={pdf_path.resolve()}",
+           html_path.resolve().as_uri()]
+    creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+    try:
+        err_handle = open(err_path, "wb")
+    except OSError:
+        err_handle = subprocess.DEVNULL
+    try:
+        proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL,
+                                stderr=err_handle,
+                                env=_env_dla_przegladarki(),
+                                creationflags=creationflags)
+    except Exception:
+        try:
+            if hasattr(err_handle, "close"):
+                err_handle.close()
+        except Exception:
+            pass
+        return None
+    try:
+        if hasattr(err_handle, "close"):
+            err_handle.close()   # dziecko ma własny uchwyt
+    except Exception:
+        pass
+    _AKTYWNA_PRZEGLADARKA["proc"] = proc
+    try:
+        proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        try:
+            proc.kill()
+            proc.wait(timeout=5)
+        except Exception:
+            pass
+    finally:
+        if _AKTYWNA_PRZEGLADARKA.get("proc") is proc:
+            _AKTYWNA_PRZEGLADARKA["proc"] = None
+    return proc.returncode
+
+
 def html_na_pdf(html_path, pdf_path, timeout=120):
-    """HTML → PDF przez Edge/Chrome headless. Zwraca True/False."""
+    """HTML → PDF przez Edge/Chrome headless.
+
+    Odporne na tryb .exe: czyści środowisko procesu przeglądarki, próbuje
+    kilka razy (raz klasyczny --headless, raz --headless=new), czeka na plik
+    po zamknięciu procesu, a gdy się nie uda — w komunikacie błędu podaje
+    ścieżkę przeglądarki, kod wyjścia i jej komunikat (żeby dało się ustalić
+    przyczynę, zamiast zgadywać).
+    """
     html_path, pdf_path = Path(html_path), Path(pdf_path)
     if pdf_path.exists():
         try:
@@ -1267,47 +1346,55 @@ def html_na_pdf(html_path, pdf_path, timeout=120):
         raise RuntimeError("Nie znaleziono przeglądarki (Edge/Chrome) "
                            "do wydruku PDF.")
     pdf_path.parent.mkdir(parents=True, exist_ok=True)
-    # v2.0.133: profile przeglądarki sprzątamy SAMI — TemporaryDirectory
-    # wywalał się na katalogu Crashpad (WinError 145 „katalog nie jest
-    # pusty”), który Edge/Chrome zostawia chwilę po zamknięciu —
-    # przy równoległym renderingu kilku procesów naraz. Sprzątanie
-    # z ponowieniem i ignorowaniem błędów NIE może wywalić renderingu.
-    prof = tempfile.mkdtemp(prefix="forestly_pdf_")
-    try:
-        cmd = [exe, "--headless", "--disable-gpu", "--no-first-run",
-               "--no-pdf-header-footer", "--print-to-pdf-no-header",
-               "--disable-crash-reporter", "--disable-crashpad",
-               f"--user-data-dir={prof}",
-               f"--print-to-pdf={pdf_path.resolve()}",
-               html_path.resolve().as_uri()]
-        proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL,
-                                stderr=subprocess.DEVNULL)
-        _AKTYWNA_PRZEGLADARKA["proc"] = proc
+
+    def _gotowe():
         try:
-            # v2.0.139: Popen zamiast subprocess.run — aktywny proces
-            # jest w rejestrze, więc „Zatrzymaj” może go ubić od razu
-            proc.wait(timeout=timeout)
-        except subprocess.TimeoutExpired:
+            return pdf_path.exists() and pdf_path.stat().st_size > 100
+        except OSError:
+            return False
+
+    # kolejne próby: klasyczny --headless (działa w wersji deweloperskiej),
+    # potem --headless=new (nowsze Edge/Chrome), na końcu znów klasyczny
+    proby = ("--headless", "--headless=new", "--headless")
+    ostatni_kod = None
+    ostatni_err = ""
+    for nr, tryb in enumerate(proby):
+        prof = tempfile.mkdtemp(prefix="forestly_pdf_")
+        err_path = Path(prof) / "browser_err.txt"
+        try:
+            ostatni_kod = _probuj_wydrukowac(
+                exe, html_path, pdf_path, prof, tryb,
+                timeout if nr == 0 else min(timeout, 60), err_path)
+            # Edge/Chrome czasem zapisuje PDF tuż po zamknięciu procesu —
+            # odczekajmy chwilę, zanim uznamy porażkę (do ~8 s)
+            for _ in range(40):
+                if _gotowe():
+                    break
+                time.sleep(0.2)
+            # zbierz komunikat przeglądarki ZANIM usuniemy profil
             try:
-                proc.kill()
-                proc.wait(timeout=5)
+                tresc = err_path.read_text(encoding="utf-8", errors="replace")
+                ostatni_err = " | ".join(
+                    t for t in tresc.strip().splitlines() if t.strip())[-400:]
             except Exception:
-                pass
+                ostatni_err = ""
         finally:
-            if _AKTYWNA_PRZEGLADARKA.get("proc") is proc:
-                _AKTYWNA_PRZEGLADARKA["proc"] = None
-    finally:
-        import shutil as _sh
-        for opoznienie in (0, 0.7, 2.0):
-            if opoznienie:
-                time.sleep(opoznienie)
-            _sh.rmtree(prof, ignore_errors=True)
-            if not Path(prof).exists():
-                break
-    ok = pdf_path.exists() and pdf_path.stat().st_size > 100
-    if not ok:
-        raise RuntimeError(f"Nie udało się wygenerować PDF: {pdf_path.name}")
-    return True
+            # profil kasujemy dopiero teraz (po odczekaniu na PDF) — kasowanie
+            # w trakcie zapisu psuje wynik
+            for opoznienie in (0, 0.5, 1.5):
+                if opoznienie:
+                    time.sleep(opoznienie)
+                shutil.rmtree(prof, ignore_errors=True)
+                if not Path(prof).exists():
+                    break
+        if _gotowe():
+            return True
+
+    szczegoly = f"przeglądarka: {exe}; kod wyjścia: {ostatni_kod}"
+    if ostatni_err:
+        szczegoly += f"; komunikat: {ostatni_err}"
+    raise RuntimeError(f"Nie udało się wygenerować PDF: {pdf_path.name} "
+                       f"({szczegoly})")
 
 
 # v2.0.139: rejestr aktywnego renderowania HTML→PDF — „Zatrzymaj”
