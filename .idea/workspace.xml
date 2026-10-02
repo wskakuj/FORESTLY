@@ -6,6 +6,7 @@
   <component name="ChangeListManager">
     <list default="true" id="5553df60-78eb-40cf-b78a-3e24e8981b9c" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/gui/web_backend.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/gui/web_backend.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/gui/web_schema.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/gui/web_schema.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/settings.json" beforeDir="false" afterPath="$PROJECT_DIR$/settings.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/webapp/app.js" beforeDir="false" afterPath="$PROJECT_DIR$/webapp/app.js" afterDir="false" />
@@ -17,7 +18,7 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="135" />
+    <option name="cachedIndexableFilesCount" value="139" />
     <option name="fileBasedEmbeddingIndicesEnabled" value="true" />
   </component>
   <component name="Git.Settings">
@@ -40,6 +41,7 @@
   &quot;keyToString&quot;: {
     &quot;Python.main.executor&quot;: &quot;Run&quot;,
     &quot;Python.main_web.executor&quot;: &quot;Run&quot;,
+    &quot;Python.tab_mietek_v2.executor&quot;: &quot;Run&quot;,
     &quot;RunOnceActivity.MCP Project settings loaded&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,

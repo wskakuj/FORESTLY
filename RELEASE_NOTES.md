@@ -1,5 +1,5 @@
-# Co nowego w v2.0.141
+# Co nowego w v2.0.142
 
- Dodane (zielone) — jak było: nowe zakładki.
- Usprawnione (niebieskie, z niebieską plakietką i obwódką) — poprawki w zakładkach, które już istniały.
-- 
+ Usuwa z mietka działki bez przypisanej litery (pododdziału) oraz właścicieli bez rozliczonej działki
+ Wpisywanie opisów do poligonów mapy GEO-MAP
+

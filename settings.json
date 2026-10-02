@@ -46,7 +46,7 @@
   "web.tpl_MIETEK_out": "D:\\download\\gówno\\Nowy folder (22)\\Nowy folder",
   "web.mt_template": "D:\\download\\gówno\\Nowy folder (18)\\OPISY_OGOLNE_POPRAWIONE_2026\\UPUL_wzor.docx",
   "web.mt_word": "D:\\download\\gówno\\Nowy folder (18)\\OPISY_OGOLNE_POPRAWIONE_2026\\Nowy folder (2)",
-  "last_output_dir": "D:\\download\\gówno\\Nowy folder (23)\\SZEWNICA",
+  "last_output_dir": "C:\\Users\\niepy\\Desktop\\Nowy folder (4)",
   "web.mt_area_ph": "wielkość",
   "web.opis_og_root": "D:\\download\\gówno\\Nowy folder (20)",
   "web.opis_og_pelny": true,
@@ -354,5 +354,17 @@
   },
   "web.mt_village_ph": "NAZWA WSI",
   "web.rozl_mietki_odswiez": false,
-  "web.nowe_szablony": true
+  "web.nowe_szablony": true,
+  "web.mapa_tryb": "Excel z Forestly GO",
+  "web.mapa_excel": "",
+  "web.mapa_kol_nr": "N",
+  "web.mapa_klucz": "TX",
+  "web.mapa_mietki": "C:\\Users\\niepy\\Desktop\\Nowy folder (4)",
+  "web.mapa_src": "C:\\Users\\niepy\\Desktop\\Nowy folder (4)",
+  "web.mapa_dst": "",
+  "web.mapa_a2": true,
+  "web.mapa_a5": true,
+  "web.mapa_dry": false,
+  "web.mapa_zrodlo": "Dane MIETKA",
+  "web.mapa_test_csv": true
 }

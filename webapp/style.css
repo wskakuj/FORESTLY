@@ -1477,3 +1477,28 @@ input.drop-over {
 }
 .nowosci-card.nw-improved .nw-badge { background: #38a3f8; color: #04223a; }
 .nowosci-card.nw-improved .nw-go { color: #38a3f8; }
+
+/* ---------------------------------------- tabela „braki” (opisy na mapę) */
+.modal.braki-modal { width: 900px; }
+.braki-opis { font-size: 13px; color: var(--text-dim); line-height: 1.55; margin: 4px 0 8px; }
+.braki-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 12px; }
+.braki-chip { font-size: 12px; padding: 3px 10px; border-radius: 999px;
+  border: 1px solid var(--border-strong); color: var(--text); }
+.braki-chip.err { color: #d83b01; border-color: #d83b0155; }
+.braki-chip.warn { color: #a87400; border-color: #a8740055; }
+.braki-chip.info { color: #0078d7; border-color: #0078d755; }
+.braki-tabela-wrap { max-height: 52vh; overflow: auto; border: 1px solid var(--border-strong);
+  border-radius: 10px; }
+.braki-tabela { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.braki-tabela th { position: sticky; top: 0; background: var(--panel-solid);
+  text-align: left; padding: 7px 9px; font-weight: 600;
+  border-bottom: 1px solid var(--border-strong); }
+.braki-tabela td { padding: 6px 9px; border-bottom: 1px solid var(--border);
+  vertical-align: top; }
+.braki-mono { font-family: ui-monospace, Consolas, "Courier New", monospace; }
+.braki-tabela tr.braki-err td:last-child { color: #d83b01; font-weight: 600; }
+.braki-tabela tr.braki-warn td:last-child { color: #a87400; font-weight: 600; }
+.braki-tabela tr.braki-info td:last-child { color: #0078d7; font-weight: 600; }
+.braki-filtr { display: flex; align-items: center; gap: 8px; font-size: 12.5px;
+  color: var(--text-dim); margin: 0 0 10px; cursor: pointer; user-select: none; }
+.braki-filtr input { cursor: pointer; }

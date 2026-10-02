@@ -373,13 +373,14 @@ function renderSegment(c) {
   const hasGroups = Object.keys(groups).length > 0;
   const select = (opt, applyView) => {
     seg.dataset.value = opt;
+    seg.dataset.gval = groups[opt] || "";
     $$(".seg-btn", seg).forEach(x => {
       x.classList.remove("sel", "sel-pdf", "sel-word");
       if (x.dataset.opt === opt) x.classList.add("sel");
     });
     const btn = seg.querySelector('[data-opt="' + cssEscape(opt) + '"]');
     if (btn && selClass[opt]) btn.classList.add(selClass[opt]);
-    if (applyView && hasGroups) applySegmentGroups(wrap.closest(".tab-view"), groups[opt]);
+    if (applyView && hasGroups) applySegmentGroups(wrap.closest(".tab-view"));
   };
   options.forEach(opt => {
     const b = el("button", "seg-btn");
@@ -391,6 +392,7 @@ function renderSegment(c) {
   });
   select(def, false);
   if (groups[def]) seg.dataset.defaultGroup = groups[def];
+  if (hasGroups) seg.dataset.gn = c.id;
   if (c.attr) {
     seg.dataset.cid = c.id;
     seg.dataset.kind = "segment";
@@ -399,12 +401,30 @@ function renderSegment(c) {
   return wrap;
 }
 
-function applySegmentGroups(view, active) {
+function applySegmentGroups(view) {
   if (!view) return;
+  /* Aktywne wartości przełączników pogrupowane po „przestrzeni nazw”
+     (data-gn = id przełącznika). Dzięki temu jedna zakładka może mieć
+     DWIE niezależne osie naraz (np. tryb + źródło danych).
+     Grupa „ns:wartość” pasuje do przełącznika o id „ns”; grupa bez
+     dwukropka (stara forma) pasuje do dowolnego przełącznika — tak jak
+     dotąd. */
+  const active = {};
+  $$(".segment[data-gn]", view).forEach(seg => {
+    if (seg.dataset.gval) active[seg.dataset.gn] = seg.dataset.gval;
+  });
+  const widoczny = (gn) => {
+    if (!gn) return true;
+    return String(gn).split(/\s+/).every(p => {
+      const i = p.indexOf(":");
+      if (i >= 0) return active[p.slice(0, i)] === p;
+      return Object.keys(active).some(k => active[k] === p);
+    });
+  };
   $$(".seg-group", view).forEach(g =>
-    g.classList.toggle("hidden", !active || g.dataset.group !== active));
+    g.classList.toggle("hidden", !widoczny(g.dataset.group)));
   $$(".actions .btn[data-group]", view).forEach(b =>
-    b.classList.toggle("hidden", !active || b.dataset.group !== active));
+    b.classList.toggle("hidden", !widoczny(b.dataset.group)));
 }
 
 function renderGroup(c) {
@@ -473,13 +493,8 @@ function renderControls(view, tab) {
     actions.appendChild(btn);
   }
   view.appendChild(actions);
-  /* domyślny tryb przełączników segmentu (pierwsza/zaznaczona opcja);
-     segmenty bez grup (np. PDF/Word) są pomijane — wywołanie z null
-     chowałoby wszystkie pola zakładki */
-  for (const seg of $$(".segment", view)) {
-    if (seg.dataset.defaultGroup)
-      applySegmentGroups(view, seg.dataset.defaultGroup);
-  }
+  /* ustaw widoczność grup wg domyślnych wartości przełączników */
+  applySegmentGroups(view);
 }
 
 /* ================== Kreator Pełnego Automatu (1-Click) ==================
@@ -2611,6 +2626,7 @@ function handleEvent(ev) {
         break;
     case "changelog": showChangelog(ev); break;
     case "raport": showRaport(ev); break;
+    case "braki": showBraki(ev); break;
     case "state": setRunning(!!ev.running); break;
     case "toast": toast(ev.text, ev.kind); break;
   }
@@ -2812,6 +2828,84 @@ function showRaport(ev) {
   close.textContent = "Zamknij";
   close.onclick = () => wrap.remove();
   row.appendChild(close);
+  modal.appendChild(row);
+  wrap.appendChild(modal);
+  wrap.onclick = e => { if (e.target === wrap) wrap.remove(); };
+  $("#modal-root").appendChild(wrap);
+}
+
+/* --------------------------- tabela „braki” przed wpisaniem opisów */
+/* Backend wysyła: {type:"braki", rows:[...], podsumowanie:{...}, akcja:{...}} */
+function showBraki(ev) {
+  const wrap = el("div", "modal-backdrop");
+  const modal = el("div", "modal braki-modal");
+  const ile = ev.razem || 0;
+  const pod = ev.podsumowanie || {};
+  const kolory = { "brak wydzielenia": "err", "rozbieżność": "err",
+                   "brak w źródle": "err", "brak opisu": "info",
+                   "literówka": "warn", "interpunkcja": "warn",
+                   "spacje": "warn", "wielkość liter": "warn" };
+
+  modal.appendChild(el("h3", null, "Braki przed wpisaniem opisów"));
+  const opis = el("div", "braki-opis");
+  opis.textContent = ile
+    ? `Znaleziono ${ile} pozycji w ${ev.map || 0} mapach. Sprawdź je poniżej — `
+      + `możesz je poprawić w mietku/arkuszu i uruchomić sprawdzanie ponownie.`
+    : "Brak uwag — wszystkie poligony dopasowane i zgodne. Możesz wpisywać opisy.";
+  modal.appendChild(opis);
+
+  const chips = el("div", "braki-chips");
+  Object.keys(pod).forEach(k => chips.appendChild(
+    el("span", "braki-chip " + (kolory[k] || "info"),
+       escapeHtml(k) + ": " + pod[k])));
+  modal.appendChild(chips);
+
+  const tylko = el("label", "braki-filtr");
+  const chk = el("input"); chk.type = "checkbox";
+  tylko.appendChild(chk);
+  tylko.appendChild(el("span", null,
+    "Ukryj drobne (literówki, spacje, interpunkcja)"));
+  modal.appendChild(tylko);
+  chk.onchange = () => $$("tr[data-waga='minor']", modal)
+    .forEach(tr => tr.classList.toggle("hidden", chk.checked));
+
+  if (ile) {
+    const cont = el("div", "braki-tabela-wrap");
+    const tabela = el("table", "braki-tabela");
+    const thead = el("thead");
+    const trh = el("tr");
+    ["Mapa", "Wydzielenie", "Pole", "Co jest (mapa)", "Co da reguła",
+     "Uwaga"].forEach(t => trh.appendChild(el("th", null, t)));
+    thead.appendChild(trh); tabela.appendChild(thead);
+    const tbody = el("tbody");
+    (ev.rows || []).forEach(r => {
+      const tr = el("tr", "braki-" + (kolory[r.typ] || "info"));
+      tr.dataset.waga = r.waga || (kolory[r.typ] === "warn" ? "minor" : "serious");
+      tr.appendChild(el("td", "braki-mono", escapeHtml(r.mapa || "")));
+      tr.appendChild(el("td", "braki-mono", escapeHtml(r.wydz || "")));
+      tr.appendChild(el("td", "braki-mono", escapeHtml(r.pole || "")));
+      tr.appendChild(el("td", "braki-mono", escapeHtml(r.obecne || "—")));
+      tr.appendChild(el("td", "braki-mono", escapeHtml(r.nowe || "—")));
+      tr.appendChild(el("td", null, escapeHtml(r.typ || "")));
+      tbody.appendChild(tr);
+    });
+    tabela.appendChild(tbody);
+    cont.appendChild(tabela);
+    modal.appendChild(cont);
+    if ((ev.rows || []).length < ile)
+      modal.appendChild(el("div", "braki-opis",
+        `…pokazano ${ev.rows.length} z ${ile}.`));
+  }
+
+  const row = el("div", "modal-row");
+  if (ile && ev.akcja && ev.akcja.task) {
+    const wpisz = el("button", "btn primary", escapeHtml(ev.akcja.label || "Wpisz opisy"));
+    wpisz.onclick = () => { wrap.remove(); runTask(ev.akcja.task); };
+    row.appendChild(wpisz);
+  }
+  const zamknij = el("button", "btn secondary", "Zamknij");
+  zamknij.onclick = () => wrap.remove();
+  row.appendChild(zamknij);
   modal.appendChild(row);
   wrap.appendChild(modal);
   wrap.onclick = e => { if (e.target === wrap) wrap.remove(); };
