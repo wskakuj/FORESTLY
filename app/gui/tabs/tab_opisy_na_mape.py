@@ -106,26 +106,78 @@ class TabOpisyNaMapeMixin:
             except Exception:
                 return default
 
-        tryb = _txt("mapa_zrodlo_var", "Dane Forestly GO")
+        tryb = _txt("mapa_zrodlo_var", "Baza MIETEK")
+        if "TAKSATOR" in tryb.upper():
+            tryb_kod = "taksator"
+        elif "GO" in tryb.upper():
+            tryb_kod = "excel"
+        else:
+            tryb_kod = "mietek"
         return {
-            "tryb": "mietek" if "MIET" in tryb.upper() else "excel",
+            "tryb": tryb_kod,
             "excel": _txt("mapa_excel_entry"),
             "mietki": _txt("mapa_mietki_entry"),
+            "mdb": _txt("mapa_mdb_entry"),
             "mapy": _txt("mapa_src_entry"),
             "kol_nr": _txt("mapa_kol_nr_entry", "N"),
             "klucz": "TX",          # pole „Uwagi” mapy — stałe, nieedytowalne
             "a2": True,              # oba pola opisu zawsze wpisywane
             "a5": True,
-            "dry": _bool("mapa_dry_var", False),
-            "test_csv": _bool("mapa_test_csv_var", True),
         }
+
+    @staticmethod
+    def _zapisz_braki_csv(folder, wszystkie):
+        """Zapisuje tabelę różnic do pliku „Opisy na mapę - braki.csv".
+
+        Zwraca ścieżkę pliku albo None (gdy brak pozycji / błąd zapisu).
+        """
+        if not wszystkie:
+            return None
+        import csv as _csv
+        out = Path(folder)
+        if out.is_file():
+            out = out.parent
+        plik = out / "Opisy na mapę - braki.csv"
+        try:
+            with open(plik, "w", newline="", encoding="utf-8-sig") as f:
+                wr = _csv.writer(f, delimiter=";")
+                wr.writerow(["Mapa", "Wydzielenie", "Pole", "Co jest (mapa)",
+                             "Co da reguła", "Uwaga"])
+                for r in wszystkie:
+                    wr.writerow([r.get("mapa", ""), r.get("wydz", ""),
+                                 r.get("pole", ""), r.get("obecne", ""),
+                                 r.get("nowe", ""), r.get("typ", "")])
+            return plik
+        except OSError:
+            return None
+
+    @staticmethod
+    def _mapy_ze_sciezki(sciezka):
+        """Folder -> wszystkie mapy; plik .MAP -> tylko ta jedna."""
+        p = Path(sciezka)
+        if p.is_file() and p.suffix.lower() == ".map":
+            return {_klucz_nazwy(p.stem): p}
+        return TabOpisyNaMapeMixin._mapy_w_folderze(p)
 
     # -------------------------------------------------- start
     def start_opisy_na_mape(self):
         u = self._opisy_na_mape_ustawienia()
-        if not u["mapy"] or not Path(u["mapy"]).is_dir():
-            self.log("[MAPY] Wskaż folder z mapami (.MAP).")
-            self.update_status("Brak folderu z mapami", "#D83B01", animate=False)
+        if not u["mapy"] or not Path(u["mapy"]).exists():
+            self.log("[MAPY] Wskaż folder z mapami (.MAP) albo plik mapy.")
+            self.update_status("Brak map", "#D83B01", animate=False)
+            return
+        if u["tryb"] == "taksator":
+            if not u["mdb"] or not Path(u["mdb"]).is_file():
+                self.log("[MAPY] Wskaż plik bazy taksatora (.mdb).")
+                self.update_status("Brak bazy .mdb", "#D83B01", animate=False)
+                return
+            if self.running:
+                return
+            self._disable_ui_for_process()
+            self.log("[MAPY] Źródło: baza TAKSATORA (.mdb).")
+            self.set_progress(0)
+            threading.Thread(target=self.run_taksator_thread, args=(u,),
+                             daemon=True).start()
             return
         if u["tryb"] == "excel" and (not u["excel"] or not Path(u["excel"]).is_dir()):
             self.log("[MAPY] Wskaż folder z arkuszami Excel (opisy z Forestly GO).")
@@ -139,9 +191,8 @@ class TabOpisyNaMapeMixin:
             return
 
         self._disable_ui_for_process()
-        self.log("[MAPY] Źródło: %s%s"
-                 % ("Excel z Forestly GO" if u["tryb"] == "excel" else "dane MIETKA",
-                    "   [TYLKO PODGLĄD — bez zapisu map]" if u["dry"] else ""))
+        self.log("[MAPY] Źródło: %s."
+                 % ("Excel z Forestly GO" if u["tryb"] == "excel" else "dane MIETKA"))
         self.set_progress(0)
         threading.Thread(target=self.run_opisy_na_mape_thread, args=(u,),
                          daemon=True).start()
@@ -185,10 +236,8 @@ class TabOpisyNaMapeMixin:
                 self.set_progress(idx / total, current_file=sciezka_mapy.name, current=idx)
 
             self._opisy_raport(wyniki, u)
-            self.update_status(
-                ("Podgląd gotowy — raport zapisany." if u["dry"]
-                 else "Gotowe — opisy wpisane do map."),
-                "#107C10", animate=False)
+            self.update_status("Gotowe — opisy wpisane do map.",
+                               "#107C10", animate=False)
         except InterruptedError:
             self.log("\n[MAPY] ZADANIE PRZERWANE PRZEZ UŻYTKOWNIKA.")
             self.update_status("Przerwano", "#D83B01", animate=False)
@@ -244,7 +293,7 @@ class TabOpisyNaMapeMixin:
     # -------------------------------------------------- jedna mapa (zapis)
     def _opisy_dla_mapy(self, sciezka_mapy, zrodla, u):
         w = {"mapa": sciezka_mapy.name, "poligonow": 0, "dopasowano": 0,
-             "zmiany": 0, "plik": "", "blad": ""}
+             "zmiany": 0, "plik": "", "blad": "", "niedopasowane": []}
         try:
             mapa, wiersze, blad = self._wiersze_dla_mapy(sciezka_mapy, zrodla, u)
             if blad:
@@ -252,7 +301,8 @@ class TabOpisyNaMapeMixin:
                 return w
             w["poligonow"] = len(wiersze)
             w["dopasowano"] = sum(1 for r in wiersze if r["ok"])
-            if u["dry"] or not w["dopasowano"]:
+            w["niedopasowane"] = [r["wydz"] for r in wiersze if not r["ok"]]
+            if not w["dopasowano"]:
                 return w
             res = onm.zapisz_mape(mapa, mapa["path"].parent, a2=u["a2"],
                                   a5=u["a5"], wiersze=wiersze)
@@ -270,8 +320,7 @@ class TabOpisyNaMapeMixin:
             "Data: %s" % _dt.datetime.now().strftime("%d.%m.%Y %H:%M"),
             "Źródło opisów: %s" % ("Excel z Forestly GO" if u["tryb"] == "excel"
                                    else "dane MIETKA"),
-            "Tryb: %s" % ("TYLKO PODGLĄD (bez zapisu map)" if u["dry"]
-                          else "ZAPIS map _z_opisami.MAP"),
+            "Tryb: ZAPIS map _z_opisami.MAP",
             "Wpisywane pola: %s" % ", ".join(
                 [p for p, on in (("A2", u["a2"]), ("A5", u["a5"])) if on] or ["—"]),
             "-" * 70,
@@ -287,6 +336,9 @@ class TabOpisyNaMapeMixin:
                 linie.append("  • %-28s poligonów: %4d, dopasowano: %4d%s"
                              % (w["mapa"], w["poligonow"], w["dopasowano"],
                                 (", zapisano: %s" % w["plik"]) if w["plik"] else ""))
+                if w.get("niedopasowane"):
+                    linie.append("      niedopasowane (brak w źródle): %s"
+                                 % ", ".join(w["niedopasowane"]))
         linie += [
             "-" * 70,
             "Razem map: %d, poligonów: %d, dopasowanych: %d, zmian pól: %d"
@@ -296,7 +348,7 @@ class TabOpisyNaMapeMixin:
         out = Path(u["mapy"])
         try:
             out.mkdir(parents=True, exist_ok=True)
-            plik = out / ("OPISY_NA_MAPE_%s.txt" % znacznik)
+            plik = out / "Opisy na mapę - raport.txt"
             plik.write_text(raport, encoding="utf-8-sig")
             self.log("[MAPY] Raport: %s" % plik)
         except OSError as e:
@@ -310,200 +362,25 @@ class TabOpisyNaMapeMixin:
             except Exception:
                 pass
 
-    # ================================================== TESTER reguły A2/A5
-    def start_test_opisy_na_mape(self):
-        """Porównuje regułę A2/A5 z opisami już wpisanymi w mapy (walidacja)."""
-        u = self._opisy_na_mape_ustawienia()
-        if not u["mapy"] or not Path(u["mapy"]).is_dir():
-            self.log("[TEST] Wskaż folder z mapami (.MAP) — tymi, które JUŻ "
-                     "mają wpisane opisy (wzorzec do porównania).")
-            self.update_status("Brak folderu z mapami", "#D83B01", animate=False)
-            return
-        if u["tryb"] == "excel" and (not u["excel"] or not Path(u["excel"]).is_dir()):
-            self.log("[TEST] Wskaż folder z arkuszami Excel (opisy z Forestly GO).")
-            self.update_status("Brak folderu Excel", "#D83B01", animate=False)
-            return
-        if u["tryb"] == "mietek" and (not u["mietki"] or not Path(u["mietki"]).is_dir()):
-            self.log("[TEST] Wskaż folder z Mietkiem (pliki DBF w podfolderach).")
-            self.update_status("Brak folderu Mietka", "#D83B01", animate=False)
-            return
-        if not u["a2"] and not u["a5"]:
-            self.log("[TEST] Zaznacz, co porównać: A2 („Oznaczenie”) "
-                     "i/lub A5 („Opis taks.”).")
-            self.update_status("Nic do porównania", "#D83B01", animate=False)
-            return
-        if self.running:
-            return
-        self._disable_ui_for_process()
-        self.log("[TEST] Porównuję wynik reguły z opisami już wpisanymi "
-                 "w mapy (źródło: %s)."
-                 % ("Excel z Forestly GO" if u["tryb"] == "excel" else "dane MIETKA"))
-        self.set_progress(0)
-        threading.Thread(target=self.run_test_opisy_na_mape_thread, args=(u,),
-                         daemon=True).start()
-
-    def run_test_opisy_na_mape_thread(self, u):
-        try:
-            self.update_status("Porównywanie reguły z mapami...", "#0078D7")
-            mapy = self._mapy_w_folderze(u["mapy"])
-            if not mapy:
-                self.log("[TEST] Nie znaleziono plików .MAP w tym folderze.")
-                self.update_status("Brak plików .MAP", "#D83B01", animate=False)
-                return
-            if u["tryb"] == "excel":
-                zrodla = self._arkusze_w_folderze(u["excel"])
-            else:
-                zrodla = self._obreby_w_folderze(u["mietki"])
-            total = len(mapy)
-            self.start_progress_tracking(total, "Tester opisów na mapę")
-            wyniki = []
-            for idx, (klucz, sciezka_mapy) in enumerate(sorted(mapy.items()), start=1):
-                self.check_stop()
-                self.progress_current_file = sciezka_mapy.name
-                w = self._test_dla_mapy(sciezka_mapy, zrodla, u)
-                wyniki.append(w)
-                if w.get("blad"):
-                    self.log("  ⚠️ %s: %s" % (sciezka_mapy.name, w["blad"]))
-                else:
-                    czesci = []
-                    for pole in ("A2", "A5"):
-                        r = w["wyniki"].get(pole)
-                        if r:
-                            czesci.append("%s: zgodne %d, rozbieżne %d"
-                                          % (pole, r["zgodne"], r["rozbiezne"]))
-                    self.log("  • %s: %s"
-                             % (sciezka_mapy.name, "  |  ".join(czesci) or "—"))
-                self.set_progress(idx / total, current_file=sciezka_mapy.name,
-                                  current=idx)
-            self._test_raport(wyniki, u)
-            self.update_status("Test gotowy — raport zapisany.", "#107C10",
-                               animate=False)
-        except InterruptedError:
-            self.log("\n[TEST] ZADANIE PRZERWANE PRZEZ UŻYTKOWNIKA.")
-            self.update_status("Przerwano", "#D83B01", animate=False)
-        except Exception as e:
-            self.log("\n[TEST] Błąd: %s" % e)
-            traceback.print_exc()
-            self.update_status("Błąd testu reguły", "#D83B01", animate=False)
-        finally:
-            self.running = False
-            self.after(0, self.restore_all_buttons)
-
-    def _test_dla_mapy(self, sciezka_mapy, zrodla, u):
-        w = {"mapa": sciezka_mapy.name, "poligonow": 0, "dopasowano": 0,
-             "wyniki": {}, "blad": ""}
-        try:
-            mapa, wiersze, blad = self._wiersze_dla_mapy(sciezka_mapy, zrodla, u)
-            if blad:
-                w["blad"] = blad
-                return w
-            w["poligonow"] = len(wiersze)
-            w["dopasowano"] = sum(1 for r in wiersze if r["ok"])
-            for pole, on in (("A2", u["a2"]), ("A5", u["a5"])):
-                if on:
-                    w["wyniki"][pole] = onm.podsumuj_test(wiersze, pole)
-        except Exception as e:
-            w["blad"] = str(e)
-        return w
-
-    def _test_raport(self, wyniki, u):
-        znacznik = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
-        pola = [p for p, on in (("A2", u["a2"]), ("A5", u["a5"])) if on]
-        linie = [
-            "FORESTLY — TESTER REGUŁY A2/A5 (opisy na mapę GEO-MAP)",
-            "Data: %s" % _dt.datetime.now().strftime("%d.%m.%Y %H:%M"),
-            "Źródło opisów: %s" % ("Excel z Forestly GO" if u["tryb"] == "excel"
-                                   else "dane MIETKA"),
-            "Porównywane pola: %s" % (", ".join(pola) or "—"),
-            "Porównanie: reguła (nowe) vs to, co JEST w mapie (obecne).",
-            "Różnice dzielone są na: rozbieżność (merytoryczna), literówka, "
-            "interpunkcja, spacje, wielkość liter.",
-            "=" * 74,
-        ]
-        csv = [["mapa", "wydzielenie", "pole", "rodzaj", "obecne", "nowe", "status"]]
-        drobne_kat = ("literówka", "interpunkcja", "spacje", "wielkość liter")
-        suma = {p: {"zgodne": 0, "rozbieżność": 0, "literówka": 0,
-                    "interpunkcja": 0, "spacje": 0, "wielkość liter": 0,
-                    "niedopasowane": 0, "puste": 0} for p in pola}
-        for w in wyniki:
-            if w.get("blad"):
-                linie.append("  ✗ %s — BŁĄD: %s" % (w["mapa"], w["blad"]))
-                continue
-            linie.append("")
-            linie.append("■ %s — poligonów: %d, dopasowanych: %d"
-                         % (w["mapa"], w["poligonow"], w["dopasowano"]))
-            for pole in pola:
-                r = w["wyniki"].get(pole)
-                if not r:
-                    continue
-                suma[pole]["zgodne"] += r["zgodne"]
-                suma[pole]["niedopasowane"] += r["niedopasowane"]
-                suma[pole]["puste"] += r["puste"]
-                for k in drobne_kat + ("rozbieżność",):
-                    suma[pole][k] += r["kategorie"].get(k, 0)
-                istotne = r["kategorie"].get("rozbieżność", 0)
-                drobne = sum(r["kategorie"].get(k, 0) for k in drobne_kat)
-                linie.append("   %s: zgodne: %d, puste w mapie: %d, "
-                             "niedopasowane: %d"
-                             % (pole, r["zgodne"], r["puste"], r["niedopasowane"]))
-                linie.append("      rozbieżności merytoryczne: %d, drobne "
-                             "(literówki/spacje/interpunkcja/wielkość liter): %d"
-                             % (istotne, drobne))
-                for roz in r["rozbieznosci"]:
-                    linie.append("      • [%s] %-8s obecne: %-24s | nowe: %s"
-                                 % (roz["rodzaj"], roz["wydz"],
-                                    roz["obecne"], roz["nowe"]))
-                    csv.append([w["mapa"], roz["wydz"], pole, roz["rodzaj"],
-                                roz["obecne"], roz["nowe"], roz["status"]])
-        linie += ["", "=" * 74]
-        for pole in pola:
-            s = suma[pole]
-            linie.append("RAZEM %s — zgodne: %d, puste w mapie: %d, "
-                         "niedopasowane: %d"
-                         % (pole, s["zgodne"], s["puste"], s["niedopasowane"]))
-            linie.append("   rozbieżność: %d, literówka: %d, interpunkcja: %d, "
-                         "spacje: %d, wielkość liter: %d"
-                         % (s["rozbieżność"], s["literówka"], s["interpunkcja"],
-                            s["spacje"], s["wielkość liter"]))
-        linie.append("")
-        linie.append("Rozbieżność merytoryczna ≠ od razu błąd reguły — sprawdź, "
-                     "czy mapa (wzorzec) sama nie jest błędna.")
-        raport = "\n".join(linie)
-        out = Path(u["mapy"])
-        try:
-            out.mkdir(parents=True, exist_ok=True)
-            plik = out / ("TEST_OPISY_NA_MAPE_%s.txt" % znacznik)
-            plik.write_text(raport, encoding="utf-8-sig")
-            self.log("[TEST] Raport: %s" % plik)
-            if u["test_csv"] and len(csv) > 1:
-                import csv as _csv
-                cplik = out / ("TEST_ROZBIEZNOSCI_%s.csv" % znacznik)
-                with open(cplik, "w", newline="", encoding="utf-8-sig") as fh:
-                    _csv.writer(fh, delimiter=";").writerows(csv)
-                self.log("[TEST] Rozbieżności (CSV): %s" % cplik)
-        except OSError as e:
-            self.log("[TEST] Nie udało się zapisać raportu: %s" % e)
-        for pole in pola:
-            s = suma[pole]
-            drobne = sum(s[k] for k in drobne_kat)
-            self.log("[TEST] %s — zgodne: %d, rozbieżność: %d, drobne: %d, "
-                     "puste: %d, niedopasowane: %d"
-                     % (pole, s["zgodne"], s["rozbieżność"], drobne,
-                        s["puste"], s["niedopasowane"]))
-        _zap = getattr(self, "_zapamietaj_folder_wynikow", None)
-        if _zap is not None:
-            try:
-                _zap(out)
-            except Exception:
-                pass
-
-    # ================================================ SPRAWDZANIE braków
     def start_sprawdz_opisy_na_mape(self):
         """Sprawdza mapy i źródło — pokazuje braki do uzupełnienia/sprawdzenia."""
         u = self._opisy_na_mape_ustawienia()
-        if not u["mapy"] or not Path(u["mapy"]).is_dir():
-            self.log("[SPRAWDZ] Wskaż folder z mapami (.MAP).")
-            self.update_status("Brak folderu z mapami", "#D83B01", animate=False)
+        if not u["mapy"] or not Path(u["mapy"]).exists():
+            self.log("[SPRAWDZ] Wskaż folder z mapami (.MAP) albo plik mapy.")
+            self.update_status("Brak map", "#D83B01", animate=False)
+            return
+        if u["tryb"] == "taksator":
+            if not u["mdb"] or not Path(u["mdb"]).is_file():
+                self.log("[SPRAWDZ] Wskaż plik bazy taksatora (.mdb).")
+                self.update_status("Brak bazy .mdb", "#D83B01", animate=False)
+                return
+            if self.running:
+                return
+            self._disable_ui_for_process()
+            self.log("[SPRAWDZ] Sprawdzam braki (baza TAKSATORA)...")
+            self.set_progress(0)
+            threading.Thread(target=self.run_taksator_braki_thread, args=(u,),
+                             daemon=True).start()
             return
         if u["tryb"] == "excel" and (not u["excel"] or not Path(u["excel"]).is_dir()):
             self.log("[SPRAWDZ] Wskaż folder z arkuszami Excel.")
@@ -550,6 +427,9 @@ class TabOpisyNaMapeMixin:
                                   current=idx)
 
             podsum = onm.podsumuj_braki(wszystkie)
+            csvp = self._zapisz_braki_csv(u["mapy"], wszystkie)
+            if csvp:
+                self.log("[SPRAWDZ] Zapisano różnice do CSV: %s" % csvp)
             self._emit({"type": "braki", "rows": wszystkie[:2000],
                         "razem": len(wszystkie),
                         "podsumowanie": podsum,
@@ -574,3 +454,168 @@ class TabOpisyNaMapeMixin:
         finally:
             self.running = False
             self.after(0, self.restore_all_buttons)
+
+    # ================================================= TAKSATOR (baza .mdb)
+    def run_taksator_braki_thread(self, u):
+        """Tabela braków dla trybu TAKSATOR (bez wpisywania do map)."""
+        try:
+            from app.core import opisy_na_mape_taksator as tk
+            from app.core import opisy_na_mape as onm
+            self.update_status("Czytanie bazy taksatora...", "#0078D7")
+            baza = tk.czytaj_baze(u["mdb"])
+            if not baza:
+                self.log("[SPRAWDZ] Nie udało się wczytać wydzieleń z bazy.")
+                self.update_status("Baza bez wydzieleń", "#D83B01", animate=False)
+                return
+            mapy = self._mapy_ze_sciezki(u["mapy"])
+            if not mapy:
+                self.log("[SPRAWDZ] Nie znaleziono plików .MAP.")
+                self.update_status("Brak plików .MAP", "#D83B01", animate=False)
+                return
+            total = len(mapy)
+            self.start_progress_tracking(total, "Sprawdzanie braków (taksator)")
+            wszystkie = []
+            for idx, (klucz, sciezka) in enumerate(sorted(mapy.items()), start=1):
+                self.check_stop()
+                self.progress_current_file = sciezka.name
+                try:
+                    mapa = onm.wczytaj_mape(sciezka)
+                    wiersze = tk.zbuduj_wiersze(mapa, baza)
+                    wszystkie += tk.braki_do_przegladu(sciezka.name, wiersze)
+                except Exception as e:
+                    self.log("  ⚠️ %s: %s" % (sciezka.name, e))
+                self.set_progress(idx / total, current_file=sciezka.name, current=idx)
+            podsum = onm.podsumuj_braki(wszystkie)
+            csvp = self._zapisz_braki_csv(u["mapy"], wszystkie)
+            if csvp:
+                self.log("[SPRAWDZ] Zapisano różnice do CSV: %s" % csvp)
+            self._emit({"type": "braki", "rows": wszystkie[:2000],
+                        "razem": len(wszystkie), "podsumowanie": podsum,
+                        "map": len(mapy),
+                        "akcja": {"task": "start_opisy_na_mape",
+                                  "label": "Wpisz opisy do map"}})
+            self.log("[SPRAWDZ] Pozycje do sprawdzenia/uzupełnienia: %d." % len(wszystkie))
+            self.update_status("Sprawdzanie gotowe.", "#107C10", animate=False)
+        except InterruptedError:
+            self.log("\n[SPRAWDZ] ZADANIE PRZERWANE PRZEZ UŻYTKOWNIKA.")
+            self.update_status("Przerwano", "#D83B01", animate=False)
+        except Exception as e:
+            self.log("\n[SPRAWDZ] Błąd: %s" % e)
+            traceback.print_exc()
+            self.update_status("Błąd sprawdzania", "#D83B01", animate=False)
+        finally:
+            self.running = False
+            self.after(0, self.restore_all_buttons)
+
+    def run_taksator_thread(self, u):
+        try:
+            from app.core import opisy_na_mape_taksator as tk
+            from app.core import opisy_na_mape as onm
+            self.update_status("Czytanie bazy taksatora...", "#0078D7")
+            baza = tk.czytaj_baze(u["mdb"])
+            if not baza:
+                self.log("[TAKSATOR] Nie udało się wczytać wydzieleń z bazy "
+                         "(sprawdź, czy to baza taksatora i czy działa sterownik "
+                         "MS Access).")
+                self.update_status("Baza bez wydzieleń", "#D83B01", animate=False)
+                return
+            self.log("[TAKSATOR] Wydzieleń w bazie: %d" % len(baza))
+            mapy = self._mapy_ze_sciezki(u["mapy"])
+            if not mapy:
+                self.log("[TAKSATOR] Nie znaleziono plików .MAP.")
+                self.update_status("Brak plików .MAP", "#D83B01", animate=False)
+                return
+            total = len(mapy)
+            self.start_progress_tracking(total, "Opisy taksatora na mapę")
+            wyniki = []
+            for idx, (klucz, sciezka) in enumerate(sorted(mapy.items()), start=1):
+                self.check_stop()
+                self.progress_current_file = sciezka.name
+                w = {"mapa": sciezka.name, "poligonow": 0, "dopasowano": 0,
+                     "zmiany": 0, "plik": "", "blad": "",
+                     "niedopasowane": [], "bez_oznaczenia": []}
+                try:
+                    mapa = onm.wczytaj_mape(sciezka)
+                    pom = []
+                    wiersze = tk.zbuduj_wiersze(mapa, baza, pominiete=pom)
+                    w["poligonow"] = len(wiersze)
+                    w["dopasowano"] = sum(1 for r in wiersze if r["ok"])
+                    w["niedopasowane"] = [r["wydz"] for r in wiersze if not r["ok"]]
+                    w["bez_oznaczenia"] = [r["wydz"] for r in wiersze
+                                           if r["ok"] and not r["noweA2"]]
+                    if pom:
+                        self.log("  ℹ️ %s: pominięto %d obiektów bez wydzielenia."
+                                 % (sciezka.name, len(pom)))
+                    if w["dopasowano"]:
+                        res = tk.zapisz_mape(mapa, sciezka.parent, wiersze=wiersze)
+                        w["zmiany"] = res["zmiany"]
+                        w["plik"] = res["nazwa"]
+                    self.log("  • %s: dopasowano %d/%d → %s"
+                             % (sciezka.name, w["dopasowano"], w["poligonow"],
+                                w.get("plik") or "(podgląd)"))
+                except Exception as e:
+                    w["blad"] = str(e)
+                    self.log("  ⚠️ %s: %s" % (sciezka.name, e))
+                wyniki.append(w)
+                self.set_progress(idx / total, current_file=sciezka.name, current=idx)
+            self._taksator_raport(wyniki, u)
+            self.update_status("Gotowe — opisy taksatora wpisane do map.",
+                               "#107C10", animate=False)
+        except InterruptedError:
+            self.log("\n[TAKSATOR] ZADANIE PRZERWANE PRZEZ UŻYTKOWNIKA.")
+            self.update_status("Przerwano", "#D83B01", animate=False)
+        except Exception as e:
+            self.log("\n[TAKSATOR] Błąd: %s" % e)
+            traceback.print_exc()
+            self.update_status("Błąd wpisywania z taksatora", "#D83B01", animate=False)
+        finally:
+            self.running = False
+            self.after(0, self.restore_all_buttons)
+
+    def _taksator_raport(self, wyniki, u):
+        znacznik = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+        linie = [
+            "FORESTLY — OPISY TAKSACYJNE Z TAKSATORA DO MAPY GEO-MAP",
+            "Data: %s" % _dt.datetime.now().strftime("%d.%m.%Y %H:%M"),
+            "Baza: %s" % u["mdb"],
+            "Tryb: ZAPIS map _z_opisami.MAP",
+            "-" * 70,
+        ]
+        sp = sd = sz = 0
+        for w in wyniki:
+            sp += w["poligonow"]; sd += w["dopasowano"]; sz += w["zmiany"]
+            if w.get("blad"):
+                linie.append("  ✗ %-28s BŁĄD: %s" % (w["mapa"], w["blad"]))
+            else:
+                linie.append("  • %-28s poligonów: %4d, dopasowano: %4d%s"
+                             % (w["mapa"], w["poligonow"], w["dopasowano"],
+                                (", zapisano: %s" % w["plik"]) if w["plik"] else ""))
+                if w.get("niedopasowane"):
+                    linie.append("      niedopasowane (brak w bazie): %s"
+                                 % ", ".join(w["niedopasowane"]))
+                if w.get("bez_oznaczenia"):
+                    linie.append("      bez oznaczenia w bazie (do uzupełnienia): %s"
+                                 % ", ".join(w["bez_oznaczenia"]))
+        linie += ["-" * 70,
+                  "Razem map: %d, poligonów: %d, dopasowanych: %d, zmian: %d"
+                  % (len(wyniki), sp, sd, sz)]
+        out = Path(u["mapy"])
+        if out.is_file():
+            out = out.parent
+        try:
+            out.mkdir(parents=True, exist_ok=True)
+            plik = out / "Opisy na mapę - raport.txt"
+            plik.write_text("\n".join(linie), encoding="utf-8-sig")
+            self.log("[TAKSATOR] Raport: %s" % plik)
+        except OSError as e:
+            self.log("[TAKSATOR] Nie udało się zapisać raportu: %s" % e)
+        self.log("\n[TAKSATOR] Map: %d, poligonów: %d, dopasowanych: %d, zmian: %d"
+                 % (len(wyniki), sp, sd, sz))
+        # „Otwórz folder wyników" ma prowadzić do miejsca, gdzie zapisano mapy
+        self.last_output_dir = str(out)
+        _zap = getattr(self, "_zapamietaj_folder_wynikow", None)
+        if _zap is not None:
+            try:
+                _zap(out)
+            except Exception:
+                pass

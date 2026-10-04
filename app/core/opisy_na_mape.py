@@ -374,6 +374,8 @@ def zbuduj_wiersze(mapa, tryb, zrodlo, klucz="TX", kol_nr="N", pominiete=None):
     klucz  — pole mapy z numerem porządkowym (tryb excel)
     kol_nr — litera kolumny z numerem porządkowym w arkuszu (tryb excel)
     """
+    from app.core import zamiany_opisow as _zam
+    zamiany = _zam.wczytaj()
     obiekty = znajdz_poligony(mapa["lines"])
     klucz = (klucz or "TX").strip().upper()
     wiersze = []
@@ -424,6 +426,10 @@ def zbuduj_wiersze(mapa, tryb, zrodlo, klucz="TX", kol_nr="N", pominiete=None):
                 r["status"] = "dopasowano (%s)" % key
             else:
                 r["status"] = "brak wydzielenia w MIETKU"
+        if r["ok"]:
+            # słownik zamian użytkownika („zapamiętać?" z tabeli braków)
+            r["noweA2"] = _zam.zastosuj(r["noweA2"], zamiany)
+            r["noweA5"] = _zam.zastosuj(r["noweA5"], zamiany)
         wiersze.append(r)
     return wiersze
 

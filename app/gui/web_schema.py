@@ -545,86 +545,56 @@ def build_schema():
             ],
         },
         {
-            "key": "MIETEK|Opisy na mapę (GEO-MAP)",
-            "tooltip": "Wpisywanie opisów (A2 „Oznaczenie”, A5 „Opis taks.”) "
-                       "do poligonów mapy GEO-MAP (.MAP) z danych Forestly GO "
-                       "albo z danych MIETKA — oraz sprawdzenie zaczytania "
-                       "(porównanie reguły z opisami już wpisanymi w mapę). "
-                       "Oryginał zostaje bez zmian; powstaje plik "
-                       "<NAZWA>_z_opisami.MAP obok mapy źródłowej.",
+            "key": "MIETEK|Opisy na mapę",
+            "tooltip": "Wpisywanie opisów do poligonów mapy GEO-MAP z trzech "
+                       "baz: Forestly GO (arkusz .xlsx), MIETKA (pliki DBF) "
+                       "albo TAKSATORA (.mdb). Oryginał zostaje bez zmian — "
+                       "powstaje <NAZWA>_z_opisami.MAP obok mapy źródłowej.",
             "controls": [
-                _segment("mapa_panel", "Co zrobić:",
-                         ["Wpisywanie opisów", "Sprawdzenie zaczytania"],
-                         "Wpisywanie opisów",
-                         tooltip="„Wpisywanie” — wpisuje opisy do map. "
-                                 "„Sprawdzenie zaczytania” — porównuje regułę "
-                                 "z opisami JUŻ wpisanymi w mapę (walidacja "
-                                 "na wzorcu).",
-                         groups={"Wpisywanie opisów": "mapa_panel:write",
-                                 "Sprawdzenie zaczytania": "mapa_panel:test"}),
-                _segment("mapa_zrodlo", "Źródło opisów:",
-                         ["Dane Forestly GO", "Dane MIETKA"],
-                         "Dane Forestly GO",
+                _segment("mapa_zrodlo", "Baza (źródło opisów):",
+                         ["Baza Forestly GO", "Baza MIETEK", "Baza TAKSATOR"],
+                         "Baza MIETEK",
                          attr="mapa_zrodlo_var",
-                         tooltip="Z arkusza Forestly GO (eksport „Taksacja”) "
-                                 "albo wprost z plików DBF mietka.",
-                         groups={"Dane Forestly GO": "mapa_zrodlo:go",
-                                 "Dane MIETKA": "mapa_zrodlo:mietek"}),
-                # ---------- źródło: Forestly GO ----------
+                         tooltip="Z arkusza Forestly GO, z mietka (DBF) "
+                                 "albo z bazy taksatora (.mdb).",
+                         groups={"Baza Forestly GO": "mapa_zrodlo:go",
+                                 "Baza MIETEK": "mapa_zrodlo:mietek",
+                                 "Baza TAKSATOR": "mapa_zrodlo:taksator"}),
+                # ---------- Forestly GO ----------
                 _grp(_path("mapa_excel", "mapa_excel_entry",
-                           "Folder z arkuszami .xlsx (dane Forestly GO):",
+                           "Folder z arkuszami .xlsx (Forestly GO):",
                            "Eksport „Taksacja” — jeden arkusz na wieś/obręb"),
                      "mapa_zrodlo:go"),
                 _grp(_text("mapa_kol_nr", "mapa_kol_nr_entry",
                            "Kolumna z numerem porządkowym (Forestly GO):",
                            "N"), "mapa_zrodlo:go"),
-                # ---------- źródło: MIETKA ----------
+                # ---------- MIETEK ----------
                 _grp(_path("mapa_mietki", "mapa_mietki_entry",
                            "Folder z Mietkiem (pliki DBF w podfolderach):",
                            "np. folder z podfolderami obrębów (O*.DBF, R*.DBF)"),
                      "mapa_zrodlo:mietek"),
+                # ---------- TAKSATOR ----------
+                _grp(_path("mapa_mdb", "mapa_mdb_entry",
+                           "Baza taksatora (.mdb):",
+                           "np. BYSŁAW.mdb", kind="file"),
+                     "mapa_zrodlo:taksator"),
                 # ---------- wspólne ----------
                 _path("mapa_src", "mapa_src_entry",
-                      "Folder z mapami (.MAP):",
-                      "Wpisywanie: mapy do uzupełnienia. Sprawdzenie: mapy, "
-                      "które JUŻ mają opisy (wzorzec)"),
-                # ---------- tryb: wpisywanie ----------
-                _grp(_check("mapa_dry", "mapa_dry_var",
-                            "Tylko podgląd — NIE zapisuj map (raport)", False),
-                     "mapa_panel:write"),
-                _grp(_info("Wpisywanie: program policzy opisy regułą i wpisze "
-                           "je do map — A1 (litera wydzielenia), A2 "
-                           "(„Oznaczenie”), A4 („Wskazania”) i A5 („Opis "
-                           "taks.”). Oryginał zostaje bez zmian; wynik "
-                           "<NAZWA>_z_opisami.MAP zapisze się OBOK mapy "
-                           "źródłowej (z przeliczonym nagłówkiem). „Tylko "
-                           "podgląd” nic nie zapisuje, tylko liczy i pokazuje "
-                           "raport. Dopasowanie: w trybie Forestly GO numer "
-                           "porządkowy z pola „Uwagi” mapy do kolumny arkusza; "
-                           "w trybie MIETKA pełne oznaczenie wydzielenia "
-                           "z pola „A6” mapy (np. „2dx”)."),
-                     "mapa_panel:write"),
-                # ---------- tryb: sprawdzenie zaczytania ----------
-                _grp(_check("mapa_test_csv", "mapa_test_csv_var",
-                            "Zapisz różnice do pliku CSV", True),
-                     "mapa_panel:test"),
-                _grp(_info("Sprawdzenie zaczytania: wskaż mapy, które JUŻ mają "
-                           "wpisane opisy (to wzorzec) oraz to samo źródło. "
-                           "Program policzy regułą opisy „nowe” i porówna je "
-                           "z tym, co JEST w mapie — z podziałem na "
-                           "rozbieżności merytoryczne i drobne (literówki, "
-                           "spacje, interpunkcja, wielkość liter). Nic nie "
-                           "zmienia w mapach."),
-                     "mapa_panel:test"),
+                      "Folder z mapami (.MAP) albo plik mapy:",
+                      "Wskaż folder z mapami — albo pojedynczy plik .MAP",
+                      kind="open"),
+                _info("Program wpisuje do mapy opisy z wybranej bazy — "
+                      "zależnie od źródła: A2 „Oznaczenie” i A5 „Opis taks.” "
+                      "(Forestly GO / MIETEK) albo A1 i A2 „Oznaczenie” "
+                      "(TAKSATOR). Wynik zapisuje się obok mapy źródłowej jako "
+                      "<NAZWA>_z_opisami.MAP. „Sprawdź braki przed wpisaniem” "
+                      "pokazuje tabelę różnic między mapą a regułą i zapisuje je "
+                      "do pliku „Opisy na mapę - braki.csv”."),
             ],
             "buttons": [
-                _button("run_sprawdz", "Sprawdź braki przed wpisaniem",
-                        "start_sprawdz_opisy_na_mape", "secondary",
-                        group="mapa_panel:write"),
-                _button("run", "Wpisz opisy do map", "start_opisy_na_mape",
-                        group="mapa_panel:write"),
-                _button("run_test", "Sprawdź zaczytanie",
-                        "start_test_opisy_na_mape", group="mapa_panel:test"),
+                _button("run", "Wpisz opisy do map", "start_opisy_na_mape"),
+                _button("run_braki", "Sprawdź braki przed wpisaniem",
+                        "start_sprawdz_opisy_na_mape", "secondary"),
             ],
         },
         {
@@ -1119,24 +1089,23 @@ INSTRUKCJE = {
                      "najpierw tylko zobaczyć, co zostałoby usunięte? Zaznacz "
                      "„Tylko raport — NIE usuwaj danych”.",
     },
-    "MIETEK|Opisy na mapę (GEO-MAP)": {
-        "co": "Wpisuje opisy (A1, A2 „Oznaczenie”, A4 „Wskazania” i A5 "
-              "„Opis taks.”) wprost do poligonów mapy GEO-MAP — z danych "
-              "Forestly GO albo z danych mietka. Ma też sprawdzenie zaczytania "
-              "(kontrola reguły na gotowej mapie).",
+    "MIETEK|Opisy na mapę": {
+        "co": "Wpisuje opisy z jednej z trzech baz wprost do poligonów mapy "
+              "GEO-MAP: Forestly GO (arkusz), MIETKA (DBF) albo TAKSATORA (.mdb).",
         "jak": [
-            "Wybierz, co robisz: „Wpisywanie opisów” albo „Sprawdzenie zaczytania”.",
-            "Wybierz źródło: „Dane Forestly GO” (arkusz .xlsx) albo „Dane MIETKA”.",
-            "Wskaż folder z mapami (.MAP) — przy sprawdzeniu te, które JUŻ mają opisy.",
-            "Wpisywanie: kliknij „Sprawdź braki przed wpisaniem”, a potem "
-            "„Wpisz opisy do map” — wynik zapisze się obok mapy źródłowej.",
-            "Sprawdzenie zaczytania: uruchom i porównaj wynik reguły z tym, "
-            "co jest w mapie (raport + CSV różnic).",
+            "Wybierz bazę: „Baza Forestly GO”, „Baza MIETEK” albo „Baza TAKSATOR”.",
+            "Wskaż odpowiednie źródło (folder z arkuszami / folder z mietkiem / plik .mdb).",
+            "Wskaż folder z mapami — albo pojedynczy plik .MAP.",
+            "Kliknij „Wpisz opisy do map” (albo najpierw „Sprawdź braki”).",
+            "W tabeli braków popraw kolumnę „Co da reguła”, zaznacz "
+            "„Zapamiętać?” i kliknij „Zapamiętaj zaznaczone” — program zapamięta "
+            "zamianę i będzie ją sam stosował przy kolejnych uruchomieniach.",
         ],
-        "wskazowka": "Oryginalna mapa zostaje nietknięta, a nagłówek pliku "
-                     "(licznik i suma kontrolna) jest przeliczany, żeby mapa "
-                     "otwierała się w programie do mapy. Chcesz najpierw "
-                     "zobaczyć, co zostałoby wpisane? Zaznacz „Tylko podgląd”.",
+        "wskazowka": "Wynik zapisuje się obok mapy źródłowej jako "
+                     "<NAZWA>_z_opisami.MAP, a nagłówek mapy jest przeliczany. "
+                     "„Sprawdź braki przed wpisaniem” zapisuje różnice do "
+                     "pliku „Opisy na mapę - braki.csv”. Zapamiętane zamiany "
+                     "trzymane są w pliku config/zamiany_opisow.json.",
     },
     "MIETEK|Mietki +10 lat": {
         "co": "Przesunięcie wieku w opisach taksacyjnych o wybraną liczbę lat "
@@ -1306,9 +1275,11 @@ INSTRUKCJE = {
 # Na Starcie widać 3 pierwsze wpisy, których zakładka faktycznie istnieje.
 # "wersja" to tylko etykietka (plakietka) — możesz ją dowolnie ustawić.
 NOWOSCI = [
-    {"key": "MIETEK|Opisy na mapę (GEO-MAP)", "wersja": "v2.0.141",
-     "label": "Opisy na mapę (GEO-MAP)",
-     "opis": "Wpisywanie opisów (A2/A5) do poligonów mapy — z Forestly GO lub mietka."},
+    {"key": "MIETEK|Opisy na mapę", "wersja": "v2.0.143",
+     "label": "Opisy na mapę — trzy bazy",
+     "opis": "Jedna zakładka dla baz Forestly GO, MIETKA i TAKSATORA. "
+             "Tabela braków ma edytowalną kolumnę reguły i znacznik "
+             "„Zapamiętać?” — zapamiętane zamiany stosują się same."},
     {"key": "MIETEK|Czyszczenie rejestru", "wersja": "v2.0.140",
      "label": "Czyszczenie rejestru",
      "opis": "Usuwa działki bez litery i właścicieli bez rozliczonej działki."},

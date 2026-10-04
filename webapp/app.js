@@ -3,7 +3,7 @@
 
 /* wersja tego pliku — widoczna w sidebarze obok wersji programu;
    jeśli się różni, app.js nie podmienił się przy rozpakowaniu paczki */
-const APP_JS_VER = "2.0.134";
+const APP_JS_VER = "2.0.143";
 
 const $ = (sel, root) => (root || document).querySelector(sel);
 const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
@@ -2849,8 +2849,9 @@ function showBraki(ev) {
   modal.appendChild(el("h3", null, "Braki przed wpisaniem opisów"));
   const opis = el("div", "braki-opis");
   opis.textContent = ile
-    ? `Znaleziono ${ile} pozycji w ${ev.map || 0} mapach. Sprawdź je poniżej — `
-      + `możesz je poprawić w mietku/arkuszu i uruchomić sprawdzanie ponownie.`
+    ? `Znaleziono ${ile} pozycji w ${ev.map || 0} mapach. Popraw „Co da reguła", `
+      + `zaznacz „Zapamiętać?" i kliknij „Zapamiętaj zaznaczone" — program będzie `
+      + `sam stosował taką zamianę przy kolejnych uruchomieniach.`
     : "Brak uwag — wszystkie poligony dopasowane i zgodne. Możesz wpisywać opisy.";
   modal.appendChild(opis);
 
@@ -2869,13 +2870,35 @@ function showBraki(ev) {
   chk.onchange = () => $$("tr[data-waga='minor']", modal)
     .forEach(tr => tr.classList.toggle("hidden", chk.checked));
 
+  /* ---- zbieranie i liczenie zaznaczonych zamian ---- */
+  function zbierzZamiany() {
+    const out = [];
+    $$(".braki-tabela tbody tr", modal).forEach(tr => {
+      const inp = tr.querySelector(".braki-input");
+      const cb = tr.querySelector(".braki-chk input");
+      if (!inp || !cb || !cb.checked || cb.disabled) return;
+      const orig = (cb.dataset.orig || "").trim();
+      const nowy = (inp.value || "").trim();
+      if (orig && nowy && orig !== nowy) out.push([orig, nowy]);
+    });
+    return out;
+  }
+  let zapis = null;
+  function policz() {
+    if (!zapis) return;
+    const n = zbierzZamiany().length;
+    zapis.disabled = n === 0;
+    zapis.textContent = n ? `Zapamiętaj zaznaczone (${n})`
+                          : "Zapamiętaj zaznaczone";
+  }
+
   if (ile) {
     const cont = el("div", "braki-tabela-wrap");
     const tabela = el("table", "braki-tabela");
     const thead = el("thead");
     const trh = el("tr");
     ["Mapa", "Wydzielenie", "Pole", "Co jest (mapa)", "Co da reguła",
-     "Uwaga"].forEach(t => trh.appendChild(el("th", null, t)));
+     "Zapamiętać?", "Uwaga"].forEach(t => trh.appendChild(el("th", null, t)));
     thead.appendChild(trh); tabela.appendChild(thead);
     const tbody = el("tbody");
     (ev.rows || []).forEach(r => {
@@ -2885,8 +2908,41 @@ function showBraki(ev) {
       tr.appendChild(el("td", "braki-mono", escapeHtml(r.wydz || "")));
       tr.appendChild(el("td", "braki-mono", escapeHtml(r.pole || "")));
       tr.appendChild(el("td", "braki-mono", escapeHtml(r.obecne || "—")));
-      tr.appendChild(el("td", "braki-mono", escapeHtml(r.nowe || "—")));
+
+      /* edytowalna kolumna „Co da reguła" */
+      const tdNowe = el("td", "braki-nowe");
+      const inp = el("input", "braki-input");
+      inp.type = "text";
+      inp.value = r.nowe || "";
+      inp.placeholder = "—";
+      inp.title = "Możesz poprawić tę wartość i zaznaczyć „Zapamiętać?";
+      tdNowe.appendChild(inp);
+      tr.appendChild(tdNowe);
+
+      /* checkbox „Zapamiętać?" */
+      const tdChk = el("td", "braki-chk");
+      const cb = el("input"); cb.type = "checkbox"; cb.disabled = true;
+      const orig = (r.nowe || "").trim();
+      cb.dataset.orig = orig;
+      tdChk.appendChild(cb);
+      tr.appendChild(tdChk);
+
       tr.appendChild(el("td", null, escapeHtml(r.typ || "")));
+
+      const odswiez = () => {
+        const nowy = (inp.value || "").trim();
+        const ok = orig !== "" && nowy !== "" && nowy !== orig;
+        cb.disabled = !ok;
+        if (!ok) cb.checked = false;
+        tdChk.classList.toggle("on", ok);
+        cb.title = ok ? "Zapamiętaj tę zamianę na stałe"
+                      : (orig === "" ? "Brak wartości w regule — nie ma czego zapamiętać"
+                                     : "Zmień wartość, aby móc ją zapamiętać");
+        policz();
+      };
+      inp.oninput = odswiez;
+      cb.onchange = policz;
+      odswiez();
       tbody.appendChild(tr);
     });
     tabela.appendChild(tbody);
@@ -2897,9 +2953,47 @@ function showBraki(ev) {
         `…pokazano ${ev.rows.length} z ${ile}.`));
   }
 
+  /* ---- stopka: zapamiętane zamiany + przyciski ---- */
+  const info = el("div", "braki-zamiany-info");
+  function odswiezInfo(razem) {
+    info.innerHTML = "";
+    info.appendChild(el("span", null,
+      razem ? `Zapamiętane zamiany: ${razem}` : "Brak zapamiętanych zamian"));
+    if (razem) {
+      const czysc = el("button", "braki-link", "Wyczyść zapamiętane");
+      czysc.onclick = async () => {
+        const r = await api().zapamietaj_zamiany([], true);
+        if (r && r.ok) { toast("Wyczyszczono zapamiętane zamiany.", "ok"); odswiezInfo(0); }
+      };
+      info.appendChild(czysc);
+    }
+  }
+  modal.appendChild(info);
+  api().zamiany_info().then(r => odswiezInfo((r && r.razem) || 0))
+    .catch(() => odswiezInfo(0));
+
   const row = el("div", "modal-row");
+  if (ile) {
+    zapis = el("button", "btn primary", "Zapamiętaj zaznaczone");
+    zapis.disabled = true;
+    zapis.onclick = async () => {
+      const pary = zbierzZamiany();
+      if (!pary.length) return;
+      zapis.disabled = true;
+      const r = await api().zapamietaj_zamiany(pary, false);
+      if (r && r.ok) {
+        toast(`Zapamiętano ${r.ile} zamian — będą stosowane automatycznie.`, "ok");
+        wrap.remove();
+        runTask("start_sprawdz_opisy_na_mape");   /* pokaż efekt od razu */
+      } else {
+        toast((r && r.error) || "Nie udało się zapisać zamian.", "error");
+        zapis.disabled = false;
+      }
+    };
+    row.appendChild(zapis);
+  }
   if (ile && ev.akcja && ev.akcja.task) {
-    const wpisz = el("button", "btn primary", escapeHtml(ev.akcja.label || "Wpisz opisy"));
+    const wpisz = el("button", "btn secondary", escapeHtml(ev.akcja.label || "Wpisz opisy"));
     wpisz.onclick = () => { wrap.remove(); runTask(ev.akcja.task); };
     row.appendChild(wpisz);
   }

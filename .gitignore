@@ -1,8 +1,17 @@
+# Python
 __pycache__/
 *.pyc
+
+# artefakty budowy
 dist/
 build/
+
+# logi i pliki robocze
 *.log
 folder_history.json
 margins_config.json
 pending_changelog.json
+
+# duże artefakty wydania — trzymamy je w GitHub Releases, nie w repo
+FORESTLY.zip
+*.zip

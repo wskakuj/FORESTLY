@@ -20,7 +20,7 @@ ctk = leniwy_modul("customtkinter")
 np = leniwy_modul("numpy")
 
 # --- WERSJA I AKTUALIZACJA ---
-CURRENT_VERSION = "v2.0.142"
+CURRENT_VERSION = "v2.0.143"
 GITHUB_USER = "wskakuj"
 GITHUB_REPO = "FORESTLY"
 
@@ -44,6 +44,7 @@ TERRITORY_DATA_FILE = CONFIG_DIR / "territory.json"
 HISTORY_FILE = APP_DIR / "folder_history.json"
 MARGINS_FILE = APP_DIR / "margins_config.json"
 SETTINGS_FILE = APP_DIR / "settings.json"
+ZAMIANY_FILE = CONFIG_DIR / "zamiany_opisow.json"   # słownik zamian opisów
 
 # --- PALETA KOLORÓW ---
 # Wszystkie kolory używane w GUI, w jednym miejscu.

@@ -70,6 +70,8 @@ BROWSE_FILTERS = {
     "mt_template": ("Dokument Word", ("*.docx", "*.doc")),
     "tt_template": ("Dokument Word", ("*.docx", "*.doc")),
     "zm_src": ("Baza Access", ("*.mdb",)),
+    "mapa_mdb": ("Baza Access", ("*.mdb", "*.accdb")),
+    "mapa_src": ("Mapy GEO MAP", ("*.map",)),
 }
 MARGIN_FILE_TYPES = ["REJESTR1", "OPTAX", "TAB_KLW3", "WSKAZ1", "HALIZNY",
                      "WYK_NEG", "OPIS", "ZEST1", "WK_ZM1", "SKROTY"]
@@ -784,6 +786,41 @@ class WebBackend(
 
 
 
+    # ------------------------------------------------ słownik zamian opisów
+
+    def zapamietaj_zamiany(self, pary=None, wyczysc=False):
+        """Zapisuje słownik zamian opisów („zapamiętać?" z tabeli braków).
+
+        ``pary`` to lista par [oryginał, nowa_wartość] z tabeli braków.
+        ``wyczysc=True`` kasuje cały słownik (przycisk „Wyczyść zapamiętane").
+        Zwraca {ok, ile, razem, zamiany}.
+        """
+        try:
+            from app.core import zamiany_opisow as zam
+            if wyczysc:
+                zam.wyczysc()
+                self.log("[ZAMIANY] Wyczyszczono słownik zamian opisów.")
+                return {"ok": True, "ile": 0, "razem": 0, "zamiany": {}}
+            slownik, dodano = zam.zapamietaj(pary or [])
+            if dodano:
+                self.log("[ZAMIANY] Zapamiętano %d zamian (razem %d)."
+                         % (dodano, len(slownik)))
+            else:
+                self.log("[ZAMIANY] Nic nowego do zapamiętania.")
+            return {"ok": True, "ile": dodano, "razem": len(slownik),
+                    "zamiany": slownik}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def zamiany_info(self):
+        """Zwraca zapamiętane zamiany (do pokazania w tabeli braków)."""
+        try:
+            from app.core import zamiany_opisow as zam
+            sl = zam.wczytaj()
+            return {"ok": True, "razem": len(sl), "zamiany": sl}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
     # ------------------------------------------------ wartości z frontendu
 
     def set_values(self, values):
@@ -1252,7 +1289,6 @@ class WebBackend(
             "start_kontrola_pow": self.start_kontrola_pow_pipeline,
             "start_czyszczenie_rejestru": self.start_czyszczenie_rejestru,
             "start_opisy_na_mape": self.start_opisy_na_mape,
-            "start_test_opisy_na_mape": self.start_test_opisy_na_mape,
             "start_sprawdz_opisy_na_mape": self.start_sprawdz_opisy_na_mape,
             "start_rozbieznosci_bez": lambda: self.start_mietek_rozbieznosci_pipeline(bez_nazwisk=True),
             "start_nazwiska_mietek": self.start_nazwiska_mietek_pipeline,
