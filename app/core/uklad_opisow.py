@@ -180,6 +180,11 @@ def srodek_bazowy(pts):
     return ((min(xs) + max(xs)) / 2.0, (min(ys) + max(ys)) / 2.0)
 
 
+def _rozszerz(prost, m):
+    """Prostokąt powiększony o margines ``m`` z każdej strony."""
+    return (prost[0] - m, prost[1] - m, prost[2] + m, prost[3] + m)
+
+
 def _box_w_srodku(prost, pts):
     """Czy CAŁY prostokąt (nie tylko środek) leży w wielokącie.
 
@@ -385,7 +390,8 @@ def _przeciecie(a, b, c, d):
 
 def uloz(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, iteracje=12,
          kara_zewnatrz=20.0, kara_linii=6.0, kara_odleglosci=0.02,
-         kara_litery=25.0, kara_opisu=2.0, kara_przeszkody=2.0,
+         kara_litery=19.0, kara_opisu=2.0, kara_przeszkody=2.0,
+         margines_litery=1.5,
          poligony=None, obrot=0.0, tylko_opisy=True,
          prog_dalekiego=500.0, tylko_srodek=False):
     """Liczy nowe przesunięcia (dx, dy) dla podpisów OPISÓW jednej mapy.
@@ -601,7 +607,7 @@ def uloz(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, iteracje=12,
                             if _odc_przecina_prost(ka, kb, lb):
                                 zle_l = True
                                 break
-                        if zle_l or _nakladka(prost, lb) > 0:
+                        if zle_l or _nakladka(_rozszerz(prost, margines_litery), lb) > 0:
                             continue
                         # litera nie może też wpaść na INNY opis ani literę
                         for typ2, jj2 in sasiedzi:
@@ -632,7 +638,7 @@ def uloz(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, iteracje=12,
     # ---- końcowy przebieg naprawczy ------------------------------------
     # Żadna litera nie może leżeć pod JAKIMKOLWIEK opisem (także sąsiada).
     # Dla każdej takiej litery szukamy wolnego miejsca w środku wydzielenia.
-    for _ in range(3):
+    for _ in range(12):
         poprawki = 0
         for i, el in enumerate(elementy):
             if not el.get("lit_info"):
@@ -643,10 +649,10 @@ def uloz(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, iteracje=12,
             lb = _prost(lpoz, roz_l)
             pod = False
             for e2 in elementy:
-                if _nakladka(lb, e2["prost"]) > 0:
+                if _nakladka(_rozszerz(e2["prost"], margines_litery), lb) > 0:
                     pod = True
                     break
-            if not pod and _box_w_srodku(lb, el["pts"]):
+            if not pod and _box_w_srodku(_rozszerz(lb, margines_litery), el["pts"]):
                 continue
             stara = litery[li]
             litery[li] = lb
