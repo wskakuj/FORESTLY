@@ -1,0 +1,1114 @@
+<!doctype html>
+<html lang="pl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Edytor opisów GEO-MAP — Forestly</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.4 system-ui, "Segoe UI", Arial; background: #0d1117; color: #d7dee8; }
+  header { display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+           background: #161b22; border-bottom: 1px solid #262d38; flex-wrap: wrap; }
+  header h1 { font-size: 16px; margin: 0 12px 0 0; font-weight: 600; }
+  #drop { flex: 1; min-width: 220px; border: 1.5px dashed #39424e; border-radius: 8px;
+          padding: 8px 14px; text-align: center; color: #8899aa; font-size: 13px; }
+  #drop.over { border-color: #4aa3ff; background: #12202e; color: #cfe4ff; }
+  #wrap { display: flex; height: calc(100vh - 58px); overflow: hidden; }
+  #cv { flex: 1 1 auto; min-width: 0; display: block; cursor: crosshair; }
+  #panel { flex: 0 0 400px; width: 400px; min-width: 400px; max-width: 400px; padding: 18px; font-size: 14.5px; background: #161b22; border-left: 1px solid #262d38;
+           overflow-y: auto; }
+  #panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em;
+              color: #93a2b4; margin: 20px 0 10px; }
+  #panel h2:first-child { margin-top: 0; }
+  label.row { display: flex; justify-content: space-between; align-items: center;
+              gap: 12px; margin: 11px 0; font-size: 14.5px; }
+  label.row input[type=number] { width: 112px; background: #0d1117; color: #d7dee8;
+              border: 1px solid #39424e; border-radius: 7px; padding: 7px 10px; font: inherit; }
+  .chk { display: flex; align-items: center; gap: 10px; margin: 11px 0; cursor: pointer; font-size: 14.5px; line-height: 1.35; }
+  button { width: 100%; margin: 9px 0; padding: 11px 14px; font: inherit; font-size: 14.5px; font-weight: 600;
+           border-radius: 8px; border: 1px solid #39424e; background: #21262d; color: #d7dee8;
+           cursor: pointer; }
+  button:hover { background: #2a313a; }
+  button.pri { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+  button.pri:hover { background: #2b7cf5; }
+  #info { margin-top: 16px; font-size: 13.5px; color: #8b98a9; word-break: break-word; }
+  .leg span { display: inline-block; width: 12px; height: 12px; border-radius: 3px;
+              margin-right: 6px; vertical-align: -2px; }
+  .leg div { margin: 7px 0; font-size: 13.5px; color: #9aa7b6; }
+  .uwaga { font-size: 13px; color: #93a2b4; margin-top: 10px; line-height: 1.45; }
+</style></head><body>
+<header>
+  <h1>Edytor opisów GEO-MAP</h1>
+  <div id="drop">Przeciągnij plik <b>.MAP</b> tutaj</div>
+  <button id="otworz" style="width:auto">Otwórz .MAP</button>
+  <input id="file" type="file" accept=".map,.MAP" style="display:none">
+  <button id="zwijaj" title="Zwiń/rozwiń panel ustawień" style="width:auto">Panel ‹</button>
+  <span id="plik" style="font-size:12.5px;color:#8b98a9"></span>
+</header>
+<div id="wrap">
+  <canvas id="cv"></canvas>
+  <aside id="panel">
+
+    <h2>Kalibracja podglądu</h2>
+    <div class="uwaga">Dopasuj podgląd do GEO-MAP: zmieniaj, aż ramki pokryją się
+      z tym, co widzisz w GEO-MAP. Ustawienia liczone są w metrach.</div>
+    <label class="row">Czcionka
+      <select id="kalFont" style="width:112px;background:#0d1117;color:#d7dee8;border:1px solid #39424e;border-radius:7px;padding:7px 10px">
+        <option value="monospace">monospace</option>
+        <option value="Arial, sans-serif">Arial</option>
+        <option value="'Segoe UI', sans-serif">Segoe UI</option>
+        <option value="'Courier New', monospace">Courier New</option>
+        <option value="'Times New Roman', serif">Times</option>
+      </select>
+    </label>
+    <label class="row">Szerokość znaku<input id="kalZnak" type="number" step="0.02" value="0.62"></label>
+    <label class="row">Margines [x]<input id="kalMarg" type="number" step="0.05" value="1.0"></label>
+    <label class="row">Odstęp wierszy<input id="kalLinia" type="number" step="0.05" value="1.15"></label>
+    <label class="row">Przesunięcie X [m]<input id="kalX" type="number" step="1" value="0"></label>
+    <label class="row">Przesunięcie Y [m]<input id="kalY" type="number" step="1" value="0"></label>
+    <label class="row">Punkt bazowy
+      <select id="kalBaza" style="width:112px;background:#0d1117;color:#d7dee8;border:1px solid #39424e;border-radius:7px;padding:7px 10px">
+        <option value="ciezkosc">środek ciężkości</option>
+        <option value="pole">pole niedostępności</option>
+        <option value="bbox">środek bbox</option>
+        <option value="wierzcholki">średnia wierzchołków</option>
+      </select>
+    </label>
+    <label class="row">Zaczepienie<input id="kalKotw" list="kotw" value="srodek" style="width:112px;background:#0d1117;color:#d7dee8;border:1px solid #39424e;border-radius:7px;padding:7px 10px">
+      <datalist id="kotw"><option value="srodek"><option value="lewygorny"></datalist>
+    </label>
+    <h2>Edycja tekstu</h2>
+    <div id="txtKto" class="uwaga">— kliknij opis lub literę —</div>
+    <input id="txtEdit" type="text" disabled placeholder="tekst opisu / litery">
+    <div id="txtPrzyciski" style="display:none"><button id="txtZapisz">Zapisz tekst</button></div>
+    <h2>Forestly</h2>
+    <button id="zForestlyBtn" style="display:none">Wczytaj mapę z folderu zakładki</button>
+    <select id="zForestly" style="display:none;width:100%;margin:6px 0;padding:7px 10px;background:#0d1117;color:#d7dee8;border:1px solid #39424e;border-radius:7px"></select>
+    <h2>Rozmiar opisu</h2>
+    <label class="row">Wysokość pisma [mm]<input id="mm" type="number" step="0.1" value="2.5"></label>
+    <label class="row">Skala mapy (1:N)<input id="skala" type="number" step="500" value="5000"></label>
+    <label class="row">Obrót P3 [grady]<input id="p3" type="number" step="0.05" value="-0.25"></label>
+    <h2>Widok mapy</h2>
+    <label class="row">Obrót widoku [°]<input id="obrotW" type="number" step="15" value="0"></label>
+    <button id="odbijX">Odbij poziomo (lewo↔prawo)</button>
+    <button id="odbijY">Odbij pionowo (góra↔dół)</button>
+    <button id="resetW">Reset widoku</button>
+    <h2>Widok</h2>
+    <label class="chk"><input id="tylkoNak" type="checkbox"> Pokaż tylko nakładające się</label>
+    <label class="chk"><input id="litery" type="checkbox" checked> Pokaż litery (L 2)</label>
+    <label class="chk"><input id="obrysy" type="checkbox" checked> Pokaż obrysy wydzieleń</label>
+    <button id="fit">Dopasuj widok</button>
+    <h2>Układanie</h2>
+    <button id="srodek">Wyśrodkuj i obróć (jak Forestly)</button>
+    <button id="uloz">Ułóż automatycznie</button>
+    <button id="wys">Wysięgnik: dodaj/usuń dla zaznaczonego</button>
+    <button id="wysStr">Wysięgnik: przełącz stronę (L/P)</button>
+    <button id="zapisz" class="pri">Zapisz .MAP (ulozone)</button>
+    <h2>Legenda</h2>
+    <div class="leg">
+      <div><span style="background:#2ec36b"></span>opis w porządku</div>
+      <div><span style="background:#ff4d4d"></span>opis się nakłada</div>
+      <div><span style="background:#f2b134"></span>litera wydzielenia (A1)</div>
+      <div><span style="background:#4aa3ff"></span>zaznaczony (można przeciągać)</div>
+      <div><span style="background:#7ea6c8"></span>obrys wydzielenia (5310)</div>
+      <div><span style="background:#8ab4f8"></span>wysięgnik</div>
+    </div>
+    <div class="uwaga">Rysowane są tylko opisy taksacyjne (oznaczenia z „|", np. SO31|0.52)
+      i ich litery. Numery działek i inne etykiety są pomijane.</div>
+    <h2>Sterowanie</h2>
+    <div class="uwaga">Kółko myszy — zoom · przeciąganie tła — przesuwanie · przeciąganie opisu — ustawianie ręczne</div>
+    <div id="info"></div>
+  </aside>
+</div>
+<script>
+
+
+
+/* ================== RDZEŃ EDYTORA OPISÓW (bez DOM) ==================
+   Pracujemy na BAJTACH pliku .MAP. Strukturę czytamy jako latin1
+   (1 znak = 1 bajt), więc indeksy znaków = offsety bajtów, a zapis jest
+   dokładny co do bajtu. Teksty (polskie znaki) dekodujemy osobno jako
+   windows-1250. Dzięki temu eksport nie psuje ani jednego bajtu.
+==================================================================== */
+
+/* --- dekoder windows-1250 (do wyświetlania polskich znaków) --- */
+let _dec1250 = null;
+function txt1250(u8) {
+  if (!_dec1250) {
+    try { _dec1250 = new TextDecoder("windows-1250"); }
+    catch (e) { _dec1250 = new TextDecoder("latin1"); }
+  }
+  try { return _dec1250.decode(u8); } catch (e) { return String.fromCharCode.apply(null, u8); }
+}
+
+/* --- krawędzie wszystkich poligonów (żeby opisy nie cięły linii) --- */
+function odcPrzecinaProst(a, b, p) {
+  const [x0, y0, x1, y1] = p;
+  for (const q of [a, b]) if (x0 <= q[0] && q[0] <= x1 && y0 <= q[1] && q[1] <= y1) return true;
+  const boki = [[[x0,y0],[x1,y0]], [[x1,y0],[x1,y1]], [[x1,y1],[x0,y1]], [[x0,y1],[x0,y0]]];
+  for (const [c, d] of boki) if (odcPrzecinaOdc(a, b, c, d)) return true;
+  return false;
+}
+function odcPrzecinaOdc(a, b, c, d) {
+  function ori(p, q, r) { const v = (q[0]-p[0])*(r[1]-p[1]) - (q[1]-p[1])*(r[0]-p[0]);
+    return (v > 1e-9) - (v < -1e-9); }
+  function na(p, q, r) { return Math.min(p[0],r[0])-1e-9 <= q[0] && q[0] <= Math.max(p[0],r[0])+1e-9
+    && Math.min(p[1],r[1])-1e-9 <= q[1] && q[1] <= Math.max(p[1],r[1])+1e-9; }
+  const o1 = ori(a,b,c), o2 = ori(a,b,d), o3 = ori(c,d,a), o4 = ori(c,d,b);
+  if (o1 !== o2 && o3 !== o4) return true;
+  if (o1 === 0 && na(a,c,b)) return true;
+  if (o2 === 0 && na(a,d,b)) return true;
+  if (o3 === 0 && na(c,a,d)) return true;
+  if (o4 === 0 && na(c,b,d)) return true;
+  return false;
+}
+function siatkaKrawedzi(objs, kom) {
+  const siatka = {};
+  for (const o of objs) {
+    const q = o.pts, n = q.length;
+    for (let i = 0; i < n; i++) {
+      const a = q[i], b = q[(i + 1) % n];
+      const cx0 = Math.floor(Math.min(a[0], b[0]) / kom), cx1 = Math.floor(Math.max(a[0], b[0]) / kom);
+      const cy0 = Math.floor(Math.min(a[1], b[1]) / kom), cy1 = Math.floor(Math.max(a[1], b[1]) / kom);
+      for (let cx = cx0; cx <= cx1; cx++) for (let cy = cy0; cy <= cy1; cy++)
+        (siatka[cx + ":" + cy] = siatka[cx + ":" + cy] || []).push([a, b]);
+    }
+  }
+  return siatka;
+}
+function krawedzieW(p, siatka, kom) {
+  const [x0, y0, x1, y1] = p, out = [];
+  for (let cx = Math.floor(x0/kom); cx <= Math.floor(x1/kom); cx++)
+    for (let cy = Math.floor(y0/kom); cy <= Math.floor(y1/kom); cy++) {
+      const a = siatka[cx + ":" + cy]; if (a) out.push(...a);
+    }
+  return out;
+}
+
+/* --- polskie znaki: windows-1250 <-> latin1 (teksty mapy) --- */
+const PL_ENC = {
+  "\u0105":0xB9,"\u0107":0xE6,"\u0119":0xEA,"\u0142":0xB3,"\u0144":0xF1,
+  "\u00F3":0xF3,"\u015B":0x9C,"\u017A":0x9F,"\u017C":0xBF,
+  "\u0104":0xA1,"\u0106":0xC6,"\u0118":0xCA,"\u0141":0xA3,"\u0143":0xD1,
+  "\u00D3":0xD3,"\u015A":0x8C,"\u0179":0x8F,"\u017B":0xAF
+};
+const PL_DEC = {};
+for (const k in PL_ENC) PL_DEC[PL_ENC[k]] = k;
+
+function latinNaPl(s) {          // latin1-string -> tekst z polskimi znakami
+  let out = "";
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i) & 0xFF;
+    out += (PL_DEC[c] !== undefined) ? PL_DEC[c] : String.fromCharCode(c);
+  }
+  return out;
+}
+function bezOgonkow(s) {
+  const M = {"ą":"a","ć":"c","ę":"e","ł":"l","ń":"n","ó":"o","ś":"s","ź":"z","ż":"z",
+             "Ą":"A","Ć":"C","Ę":"E","Ł":"L","Ń":"N","Ó":"O","Ś":"S","Ź":"Z","Ż":"Z"};
+  let out = "";
+  for (let i = 0; i < s.length; i++) out += (M[s[i]] !== undefined) ? M[s[i]] : s[i];
+  return out;
+}
+function plNaLatin(s) {          // tekst -> latin1-string (bajty mapy)
+  s = bezOgonkow(s);             // GEO-MAP nie czyta Ł/Ó/Ą/Ę/Ć — piszemy bez ogonków
+  let out = "";
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (PL_ENC[ch] !== undefined) out += String.fromCharCode(PL_ENC[ch]);
+    else if (ch.charCodeAt(0) < 256) out += ch;
+    else out += "?";
+  }
+  return out;
+}
+
+/* --- MD5 (dla sumy kontrolnej nagłówka) --- */
+function md5(bytes) {
+  function rl(n, c) { return (n << c) | (n >>> (32 - c)); }
+  function au(x, y) { const l = (x & 0xFFFF) + (y & 0xFFFF); return (((x >> 16) + (y >> 16) + (l >> 16)) << 16) | (l & 0xFFFF); }
+  function cmn(q, a, b, x, s, t) { return au(rl(au(au(a, q), au(x, t)), s), b); }
+  function ff(a, b, c, d, x, s, t) { return cmn((b & c) | (~b & d), a, b, x, s, t); }
+  function gg(a, b, c, d, x, s, t) { return cmn((b & d) | (c & ~d), a, b, x, s, t); }
+  function hh(a, b, c, d, x, s, t) { return cmn(b ^ c ^ d, a, b, x, s, t); }
+  function ii(a, b, c, d, x, s, t) { return cmn(c ^ (b | ~d), a, b, x, s, t); }
+  function toBlocks(bytes) {
+    const n = bytes.length, bl = ((n + 8) >> 6) + 1, blocks = new Array(bl * 16).fill(0);
+    for (let i = 0; i < n; i++) blocks[i >> 2] |= bytes[i] << ((i % 4) * 8);
+    blocks[n >> 2] |= 0x80 << ((n % 4) * 8);
+    blocks[bl * 16 - 2] = n * 8;
+    return blocks;
+  }
+  const x = toBlocks(bytes);
+  let a = 1732584193, b = -271733879, c = -1732584194, d = 271733878;
+  for (let i = 0; i < x.length; i += 16) {
+    const oa = a, ob = b, oc = c, od = d;
+    a = ff(a, b, c, d, x[i], 7, -680876936); d = ff(d, a, b, c, x[i + 1], 12, -389564586);
+    c = ff(c, d, a, b, x[i + 2], 17, 606105819); b = ff(b, c, d, a, x[i + 3], 22, -1044525330);
+    a = ff(a, b, c, d, x[i + 4], 7, -176418897); d = ff(d, a, b, c, x[i + 5], 12, 1200080426);
+    c = ff(c, d, a, b, x[i + 6], 17, -1473231341); b = ff(b, c, d, a, x[i + 7], 22, -45705983);
+    a = ff(a, b, c, d, x[i + 8], 7, 1770035416); d = ff(d, a, b, c, x[i + 9], 12, -1958414417);
+    c = ff(c, d, a, b, x[i + 10], 17, -42063); b = ff(b, c, d, a, x[i + 11], 22, -1990404162);
+    a = ff(a, b, c, d, x[i + 12], 7, 1804603682); d = ff(d, a, b, c, x[i + 13], 12, -40341101);
+    c = ff(c, d, a, b, x[i + 14], 17, -1502002290); b = ff(b, c, d, a, x[i + 15], 22, 1236535329);
+    a = gg(a, b, c, d, x[i + 1], 5, -165796510); d = gg(d, a, b, c, x[i + 6], 9, -1069501632);
+    c = gg(c, d, a, b, x[i + 11], 14, 643717713); b = gg(b, c, d, a, x[i], 20, -373897302);
+    a = gg(a, b, c, d, x[i + 5], 5, -701558691); d = gg(d, a, b, c, x[i + 10], 9, 38016083);
+    c = gg(c, d, a, b, x[i + 15], 14, -660478335); b = gg(b, c, d, a, x[i + 4], 20, -405537848);
+    a = gg(a, b, c, d, x[i + 9], 5, 568446438); d = gg(d, a, b, c, x[i + 14], 9, -1019803690);
+    c = gg(c, d, a, b, x[i + 3], 14, -187363961); b = gg(b, c, d, a, x[i + 8], 20, 1163531501);
+    a = gg(a, b, c, d, x[i + 13], 5, -1444681467); d = gg(d, a, b, c, x[i + 2], 9, -51403784);
+    c = gg(c, d, a, b, x[i + 7], 14, 1735328473); b = gg(b, c, d, a, x[i + 12], 20, -1926607734);
+    a = hh(a, b, c, d, x[i + 5], 4, -378558); d = hh(d, a, b, c, x[i + 8], 11, -2022574463);
+    c = hh(c, d, a, b, x[i + 11], 16, 1839030562); b = hh(b, c, d, a, x[i + 14], 23, -35309556);
+    a = hh(a, b, c, d, x[i + 1], 4, -1530992060); d = hh(d, a, b, c, x[i + 4], 11, 1272893353);
+    c = hh(c, d, a, b, x[i + 7], 16, -155497632); b = hh(b, c, d, a, x[i + 10], 23, -1094730640);
+    a = hh(a, b, c, d, x[i + 13], 4, 681279174); d = hh(d, a, b, c, x[i], 11, -358537222);
+    c = hh(c, d, a, b, x[i + 3], 16, -722521979); b = hh(b, c, d, a, x[i + 6], 23, 76029189);
+    a = hh(a, b, c, d, x[i + 9], 4, -640364487); d = hh(d, a, b, c, x[i + 12], 11, -421815835);
+    c = hh(c, d, a, b, x[i + 15], 16, 530742520); b = hh(b, c, d, a, x[i + 2], 23, -995338651);
+    a = ii(a, b, c, d, x[i], 6, -198630844); d = ii(d, a, b, c, x[i + 7], 10, 1126891415);
+    c = ii(c, d, a, b, x[i + 14], 15, -1416354905); b = ii(b, c, d, a, x[i + 5], 21, -57434055);
+    a = ii(a, b, c, d, x[i + 12], 6, 1700485571); d = ii(d, a, b, c, x[i + 3], 10, -1894986606);
+    c = ii(c, d, a, b, x[i + 10], 15, -1051523); b = ii(b, c, d, a, x[i + 1], 21, -2054922799);
+    a = ii(a, b, c, d, x[i + 8], 6, 1873313359); d = ii(d, a, b, c, x[i + 15], 10, -30611744);
+    c = ii(c, d, a, b, x[i + 6], 15, -1560198380); b = ii(b, c, d, a, x[i + 13], 21, 1309151649);
+    a = ii(a, b, c, d, x[i + 4], 6, -145523070); d = ii(d, a, b, c, x[i + 11], 10, -1120210379);
+    c = ii(c, d, a, b, x[i + 2], 15, 718787259); b = ii(b, c, d, a, x[i + 9], 21, -343485551);
+    a = au(a, oa); b = au(b, ob); c = au(c, oc); d = au(d, od);
+  }
+  function hex(n) { let s = ""; for (let i = 0; i < 4; i++) s += ("0" + ((n >> (i * 8)) & 0xFF).toString(16)).slice(-2); return s; }
+  return hex(a) + hex(b) + hex(c) + hex(d);
+}
+
+/* --- parsowanie --- */
+function parseMap(u8) {
+  const lat = new TextDecoder("latin1").decode(u8);   // 1 znak = 1 bajt
+  const lines = lat.split("\r\n");
+  const starts = new Array(lines.length);
+  let off = 0;
+  for (let i = 0; i < lines.length; i++) { starts[i] = off; off += lines[i].length + 2; }
+
+  const objs = [];
+  let cur = null;
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    if (l.startsWith("*")) {
+      if (cur) objs.push(cur);
+      cur = { start: i, lines: [], pts: [], Ls: [], attrs: {},
+              typ: (l.slice(1).split(/\s+/)[0] || "") };
+    } else if (cur) {
+      cur.lines.push(l);
+      if (l.startsWith("P ")) {
+        const q = l.split(/\s+/);
+        if (q.length >= 4) { const x = parseFloat(q[2]), y = parseFloat(q[3]); if (isFinite(x) && isFinite(y)) cur.pts.push([x, y]); }
+      } else if (l.startsWith("L ")) {
+        const q = l.split(/\s+/);
+        if (q.length >= 7) cur.Ls.push({ n: parseInt(q[1], 10), li: i, dx: parseFloat(q[2]), dy: parseFloat(q[3]), kat: parseFloat(q[4]), flag: parseInt(q[6], 10) || 0, raw: l });
+      } else if (l.startsWith(":A")) {
+        const m = /^:(A\d)\[(.*)\]$/.exec(l);
+        if (m) cur.attrs[m[1]] = latinNaPl(m[2]);
+      }
+    }
+  }
+  if (cur) objs.push(cur);
+
+  // obiekty z opisem: geometria + linia opisu (najwyższy L) + linia litery
+  const out = [];
+  for (const o of objs) {
+    if (o.pts.length < 3) continue;
+    const txt = o.attrs["A2"] || "";
+    if (!txt.trim()) continue;
+    o.Ls.sort((a, b) => a.n - b.n);
+    o.liniaOpisu = o.Ls.length ? o.Ls[o.Ls.length - 1] : null;
+    o.liniaLitery = o.Ls.length >= 2 ? o.Ls[o.Ls.length - 2] : null;
+    o.tekst = txt; o.litera = o.attrs["A1"] || ""; o.a6 = o.attrs["A6"] || "";
+    o.kod = o.typ;
+    // opis taksacyjny = oznaczenie z „|" (np. „SO31|0.52"); reszta (numery
+    // działek itp.) nas nie interesuje i nie rysujemy dla niej ramek
+    o.opis = txt.indexOf("|") >= 0;
+    o.centroid = centroid(o.pts);
+    out.push(o);
+  }
+  return { lat, lines, starts, objs: out, allObjs: objs };
+}
+
+function centroid(pts) {
+  let A = 0, cx = 0, cy = 0; const n = pts.length;
+  for (let i = 0; i < n; i++) {
+    const [x0, y0] = pts[i], [x1, y1] = pts[(i + 1) % n];
+    const cr = x0 * y1 - x1 * y0; A += cr; cx += (x0 + x1) * cr; cy += (y0 + y1) * cr;
+  }
+  if (Math.abs(A) < 1e-9) { let sx = 0, sy = 0; for (const p of pts) { sx += p[0]; sy += p[1]; } return [sx / n, sy / n]; }
+  A *= 0.5; return [cx / (6 * A), cy / (6 * A)];
+}
+
+function wSrodkuP(p, pts) {
+  const x = p[0], y = p[1]; let ins = false; const n = pts.length;
+  for (let i = 0; i < n; i++) {
+    const [x0, y0] = pts[i], [x1, y1] = pts[(i + 1) % n];
+    if (((y0 > y) !== (y1 > y)) && (x < (x1 - x0) * (y - y0) / (y1 - y0) + x0)) ins = !ins;
+  }
+  return ins;
+}
+function odlDoGranicy(p, pts) {
+  let best = 1e18; const n = pts.length;
+  for (let i = 0; i < n; i++) {
+    const a = pts[i], b = pts[(i + 1) % n];
+    const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy;
+    const t = L < 1e-12 ? 0 : Math.max(0, Math.min(1, ((p[0]-a[0])*dx + (p[1]-a[1])*dy) / L));
+    best = Math.min(best, Math.hypot(p[0] - (a[0] + t*dx), p[1] - (a[1] + t*dy)));
+  }
+  return best;
+}
+function poleNiedostepnosci(pts, krok) {
+  let x0 = 1e18, y0 = 1e18, x1 = -1e18, y1 = -1e18;
+  for (const p of pts) { x0=Math.min(x0,p[0]); y0=Math.min(y0,p[1]); x1=Math.max(x1,p[0]); y1=Math.max(y1,p[1]); }
+  krok = krok || Math.max((x1-x0)/24, (y1-y0)/24, 0.5);
+  let bb = null, bd = -1;
+  for (let y = y0; y <= y1; y += krok) for (let x = x0; x <= x1; x += krok) {
+    if (!wSrodkuP([x, y], pts)) continue;
+    const d = odlDoGranicy([x, y], pts);
+    if (d > bd) { bd = d; bb = [x, y]; }
+  }
+  return bb || centroid(pts);
+}
+function bboxSrodek(pts) {
+  let x0=1e18,y0=1e18,x1=-1e18,y1=-1e18;
+  for (const p of pts) { x0=Math.min(x0,p[0]); y0=Math.min(y0,p[1]); x1=Math.max(x1,p[0]); y1=Math.max(y1,p[1]); }
+  return [(x0+x1)/2, (y0+y1)/2];
+}
+function sredniaWierzcholkow(pts) {
+  let sx=0, sy=0; for (const p of pts) { sx+=p[0]; sy+=p[1]; }
+  return [sx/pts.length, sy/pts.length];
+}
+
+function wiersze(t) { return (t || "").split("|").map(s => s.trim()).filter(s => s.length); }
+
+function rozmiarOpisu(t, mm, skala, obrot) {
+  const w = wiersze(t); if (!w.length) return [0, 0];
+  const h = mm * skala / 1000;
+  let szer = Math.max.apply(null, w.map(s => s.length)) * h * 0.62;
+  let wys = w.length * h * 1.15;
+  if (Math.abs(obrot) > 1e-9) {
+    const c = Math.abs(Math.cos(obrot)), s = Math.abs(Math.sin(obrot));
+    const s2 = szer * c + wys * s, w2 = szer * s + wys * c; szer = s2; wys = w2;
+  }
+  return [szer, wys];
+}
+
+function wSrodku(p, pts) {
+  const x = p[0], y = p[1]; let ins = false; const n = pts.length;
+  for (let i = 0; i < n; i++) {
+    const [x0, y0] = pts[i], [x1, y1] = pts[(i + 1) % n];
+    if (((y0 > y) !== (y1 > y)) && (x < (x1 - x0) * (y - y0) / (y1 - y0) + x0)) ins = !ins;
+  }
+  return ins;
+}
+
+function prost(c, r) { return [c[0] - r[0] / 2, c[1] - r[1] / 2, c[0] + r[0] / 2, c[1] + r[1] / 2]; }
+function nakladka(a, b) {
+  const x = Math.min(a[2], b[2]) - Math.max(a[0], b[0]);
+  const y = Math.min(a[3], b[3]) - Math.max(a[1], b[1]);
+  return (x > 0 && y > 0) ? x * y : 0;
+}
+
+/* --- zapis nowej linii opisu do tablicy linii --- */
+function ustawOpis(parsed, o, dx, dy, kat, wys, strona) {
+  const L = o.liniaOpisu; if (!L) return;
+  const q = parsed.lines[L.li].split(/\s+/);
+  const nr = q[1] || "3";
+  let s;
+  if (wys) {
+    // 133 = wysięgnik wychodzi z prawej strony opisu, 69 = z lewej
+    const flaga = (strona === "L") ? 69 : 133;
+    s = "L " + nr + " " + dx.toFixed(3) + " " + dy.toFixed(3) + " " + kat.toFixed(7)
+      + " 1.0000000 " + flaga + " " + wys[0].toFixed(3) + " " + wys[1].toFixed(3);
+  } else {
+    s = "L " + nr + " " + dx.toFixed(3) + " " + dy.toFixed(3) + " " + kat.toFixed(7) + " 1.0000000 5";
+  }
+  parsed.lines[L.li] = s;
+  L.dx = dx; L.dy = dy; L.kat = kat;
+}
+
+/* --- podmiana atrybutu w bloku obiektu (edycja tekstu opisu/litery) --- */
+function ustawAtrybut(parsed, o, nazwa, tekst) {
+  const lat = plNaLatin(tekst || "");
+  const pref = ":" + nazwa + "[";
+  for (let i = o.start + 1; i < parsed.lines.length; i++) {
+    const l = parsed.lines[i];
+    if (l.startsWith("*")) break;
+    if (l.startsWith(pref)) {
+      parsed.lines[i] = pref + lat + "]";
+      o.attrs[nazwa] = tekst;
+      return true;
+    }
+  }
+  // nie ma takiego atrybutu — wstaw zaraz po :ID[ albo na początku bloku
+  let wstaw = o.start + 1;
+  for (let i = o.start + 1; i < parsed.lines.length; i++) {
+    if (parsed.lines[i].startsWith("*")) break;
+    if (parsed.lines[i].startsWith(":ID[")) { wstaw = i + 1; break; }
+  }
+  parsed.lines.splice(wstaw, 0, pref + lat + "]");
+  o.attrs[nazwa] = tekst;
+  o.start += 0;
+  return true;
+}
+
+/* --- zapis dowolnej linii L (np. litery) z zachowaniem jej kąta --- */
+function ustawLinie(parsed, L, dx, dy) {
+  const q = parsed.lines[L.li].split(/\s+/);
+  const nr = q[1] || "2";
+  let s = "L " + nr + " " + dx.toFixed(3) + " " + dy.toFixed(3) + " "
+        + (q[4] || "0.0000000") + " 1.0000000 " + (q[6] || "5");
+  if (q.length >= 9) s += " " + q[7] + " " + q[8];
+  parsed.lines[L.li] = s;
+  L.dx = dx; L.dy = dy;
+}
+
+/* --- złożenie pliku wynikowego (bajt w bajt) --- */
+function zbudujPlik(parsed) {
+  const lines = parsed.lines;
+  const body = lines.slice(1).join("\r\n");
+  let nl = 0; for (let i = 0; i < body.length; i++) if (body.charCodeAt(i) === 10) nl++;
+  const n = nl + 1;
+  const bb = new Uint8Array(body.length);
+  for (let i = 0; i < body.length; i++) bb[i] = body.charCodeAt(i) & 0xFF;
+  const chk = md5(bb);
+  let hdr = lines[0];
+  hdr = hdr.replace(/N=\[(\s*\d+)\]/, (m, g) => "N=[" + String(n).padStart(g.length) + "]");
+  hdr = hdr.replace(/CHK=\[[0-9a-fA-F]+\]/, "CHK=[" + chk + "]");
+  lines[0] = hdr;
+  const all = lines.join("\r\n");
+  const out = new Uint8Array(all.length);
+  for (let i = 0; i < all.length; i++) out[i] = all.charCodeAt(i) & 0xFF;
+  return out;
+}
+
+function przeciecie(a, b, c, d) {
+  const r = [b[0] - a[0], b[1] - a[1]], s_ = [d[0] - c[0], d[1] - c[1]];
+  const mian = r[0] * s_[1] - r[1] * s_[0];
+  if (Math.abs(mian) < 1e-12) return null;
+  const ac = [c[0] - a[0], c[1] - a[1]];
+  const t = (ac[0] * s_[1] - ac[1] * s_[0]) / mian;
+  const u = (ac[0] * r[1] - ac[1] * r[0]) / mian;
+  return (t >= 0 && t <= 1 && u >= 0 && u <= 1) ? t : null;
+}
+
+function punktNaGranicy(a, b, pts) {
+  let best = null; const n = pts.length;
+  for (let i = 0; i < n; i++) {
+    const t = przeciecie(a, b, pts[i], pts[(i + 1) % n]);
+    if (t !== null && (best === null || t < best)) best = t;
+  }
+  if (best === null) return b;
+  return [a[0] + (b[0] - a[0]) * best, a[1] + (b[1] - a[1]) * best];
+}
+
+if (typeof module !== "undefined") module.exports = { parseMap, punktNaGranicy, ustawLinie, ustawAtrybut, latinNaPl, plNaLatin, bezOgonkow, poleNiedostepnosci, bboxSrodek, sredniaWierzcholkow, siatkaKrawedzi, krawedzieW, odcPrzecinaProst, rozmiarOpisu, wSrodku, prost, nakladka, zbudujPlik, ustawOpis, md5, centroid };
+
+
+
+
+</script>
+<script>
+
+
+
+/* ================== INTERFEJS EDYTORA (kanwa + obsługa) ================== */
+const ST = {
+  parsed: null, nazwa: "", mm: 2.5, skala: 5000, p3: -0.25,
+  tylkoNakladki: false, pokazLitery: true, pokazObrysy: true,
+  cx: 0, cy: 0, zoom: 1, W: 800, H: 600,
+  flipX: true, flipY: false, rotW: 360,
+  znakSzer: 0.62, liniaWys: 1.15, przesunX: 0, przesunY: 0, zakotwicz: "srodek",
+  margines: 1.0, bazaPunkt: "bbox",
+  drag: null, pan: null, ostatni: null, ostatniaLit: null,
+};
+const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
+
+function katRad() { return ST.p3 * Math.PI / 200; }
+
+/* Punkt bazowy opisu: GEO-MAP nie zawsze bierze środek ciężkości — dla
+   nieregularnych wydzieleń używa punktu „najlepiej wpasowanego". */
+function bazaPunktu(pts) {
+  switch (ST.bazaPunkt) {
+    case "pole": return poleNiedostepnosci(pts);
+    case "bbox": return bboxSrodek(pts);
+    case "wierzcholki": return sredniaWierzcholkow(pts);
+    default: return centroid(pts);
+  }
+}
+
+/* Pomiar szerokości tekstu czcionką edytora — zwraca szerokość na jednostkę
+   wysokości pisma. Mierzymy raz, przy 100 px, więc rozmiar w jednostkach mapy
+   nie zależy od zoomu. */
+let FONT = "monospace";
+const _mc = document.createElement("canvas").getContext("2d");
+let _pomiar = {};
+function szerRatio(tekst) {
+  if (_pomiar[tekst] !== undefined) return _pomiar[tekst];
+  let r = 0.62;                      // zapas, gdyby pomiar był niedostępny
+  try {
+    _mc.font = "100px " + FONT;
+    r = _mc.measureText(tekst).width / 100;
+  } catch (e) { /* zostaje 0.62 */ }
+  _pomiar[tekst] = r; return r;
+}
+
+/* rozmiar opisu z prawdziwym pomiarem czcionki (szerokość = najdłuższy wiersz) */
+function rozmiarTekstu(tekst, mm, skala, obrot) {
+  const w = wiersze(tekst); if (!w.length) return [0, 0];
+  const h = mm * skala / 1000;
+  let szer = 0;
+  for (const t of w) {
+    // pomiar czcionki razy współczynnik kalibracji (GEO-MAP rysuje inaczej)
+    szer = Math.max(szer, szerRatio(t) * h * (ST.znakSzer / 0.62));
+  }
+  let wys = w.length * h * ST.liniaWys;
+  szer *= ST.margines; wys *= ST.margines;   // margines bezpieczeństwa
+  if (Math.abs(obrot) > 1e-9) {
+    const c = Math.abs(Math.cos(obrot)), s2 = Math.abs(Math.sin(obrot));
+    const a = szer * c + wys * s2, b = szer * s2 + wys * c; szer = a; wys = b;
+  }
+  return [szer, wys];
+}
+
+function przelicz() {
+  const p = ST.parsed; if (!p) return;
+  const obrot = katRad();
+  ST.nakl = 0;
+  for (const o of p.objs) {
+    if (!o.opis) { o.roz = null; o.lbox = null; o.box = null; o.nakl = false; continue; }
+    const off = o.liniaOpisu ? [o.liniaOpisu.dx, o.liniaOpisu.dy] : [0, 0];
+    if (!o.baza) o.baza = bazaPunktu(o.pts);
+    o.poz = [o.baza[0] + off[0] + ST.przesunX, o.baza[1] + off[1] + ST.przesunY];
+    o.roz = rozmiarTekstu(o.tekst, ST.mm, ST.skala, obrot);
+    o.box = (ST.zakotwicz === "lewygorny")
+      ? [o.poz[0], o.poz[1] - o.roz[1], o.poz[0] + o.roz[0], o.poz[1]]
+      : prost(o.poz, o.roz);
+    if (o.wysiegnik) {
+      // koniec wysięgnika: środek LITERY (dociągnięty do niej), a gdy jej nie ma
+      // — najbliższy punkt na obrysie wydzielenia
+      const lit = o.liniaLitery ? [o.centroid[0] + o.liniaLitery.dx, o.centroid[1] + o.liniaLitery.dy] : null;
+      o.wysEnd = lit || punktNaGranicy(o.poz, o.centroid, o.pts);
+      if (!o.wysStr) {
+        // start z tej krawędzi opisu, która jest zwrócona do litery
+        o.wysStr = (o.wysEnd[0] < o.poz[0]) ? "L" : "R";
+      }
+      // punkt startu na krawędzi prostokąta opisu (z wybranej strony)
+      const sx = (o.wysStr === "L") ? o.box[0] : o.box[2];
+      o.wysStart = [sx, o.poz[1]];
+    } else { o.wysEnd = null; o.wysStart = null; }
+    if (o.litera && o.liniaLitery) {
+      const lo = [o.liniaLitery.dx, o.liniaLitery.dy];
+      const lp = [o.baza[0] + lo[0] + ST.przesunX, o.baza[1] + lo[1] + ST.przesunY];
+      const lr = rozmiarTekstu(o.litera, ST.mm, ST.skala, obrot);
+      o.lbox = prost(lp, lr);
+    } else o.lbox = null;
+  }
+  // nakładki (opis-opis oraz opis-litera)
+  for (let i = 0; i < p.objs.length; i++) {
+    const a = p.objs[i];
+    if (!a.opis) continue;
+    a.nakl = false;
+    for (let j = 0; j < p.objs.length; j++) {
+      if (i === j) continue;
+      const b = p.objs[j];
+      if (!b.opis) continue;
+      if (nakladka(a.box, b.box) > 0) { a.nakl = true; break; }
+      if (b.lbox && nakladka(a.box, b.lbox) > 0) { a.nakl = true; break; }
+    }
+    if (a.nakl) ST.nakl++;
+  }
+}
+
+function dopasujWidok() {
+  const p = ST.parsed; if (!p || !p.objs.length) return;
+  ST.W = cv.clientWidth || 800; ST.H = cv.clientHeight || 600;
+  cv.width = ST.W; cv.height = ST.H;
+  let x0 = 1e18, y0 = 1e18, x1 = -1e18, y1 = -1e18;
+  for (const o of p.objs) for (const q of o.pts) {
+    x0 = Math.min(x0, q[0]); y0 = Math.min(y0, q[1]);
+    x1 = Math.max(x1, q[0]); y1 = Math.max(y1, q[1]);
+  }
+  ST.cx = (x0 + x1) / 2; ST.cy = (y0 + y1) / 2;
+  // szerokość/wysokość po obróceniu widoku (dla 90° zamieniają się)
+  const a = ST.rotW * Math.PI / 180;
+  const c = Math.abs(Math.cos(a)), s2 = Math.abs(Math.sin(a));
+  const szer = (x1 - x0) * c + (y1 - y0) * s2;
+  const wys = (x1 - x0) * s2 + (y1 - y0) * c;
+  ST.zoom = Math.min(ST.W / szer, ST.H / wys) * 0.95;
+}
+
+function ekran(x, y) {
+  let X = x - ST.cx, Y = y - ST.cy;
+  if (ST.flipX) X = -X;
+  if (ST.flipY) Y = -Y;
+  const a = ST.rotW * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+  const Xr = X * c - Y * s, Yr = X * s + Y * c;
+  return [ST.W / 2 + Xr * ST.zoom, ST.H / 2 - Yr * ST.zoom];
+}
+function mapa(px, py) {
+  const Xr = (px - ST.W / 2) / ST.zoom, Yr = -(py - ST.H / 2) / ST.zoom;
+  const a = -ST.rotW * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+  let X = Xr * c - Yr * s, Y = Xr * s + Yr * c;
+  if (ST.flipX) X = -X;
+  if (ST.flipY) Y = -Y;
+  return [X + ST.cx, Y + ST.cy];
+}
+
+function rysuj() {
+  const p = ST.parsed;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = "#12161c"; ctx.fillRect(0, 0, cv.width, cv.height);
+  if (!p) { ctx.fillStyle = "#8899aa"; ctx.font = "16px system-ui";
+    ctx.fillText("Przeciągnij plik .MAP na to okno (albo kliknij „Otwórz .MAP”)", 30, 40); return; }
+  const obrot = katRad();
+  if (ST.pokazObrysy) {
+    // najpierw wszystkie (tło), potem wydzielenia leśne (5310) wyraźniej
+    for (const grupa of [["tlo", 0.6, "#39424e"], ["5310", 1.5, "#7ea6c8"]]) {
+      ctx.lineWidth = grupa[1]; ctx.strokeStyle = grupa[2];
+      ctx.beginPath();
+      for (const o of p.objs) {
+        const jest5310 = (o.kod === "5310");
+        if ((grupa[0] === "5310") !== jest5310) continue;
+        const q = o.pts; let s = ekran(q[0][0], q[0][1]); ctx.moveTo(s[0], s[1]);
+        for (let i = 1; i < q.length; i++) { s = ekran(q[i][0], q[i][1]); ctx.lineTo(s[0], s[1]); }
+        ctx.closePath();
+      }
+      ctx.stroke();
+    }
+  }
+  // opisy
+  for (const o of p.objs) {
+    if (!o.opis || !o.roz || o.roz[0] <= 0) continue;
+    if (ST.tylkoNakladki && !o.nakl) continue;
+    rysBox(o.poz, o.roz, obrot, o.nakl ? "#ff4d4d" : "#2ec36b", o.nakl ? 1.6 : 1.0);
+    rysTekst(o.poz, o.tekst, obrot, o.nakl ? "#ffb3b3" : "#bfeacd");
+    if (o.wysEnd && o.wysStart) {
+      const a = ekran(o.wysStart[0], o.wysStart[1]);
+      const b2 = ekran(o.wysEnd[0], o.wysEnd[1]);
+      ctx.beginPath(); ctx.lineWidth = 1.2; ctx.strokeStyle = "#8ab4f8";
+      ctx.moveTo(a[0], a[1]); ctx.lineTo(b2[0], b2[1]); ctx.stroke();
+    }
+    if (ST.pokazLitery && o.lbox) {
+      const c = [(o.lbox[0] + o.lbox[2]) / 2, (o.lbox[1] + o.lbox[3]) / 2];
+      rysBox(c, [o.lbox[2] - o.lbox[0], o.lbox[3] - o.lbox[1]], obrot, "#f2b134", 1.0);
+      rysTekst(c, o.litera, obrot, "#ffd98a");
+    }
+  }
+  // etykieta pod kursorem (zaznaczony opis)
+  if (ST.ostatni || ST.ostatniaLit) {
+    const ozn = ST.ostatni || ST.ostatniaLit;
+    // cały obrys wydzielenia zaznaczonego opisu/litery
+    const q = ozn.pts;
+    ctx.beginPath();
+    let s0 = ekran(q[0][0], q[0][1]); ctx.moveTo(s0[0], s0[1]);
+    for (let i = 1; i < q.length; i++) { s0 = ekran(q[i][0], q[i][1]); ctx.lineTo(s0[0], s0[1]); }
+    ctx.closePath();
+    ctx.lineWidth = 3.0; ctx.strokeStyle = "#ffd166"; ctx.stroke();
+    ctx.fillStyle = "rgba(255, 209, 102, 0.10)"; ctx.fill();
+  }
+  if (ST.ostatni) {
+    const o = ST.ostatni;
+    rysBox(o.poz, o.roz, obrot, "#4aa3ff", 2.0);
+  }
+  if (ST.ostatniaLit) {
+    const o = ST.ostatniaLit;
+    const c = [(o.lbox[0] + o.lbox[2]) / 2, (o.lbox[1] + o.lbox[3]) / 2];
+    rysBox(c, [o.lbox[2] - o.lbox[0], o.lbox[3] - o.lbox[1]], obrot, "#4aa3ff", 2.0);
+  }
+  let ileOp = 0; for (const o of p.objs) if (o.opis) ileOp++;
+  document.getElementById("info").textContent =
+    (ileOp) + " opisów · nakładek: " + (ST.nakl || 0) +
+    (ST.ostatni ? " · " + ST.ostatni.a6 + " " + ST.ostatni.tekst : "");
+}
+
+function rysTekst(srodek, tekst, obrot, kolor) {
+  const s = ekran(srodek[0], srodek[1]);
+  const fpx = ST.mm * ST.skala / 1000 * ST.zoom;   // wysokość pisma w px
+  if (fpx < 4) return;
+  const linie = wiersze(tekst); if (!linie.length) return;
+  ctx.save(); ctx.translate(s[0], s[1]); ctx.rotate(-obrot);
+  ctx.fillStyle = kolor; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.font = fpx + "px " + FONT;
+  const lh = fpx * 1.15;
+  for (let i = 0; i < linie.length; i++) ctx.fillText(linie[i], 0, (i - (linie.length - 1) / 2) * lh);
+  ctx.restore();
+}
+
+function rysBox(srodek, roz, obrot, kolor, lw) {
+  const s = ekran(srodek[0], srodek[1]);
+  ctx.save(); ctx.translate(s[0], s[1]); ctx.rotate(-obrot);
+  const w = roz[0] * ST.zoom, h = roz[1] * ST.zoom;
+  ctx.lineWidth = lw; ctx.strokeStyle = kolor;
+  ctx.strokeRect(-w / 2, -h / 2, w, h);
+  ctx.restore();
+}
+
+/* ---------------- wczytywanie pliku ---------------- */
+function wczytaj(plik) {
+  const fr = new FileReader();
+  fr.onload = () => {
+    const u8 = new Uint8Array(fr.result);
+    ST.parsed = parseMap(u8);
+    ST.nazwa = plik.name;
+    ST.ostatni = null;
+    przelicz(); dopasujWidok(); rysuj();
+    document.getElementById("plik").textContent = plik.name;
+  };
+  fr.readAsArrayBuffer(plik);
+}
+/* --- integracja z Forestly (gdy edytor działa w oknie aplikacji) --- */
+function api() {
+  return (window.pywebview && window.pywebview.api) ? window.pywebview.api : null;
+}
+function wczytajBajty(u8, nazwa) {
+  ST.parsed = parseMap(u8); ST.nazwa = nazwa || "mapa.MAP"; ST.ostatni = null;
+  ST.ostatniaLit = null; przelicz(); dopasujWidok(); rysuj();
+  document.getElementById("plik").textContent = ST.nazwa;
+}
+async function wczytajSciezke(sciezka) {
+  const a = api(); if (!a || !a.edytor_wczytaj_mape) return;
+  const r = await a.edytor_wczytaj_mape(sciezka);
+  if (!r || !r.ok) { alert((r && r.error) || "Nie udało się wczytać mapy."); return; }
+  const dane = r.dane, u8 = new Uint8Array(dane.length);
+  for (let i = 0; i < dane.length; i++) u8[i] = dane.charCodeAt(i) & 0xFF;
+  wczytajBajty(u8, r.nazwa); ST.sciezkaZrodla = sciezka;
+}
+async function wczytajZForestly() {
+  const a = api(); if (!a || !a.edytor_lista_map) return;
+  const r = await a.edytor_lista_map();
+  if (!r || !r.ok) { alert((r && r.error) || "Nie udało się pobrać listy map."); return; }
+  if (!r.mapy.length) { alert("W folderze z zakładki nie ma plików .MAP."); return; }
+  const sel = document.getElementById("zForestly"); sel.innerHTML = "";
+  for (const m of r.mapy) {
+    const o = document.createElement("option"); o.value = m.sciezka;
+    o.textContent = m.nazwa; sel.appendChild(o);
+  }
+  sel.style.display = ""; await wczytajSciezke(sel.value);
+}
+const dz = document.getElementById("drop"), inp = document.getElementById("file");
+inp.onchange = () => { if (inp.files[0]) wczytaj(inp.files[0]); };
+["dragover", "dragenter"].forEach(t => dz.addEventListener(t, e => { e.preventDefault(); dz.classList.add("over"); }));
+["dragleave", "drop"].forEach(t => dz.addEventListener(t, e => { e.preventDefault(); dz.classList.remove("over"); }));
+dz.addEventListener("drop", e => { if (e.dataTransfer.files[0]) wczytaj(e.dataTransfer.files[0]); });
+document.getElementById("otworz").onclick = () => inp.click();
+
+/* ---------------- mysz: przesuwanie opisów / panoramowanie ---------------- */
+function trafienie(px, py) {
+  const p = ST.parsed; if (!p) return null;
+  const m = mapa(px, py);
+  // najpierw litera — jest mała, więc gdy klik jest w jej prostokącie, wygrywa
+  if (ST.pokazLitery) {
+    for (const o of p.objs) {
+      if (!o.opis || !o.lbox) continue;
+      if (m[0] >= o.lbox[0] && m[0] <= o.lbox[2] && m[1] >= o.lbox[1] && m[1] <= o.lbox[3]) {
+        o.__rodzaj = "litera"; return o;
+      }
+    }
+  }
+  let best = null, bestD = 1e18;
+  for (const o of p.objs) {
+    if (!o.opis || !o.roz || o.roz[0] <= 0) continue;
+    if (m[0] >= o.box[0] && m[0] <= o.box[2] && m[1] >= o.box[1] && m[1] <= o.box[3]) {
+      const d = (m[0] - o.poz[0]) ** 2 + (m[1] - o.poz[1]) ** 2;
+      if (d < bestD) { bestD = d; best = o; }
+    }
+  }
+  if (best) best.__rodzaj = "opis";
+  return best;
+}
+cv.addEventListener("mousedown", e => {
+  const r = cv.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top;
+  const o = trafienie(px, py);
+  if (o) {
+    ST.drag = { o, mx: px, my: py, rodzaj: o.__rodzaj };
+    setTimeout(pokazEdycje, 0);
+    if (o.__rodzaj === "litera") { ST.ostatniaLit = o; ST.ostatni = null; }
+    else { ST.ostatni = o; ST.ostatniaLit = null; }
+  } else { ST.pan = { mx: px, my: py, ox: ST.ox, oy: ST.oy }; ST.ostatni = null; ST.ostatniaLit = null; }
+  rysuj();
+});
+window.addEventListener("mousemove", e => {
+  const r = cv.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top;
+  if (ST.drag) {
+    const d0 = mapa(ST.drag.mx, ST.drag.my), d1 = mapa(px, py);
+    const d = [d1[0] - d0[0], d1[1] - d0[1]];
+    const o = ST.drag.o;
+    const L = (ST.drag.rodzaj === "litera" && o.liniaLitery) ? o.liniaLitery : o.liniaOpisu;
+    L.dx = L.dx + d[0]; L.dy = L.dy + d[1];
+    ST.drag.mx = px; ST.drag.my = py;
+    przelicz(); rysuj();
+  } else if (ST.pan) {
+    const d = mapa(px, py), d0 = mapa(ST.pan.mx, ST.pan.my);
+    ST.cx -= (d[0] - d0[0]); ST.cy -= (d[1] - d0[1]);
+    ST.pan.mx = px; ST.pan.my = py; rysuj();
+  }
+});
+window.addEventListener("mouseup", () => { ST.drag = null; ST.pan = null; });
+cv.addEventListener("wheel", e => {
+  e.preventDefault();
+  const r = cv.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top;
+  const m = mapa(px, py);
+  ST.zoom *= (e.deltaY < 0 ? 1.15 : 1 / 1.15);
+  const m2 = mapa(px, py);
+  ST.cx -= (m2[0] - m[0]); ST.cy -= (m2[1] - m[1]);
+  rysuj();
+}, { passive: false });
+
+/* ---------------- edycja tekstu ---------------- */
+function pokazEdycje() {
+  const o = ST.ostatni || ST.ostatniaLit;
+  const pole = document.getElementById("txtEdit");
+  const kto = document.getElementById("txtKto");
+  const przyciski = document.getElementById("txtPrzyciski");
+  if (!o) { pole.value = ""; pole.disabled = true; kto.textContent = "— kliknij opis lub literę —"; przyciski.style.display = "none"; return; }
+  const czyLitera = (o === ST.ostatniaLit);
+  kto.textContent = czyLitera ? ("LITERA wydzielenia " + (o.a6 || "?"))
+                              : ("OPIS wydzielenia " + (o.a6 || "?"));
+  pole.disabled = false; pole.value = czyLitera ? (o.litera || "") : (o.tekst || "");
+  przyciski.style.display = "";
+}
+function zapiszEdycje() {
+  const o = ST.ostatni || ST.ostatniaLit;
+  if (!o) return;
+  const czyLitera = (o === ST.ostatniaLit);
+  const v = document.getElementById("txtEdit").value;
+  if (czyLitera) { ustawAtrybut(ST.parsed, o, "A1", v); o.litera = v; }
+  else { ustawAtrybut(ST.parsed, o, "A2", v); o.tekst = v; }
+  przelicz(); rysuj();
+}
+
+/* ---------------- sterowanie ---------------- */
+function podepnij(id, fn) { document.getElementById(id).addEventListener("input", fn); }
+podepnij("mm", e => { ST.mm = parseFloat(e.target.value) || 2.5; przelicz(); rysuj(); });
+podepnij("skala", e => { ST.skala = parseFloat(e.target.value) || 5000; przelicz(); rysuj(); });
+podepnij("p3", e => { ST.p3 = parseFloat(e.target.value) || 0; przelicz(); rysuj(); });
+document.getElementById("tylkoNak").onchange = e => { ST.tylkoNakladki = e.target.checked; rysuj(); };
+document.getElementById("litery").onchange = e => { ST.pokazLitery = e.target.checked; rysuj(); };
+document.getElementById("fit").onclick = () => { dopasujWidok(); rysuj(); };
+{
+  const bf = document.getElementById("zForestlyBtn");
+  if (bf) bf.onclick = () => wczytajZForestly();
+  const sel = document.getElementById("zForestly");
+  if (sel) sel.onchange = () => wczytajSciezke(sel.value);
+  window.addEventListener("pywebviewready", () => {
+    const a = api();
+    if (a && a.edytor_lista_map) { const b = document.getElementById("zForestlyBtn"); if (b) b.style.display = ""; }
+  });
+  if (api() && api().edytor_lista_map) { const b = document.getElementById("zForestlyBtn"); if (b) b.style.display = ""; }
+}
+document.getElementById("odbijX").onclick = () => { ST.flipX = !ST.flipX; rysuj(); };
+document.getElementById("odbijY").onclick = () => { ST.flipY = !ST.flipY; rysuj(); };
+document.getElementById("obrotW").oninput = e => { ST.rotW = parseFloat(e.target.value) || 0; rysuj(); };
+document.getElementById("resetW").onclick = () => {
+  ST.flipX = false; ST.flipY = false; ST.rotW = 0;
+  document.getElementById("obrotW").value = 0;
+  dopasujWidok(); rysuj();
+};
+document.getElementById("obrysy").onchange = e => { ST.pokazObrysy = e.target.checked; rysuj(); };
+{
+  const wczytaj = () => {
+    const g = id => document.getElementById(id);
+    if (g("kalZnak")) ST.znakSzer = parseFloat(g("kalZnak").value) || 0.62;
+    if (g("kalLinia")) ST.liniaWys = parseFloat(g("kalLinia").value) || 1.15;
+    if (g("kalX")) ST.przesunX = parseFloat(g("kalX").value) || 0;
+    if (g("kalY")) ST.przesunY = parseFloat(g("kalY").value) || 0;
+    if (g("kalKotw")) ST.zakotwicz = g("kalKotw").value;
+    if (g("kalMarg")) ST.margines = parseFloat(g("kalMarg").value) || 1.0;
+    if (g("kalFont")) { FONT = g("kalFont").value || "monospace"; _pomiar = {}; }
+    if (g("kalBaza")) {
+      const nowa = g("kalBaza").value;
+      if (nowa !== ST.bazaPunkt) {
+        ST.bazaPunkt = nowa;
+        for (const o of ST.parsed.objs) o.baza = null;   // przelicz od nowa
+      }
+    }
+    przelicz(); rysuj();
+  };
+  for (const id of ["kalZnak", "kalLinia", "kalX", "kalY", "kalKotw", "kalMarg", "kalFont", "kalBaza"]) {
+    const e = document.getElementById(id);
+    if (e) { e.addEventListener("input", wczytaj); e.addEventListener("change", wczytaj); }
+  }
+}
+{
+  const bz = document.getElementById("txtZapisz");
+  if (bz) bz.onclick = () => zapiszEdycje();
+  const po = document.getElementById("txtEdit");
+  if (po) po.oninput = () => {
+    const o = ST.ostatni || ST.ostatniaLit;
+    if (!o) return;
+    if (o === ST.ostatniaLit) o.litera = po.value; else o.tekst = po.value;
+    przelicz(); rysuj();
+  };
+  const zw = document.getElementById("zwijaj");
+  if (zw) zw.onclick = () => {
+    const p = document.getElementById("panel");
+    p.classList.toggle("zwiniety");
+    const zwiniete = p.classList.contains("zwiniety");
+    zw.textContent = zwiniete ? "Panel ›" : "Panel ‹";
+    setTimeout(() => {
+      ST.W = cv.clientWidth || ST.W; ST.H = cv.clientHeight || ST.H;
+      cv.width = ST.W; cv.height = ST.H; rysuj();
+    }, 30);
+  };
+}
+document.getElementById("wys").onclick = () => {
+  const o = ST.ostatni || ST.ostatniaLit;
+  if (!o) { alert("Najpierw kliknij opis albo literę."); return; }
+  o.wysiegnik = !o.wysiegnik;
+  if (o.wysiegnik) o.wysStr = null;      // auto: od strony litery
+  przelicz(); rysuj();
+};
+document.getElementById("wysStr").onclick = () => {
+  const o = ST.ostatni || ST.ostatniaLit;
+  if (!o || !o.wysiegnik) { alert("Najpierw dodaj wysięgnik."); return; }
+  o.wysStr = (o.wysStr === "L") ? "R" : "L";
+  przelicz(); rysuj();   // tylko podgląd — GEO-MAP sam wybiera stronę startu
+};
+
+/* --- wyśrodkuj i obróć (to, co robi Forestly) --- */
+document.getElementById("srodek").onclick = () => {
+  const p = ST.parsed; if (!p) return;
+  for (const o of p.objs) if (o.liniaOpisu) { o.liniaOpisu.dx = 0; o.liniaOpisu.dy = 0; }
+  przelicz();
+  // jeśli opis wylądował na swojej literze — odsuń go w bok
+  for (const o of p.objs) {
+    if (!o.opis || !o.lbox || !o.roz || o.roz[0] <= 0) continue;
+    if (nakladka(o.box, o.lbox) > 0) {
+      o.liniaOpisu.dx = 0;
+      o.liniaOpisu.dy = -(o.roz[1] / 2 + (o.lbox[3] - o.lbox[1]) / 2 + 1);
+      przelicz();
+    }
+  }
+  rysuj();
+};
+
+/* --- ułóż automatycznie ---
+   Najpierw pytamy BACKEND (Python) — to ten sam, sprawdzony algorytm co
+   „Ułóż opisy automatycznie" w zakładce Forestly. Własny rozkład w JS jest
+   tylko awaryjnym zapasem, gdy edytor działa bez Forestly (sam plik HTML). */
+document.getElementById("uloz").onclick = async () => {
+  const p = ST.parsed; if (!p) return;
+  const a0 = api();
+  if (a0 && a0.edytor_uloz) {
+    try {
+      const out = zbudujPlik(p);
+      let lat = ""; for (let i = 0; i < out.length; i++) lat += String.fromCharCode(out[i]);
+      const r = await a0.edytor_uloz(ST.sciezkaZrodla || ST.nazwa, lat,
+                                     ST.mm, ST.skala, ST.p3);
+      if (r && r.ok && r.dane) {
+        const u8 = new Uint8Array(r.dane.length);
+        for (let i = 0; i < r.dane.length; i++) u8[i] = r.dane.charCodeAt(i) & 255;
+        wczytajBajty(u8, ST.nazwa);
+        const st = r.stat || {};
+        alert("Ułożono algorytmem Forestly.\nKontrola: na literze " + (st.litery || 0) +
+              ", opis na opis " + (st.opis_opis || 0) +
+              ", przecięcia linii " + (st.linie || 0));
+        return;
+      }
+    } catch (e) { /* niżej: zapasowy rozkład w JS */ }
+  }
+  const obrot = katRad();
+  const krok = Math.max(ST.mm * ST.skala / 1000, 1e-6);
+  const kand = [[0, 0]];
+  for (let r = 1; r <= 6; r++) for (let k = 0; k < 8; k++) {
+    const a = k * Math.PI / 4; kand.push([Math.cos(a) * krok * r, Math.sin(a) * krok * r]);
+  }
+  const dal = [];
+  for (let r = 7; r <= 13; r += 2) for (let k = 0; k < 16; k++) {
+    const a = k * Math.PI / 8; dal.push([Math.cos(a) * krok * r, Math.sin(a) * krok * r]);
+  }
+  // linie WSZYSTKICH wydzieleń — opis nie może ich przecinać
+  const kom = Math.max(krok * 4, 1e-6);
+  const siatka = siatkaKrawedzi(p.objs, kom);
+  for (let it = 0; it < 12; it++) {
+    for (const o of p.objs) {
+      if (!o.opis || !o.roz || o.roz[0] <= 0) continue;
+      const pole = o.roz[0] * o.roz[1] + 1e-9;
+      if (!o.baza) o.baza = bazaPunktu(o.pts);
+      let best = null, bestCzysty = null;
+      for (const [dx, dy] of kand.concat(dal)) {
+        const poz = [o.baza[0] + dx, o.baza[1] + dy];
+        const box = prost(poz, o.roz);
+        let kara = 0;
+        for (const b of p.objs) {
+          if (b !== o && (!b.opis || !b.roz || b.roz[0] <= 0)) continue;
+          if (b !== o) {
+            const ov = nakladka(box, b.box); if (ov) { kara += 2.0; if (kara >= 1) break; }
+          }
+          // litery — także WŁASNA litera tego wydzielenia; stała, mocna kara
+          if (b.lbox && nakladka(box, b.lbox) > 0) { kara += 3.0; if (kara >= 1) break; }
+        }
+        const wew = wSrodku(poz, o.pts);
+        if (!wew) kara += 0.5;
+        for (const [ka, kb] of krawedzieW(box, siatka, kom)) {
+          if (odcPrzecinaProst(ka, kb, box)) { kara += 3.0; break; }
+        }
+        kara += 0.02 * Math.hypot(dx, dy) / krok;
+        if (!best || kara < best[0] - 1e-12) best = [kara, dx, dy];
+        if (kara < 1 && (!bestCzysty || kara < bestCzysty[0] - 1e-12))
+          bestCzysty = [kara, dx, dy];
+      }
+      const wyb = bestCzysty || best;
+      if (wyb) { o.liniaOpisu.dx = wyb[1]; o.liniaOpisu.dy = wyb[2];
+        o.wysiegnik = !wSrodku([o.baza[0] + wyb[1], o.baza[1] + wyb[2]], o.pts); }
+    }
+    przelicz();
+  }
+  rysuj();
+};
+
+/* --- eksport .MAP --- */
+document.getElementById("zapisz").onclick = () => {
+  const p = ST.parsed; if (!p) return;
+  const obrot = katRad();
+  for (const o of p.objs) {
+    if (!o.opis || !o.liniaOpisu) continue;
+    // wysięgnik, gdy opis wyszedł poza wydzielenie
+    if (!o.baza) o.baza = bazaPunktu(o.pts);
+    const poz = [o.baza[0] + o.liniaOpisu.dx, o.baza[1] + o.liniaOpisu.dy];
+    let wys = null;
+    if (o.wysiegnik) {
+      const lit = o.liniaLitery ? [o.baza[0] + o.liniaLitery.dx, o.baza[1] + o.liniaLitery.dy]
+                                : punktNaGranicy(poz, o.baza, o.pts);
+      wys = [lit[0] - o.baza[0], lit[1] - o.baza[1]];
+      var strona = o.wysStr || ((lit[0] < poz[0]) ? "L" : "R");
+      ustawOpis(p, o, o.liniaOpisu.dx, o.liniaOpisu.dy, obrot, wys, strona);
+    } else {
+      ustawOpis(p, o, o.liniaOpisu.dx, o.liniaOpisu.dy, obrot, null);
+    }
+    ustawOpis(p, o, o.liniaOpisu.dx, o.liniaOpisu.dy, obrot, wys);
+    if (o.liniaLitery) ustawLinie(p, o.liniaLitery, o.liniaLitery.dx, o.liniaLitery.dy);
+  }
+  const out = zbudujPlik(p);
+  const nazwaOut = ST.nazwa.replace(/\.map$/i, "") + "_ulozone.MAP";
+  const a = api();
+  if (a && a.edytor_zapisz_mape) {
+    let lat = ""; for (let i = 0; i < out.length; i++) lat += String.fromCharCode(out[i]);
+    a.edytor_zapisz_mape(ST.sciezkaZrodla || ST.nazwa, lat).then(r => {
+      alert(r && r.ok ? ("Zapisano: " + r.sciezka)
+                      : ("Nie udało się zapisać: " + ((r && r.error) || "?")));
+    });
+    return;
+  }
+  const blob = new Blob([out], { type: "application/octet-stream" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = nazwaOut;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 4000);
+};
+
+window.addEventListener("resize", () => {
+  cv.width = cv.clientWidth; cv.height = cv.clientHeight; rysuj();
+});
+cv.width = cv.clientWidth; cv.height = cv.clientHeight;
+rysuj();
+
+
+
+
+</script>
+</body></html>

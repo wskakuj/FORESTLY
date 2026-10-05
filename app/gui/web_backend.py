@@ -1290,6 +1290,8 @@ class WebBackend(
             "start_czyszczenie_rejestru": self.start_czyszczenie_rejestru,
             "start_opisy_na_mape": self.start_opisy_na_mape,
             "start_sprawdz_opisy_na_mape": self.start_sprawdz_opisy_na_mape,
+            "start_uloz_opisy": self.start_uloz_opisy,
+            "open_edytor_opisow": self.open_edytor_opisow,
             "start_rozbieznosci_bez": lambda: self.start_mietek_rozbieznosci_pipeline(bez_nazwisk=True),
             "start_nazwiska_mietek": self.start_nazwiska_mietek_pipeline,
             "start_excel": self.start_excel_pipeline,
@@ -1996,6 +1998,187 @@ class WebBackend(
                 pass
             self._pv_win = None
         return {"ok": True}
+
+    # ------------------------------------------------ edytor opisów (okno)
+    def _edytor_html(self):
+        """Wczytuje webapp/edytor_opisow.html (działa też po zamrożeniu)."""
+        import sys as _sys
+        nazwa = "edytor_opisow.html"
+        kand = []
+        if getattr(_sys, "frozen", False):
+            kand.append(Path(_sys._MEIPASS) / "webapp" / nazwa)
+            kand.append(Path(_sys.executable).resolve().parent / "webapp" / nazwa)
+        kand.append(Path(__file__).resolve().parent.parent.parent / "webapp" / nazwa)
+        for k in kand:
+            try:
+                if k.is_file():
+                    return k.read_text(encoding="utf-8")
+            except OSError:
+                pass
+        return ("<!doctype html><meta charset=utf-8><body style='font:14px system-ui;"
+                "background:#0d1117;color:#d7dee8;padding:24px'>Nie znaleziono pliku "
+                "<b>webapp/edytor_opisow.html</b> — dołóż go do paczki.</body>")
+
+    def open_edytor_opisow(self):
+        """Wizualny edytor opisów w OSOBNYM oknie (wzorzec jak „Podgląd")."""
+        try:
+            import webview
+        except Exception as e:
+            return {"ok": False, "error": f"Brak modułu pywebview: {e}"}
+        try:
+            win = getattr(self, "_ed_win", None)
+            if win is not None:
+                try:
+                    win.show()
+                    return {"ok": True, "istniejace": True}
+                except Exception:
+                    self._ed_win = None
+            self._ed_win = webview.create_window(
+                "Edytor opisów — Forestly", html=self._edytor_html(),
+                width=1400, height=900, background_color="#0d1117",
+                js_api=self)
+            try:
+                self._ed_win.events.closed += self._ed_okno_zamkniete
+            except Exception:
+                pass
+            return {"ok": True}
+        except Exception as e:
+            self._ed_win = None
+            return {"ok": False, "error": str(e)}
+
+    def _ed_okno_zamkniete(self, *a):
+        self._ed_win = None
+
+    def edytor_lista_map(self):
+        """Lista plików .MAP z folderu wskazanego w zakładce „Opisy na mapę"."""
+        try:
+            e = getattr(self, "mapa_src_entry", None)
+            folder = (e.get() if e is not None else "") or ""
+            if not folder:
+                return {"ok": False, "error": "W zakładce nie wskazano folderu z mapami."}
+            p = Path(folder)
+            if p.is_file() and p.suffix.lower() == ".map":
+                return {"ok": True, "folder": str(p.parent),
+                        "mapy": [{"nazwa": p.name, "sciezka": str(p)}]}
+            if not p.is_dir():
+                return {"ok": False, "error": "To nie jest folder z mapami."}
+            mapy = []
+            for wz in ("*.map", "*.MAP"):
+                for f in sorted(p.glob(wz)):
+                    if not any(m["nazwa"] == f.name for m in mapy):
+                        mapy.append({"nazwa": f.name, "sciezka": str(f)})
+            return {"ok": True, "folder": str(p), "mapy": mapy}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def edytor_wczytaj_mape(self, sciezka):
+        """Treść pliku .MAP (bajt w bajt jako latin1) dla edytora."""
+        try:
+            b = Path(sciezka).read_bytes()
+            return {"ok": True, "nazwa": Path(sciezka).name,
+                    "dane": b.decode("latin1")}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def edytor_uloz(self, sciezka_zrodla, dane, mm=2.5, skala=5000, p3=-0.25):
+        """Układa opisy w edytorze TYM SAMYM algorytmem co Forestly.
+
+        Edytor przysyła aktualną treść mapy (z ewentualnymi ręcznymi
+        przesunięciami). Tu uruchamiamy ``uklad_opisow.uloz`` — ten sam,
+        sprawdzony algorytm co „Ułóż opisy automatycznie" w zakładce — i
+        odsyłamy nową treść mapy oraz kontrolę jakości.
+
+        Zwraca ``{"ok": True, "dane": <latin1-string>, "stat": {...}}``.
+        """
+        try:
+            import math as _m
+            import tempfile
+            from app.core import opisy_na_mape as onm
+            from app.core import uklad_opisow as uk
+
+            try:
+                mm = float(str(mm).replace(",", "."))
+            except (TypeError, ValueError):
+                mm = 2.5
+            try:
+                skala = float(str(skala).replace(",", "."))
+            except (TypeError, ValueError):
+                skala = 5000
+            try:
+                p3 = float(str(p3).replace(",", "."))
+            except (TypeError, ValueError):
+                p3 = -0.25
+            if mm <= 0:
+                mm = 2.5
+            if skala <= 0:
+                skala = 5000
+            obrot = p3 * _m.pi / 200.0
+
+            tmp = Path(tempfile.mkdtemp()) / "edytor.MAP"
+            tmp.write_bytes(str(dane).encode("latin1", errors="replace"))
+            mapa = onm.wczytaj_mape(tmp)
+
+            przed = uk.policz_kolizje(mapa, wysokosc_mm=mm, skala=skala,
+                                      obrot=obrot)
+            el = uk.uloz(mapa, wysokosc_mm=mm, skala=skala, obrot=obrot,
+                         tylko_srodek=False)
+            if not el:
+                return {"ok": False,
+                        "error": "Nie znaleziono opisów do ułożenia."}
+            nowe, zmiany = uk.ustaw_offsety(mapa, el, obrot_rad=obrot)
+            po = uk.policz_kolizje(mapa, lines=nowe, wysokosc_mm=mm,
+                                   skala=skala, obrot=obrot)
+            raw = onm.przelicz_naglowek(nowe)
+            tekst = raw.decode("latin1", errors="replace")
+            self.log("[EDYTOR] Ułożono %d opisów (przesunięto %d). "
+                     "Kontrola: na literze %d, opis na opis %d, przecięcia linii %d"
+                     % (len(el), zmiany, po.get("litery", 0),
+                        po.get("opis_opis", 0), po.get("linie", 0)))
+            return {"ok": True, "dane": tekst, "zmiany": zmiany,
+                    "stat": po, "przed": przed}
+        except Exception as e:
+            self.log("[EDYTOR] Błąd układania: %s" % e)
+            return {"ok": False, "error": str(e)}
+
+    def edytor_zapisz_mape(self, sciezka_zrodla, dane):
+        """Zapisuje mapę wynikową OBOK mapy źródłowej.
+
+        Ścieżkę liczymy tutaj (w Pythonie) — nie w przeglądarce — i sprawdzamy,
+        że plik naprawdę powstał. Nazwa: <NAZWA>_ulozone.MAP (bez podwajania
+        sufiksu, gdy mapa już tak się nazywa).
+        """
+        try:
+            src = Path(str(sciezka_zrodla or ""))
+            # gdy edytor nie zna pełnej ścieżki (np. mapa wciągnięta myszką),
+            # zapisujemy w folderze wskazanym w zakładce „Opisy na mapę"
+            if not src.name or not src.is_absolute():
+                e = getattr(self, "mapa_src_entry", None)
+                folder = (e.get() if e is not None else "") or ""
+                if not folder:
+                    return {"ok": False, "error":
+                            "Nie wiem, gdzie zapisać. Wskaż folder z mapami w "
+                            "zakładce albo wczytaj mapę przyciskiem \"Wczytaj "
+                            "mapę z folderu zakładki\"."}
+                f = Path(folder)
+                katalog = f if f.is_dir() else f.parent
+                baza = src.stem if src.name else "mapa"
+            else:
+                katalog = src.parent
+                baza = src.stem
+            if baza.lower().endswith("_ulozone"):
+                baza = baza[:-len("_ulozone")]
+            cel = katalog / (baza + "_ulozone.MAP")
+            cel.write_bytes(dane.encode("latin1"))
+            if not cel.is_file():
+                return {"ok": False,
+                        "error": "Plik nie powstał: %s" % cel}
+            self.log("[EDYTOR] Zapisano mapę: %s (%d bajtów)"
+                     % (cel, cel.stat().st_size))
+            return {"ok": True, "sciezka": str(cel),
+                    "bajtow": cel.stat().st_size}
+        except Exception as e:
+            self.log("[EDYTOR] Błąd zapisu mapy: %s" % e)
+            return {"ok": False, "error": str(e)}
 
     def open_preview_window(self, mode="ALL"):
         """Podgląd marginesów/czcionek w OSOBNYM oknie systemowym.

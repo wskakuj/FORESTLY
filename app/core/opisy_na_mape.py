@@ -165,6 +165,27 @@ def znajdz_poligony(lines, typ=TYP_POLIGONU):
     return obiekty
 
 
+# ------------------------------------------------- znaki czytelne w GEO-MAP
+
+_OGONKI = {
+    "ą": "a", "ć": "c", "ę": "e", "ł": "l", "ń": "n", "ó": "o", "ś": "s",
+    "ź": "z", "ż": "z",
+    "Ą": "A", "Ć": "C", "Ę": "E", "Ł": "L", "Ń": "N", "Ó": "O", "Ś": "S",
+    "Ź": "Z", "Ż": "Z",
+}
+
+
+def bez_ogonkow(tekst):
+    """Zamienia polskie znaki na czytelne litery (Ł->L, Ą->A, Ć->C ...).
+
+    GEO-MAP nie wyświetla poprawnie Ł/Ó/Ą/Ę/Ć, więc opisy i litery piszemy
+    zawsze bez ogonków.
+    """
+    if not tekst:
+        return tekst
+    return "".join(_OGONKI.get(ch, ch) for ch in tekst)
+
+
 # ======================================================== reguły: MIETEK -> A2/A5
 
 def optax_na_komorki(s):
@@ -441,7 +462,8 @@ def litera_z_oznaczenia(ozn):
     return m.group(2) if m else s
 
 
-def wpisz_do_mapy(mapa, wiersze, a2=True, a5=True, a1=True, a4=True):
+def wpisz_do_mapy(mapa, wiersze, a2=True, a5=True, a1=True, a4=True,
+                  obrot_srodek=None, tylko_opisy=True, prog_dalekiego=500.0):
     """Wpisuje opisy dopasowanych wierszy do mapy (od końca).
 
     A2/A4/A5 — z reguły; A1 — litera wydzielenia wyprowadzona z A6
@@ -458,7 +480,7 @@ def wpisz_do_mapy(mapa, wiersze, a2=True, a5=True, a1=True, a4=True):
         o = w["o"]
         if a5 and w["noweA5"] and w["noweA5"] != (o.get("A5") or "").strip():
             k5 = blok_koniec(lines, start)
-            ustaw_atrybut(lines, start, k5, "A5", w["noweA5"])
+            ustaw_atrybut(lines, start, k5, "A5", bez_ogonkow(w["noweA5"]))
             zmienione += 1
         if a4 and w.get("noweA4") and w["noweA4"] != (o.get("A4") or "").strip():
             k4 = blok_koniec(lines, start)
@@ -466,7 +488,7 @@ def wpisz_do_mapy(mapa, wiersze, a2=True, a5=True, a1=True, a4=True):
             zmienione += 1
         if a2 and w["noweA2"] and w["noweA2"] != (o.get("A2") or "").strip():
             k2 = blok_koniec(lines, start)
-            ustaw_atrybut(lines, start, k2, "A2", w["noweA2"])
+            ustaw_atrybut(lines, start, k2, "A2", bez_ogonkow(w["noweA2"]))
             zmienione += 1
         if a1:
             a6 = (o.get("A6") or "").strip()
@@ -474,19 +496,34 @@ def wpisz_do_mapy(mapa, wiersze, a2=True, a5=True, a1=True, a4=True):
                 lit = litera_z_oznaczenia(a6)
                 if (o.get("A1") or "").strip() != lit:
                     k1 = blok_koniec(lines, start)
-                    ustaw_atrybut(lines, start, k1, "A1", lit, zaraz_po="ID")
+                    ustaw_atrybut(lines, start, k1, "A1", bez_ogonkow(lit), zaraz_po="ID")
                     zmienione += 1
+    if obrot_srodek is not None:
+        # wyśrodkuj i obróć opisy (tryb „na razie") zaraz po wpisaniu
+        try:
+            from app.core import uklad_opisow as _uk
+            m2 = {"path": mapa["path"], "raw": b"", "lines": lines}
+            el = _uk.uloz(m2, obrot=obrot_srodek, tylko_srodek=True,
+                          tylko_opisy=tylko_opisy, prog_dalekiego=prog_dalekiego)
+            if el:
+                lines, _ = _uk.ustaw_offsety(m2, el, obrot_rad=obrot_srodek)
+        except Exception:
+            pass
     return zmienione, przelicz_naglowek(lines)
 
 
-def zapisz_mape(mapa, out_dir, a2=True, a5=True, wiersze=None, a1=True, a4=True):
+def zapisz_mape(mapa, out_dir, a2=True, a5=True, wiersze=None, a1=True, a4=True,
+                obrot_srodek=None, tylko_opisy=True, prog_dalekiego=500.0):
     """Zapisuje mapę wynikową „<NAZWA>_z_opisami.MAP" do out_dir.
 
     Zwraca słownik z podsumowaniem (nazwa, ścieżka, zmiany, dopasowania).
     """
     if wiersze is None:
         wiersze = []
-    zmiany, out = wpisz_do_mapy(mapa, wiersze, a2=a2, a5=a5, a1=a1, a4=a4)
+    zmiany, out = wpisz_do_mapy(mapa, wiersze, a2=a2, a5=a5, a1=a1, a4=a4,
+                                obrot_srodek=obrot_srodek,
+                                tylko_opisy=tylko_opisy,
+                                prog_dalekiego=prog_dalekiego)
     nazwa = re.sub(r"\.map$", "", mapa["path"].name, flags=re.I) + "_z_opisami.MAP"
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)

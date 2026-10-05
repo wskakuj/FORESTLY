@@ -120,10 +120,149 @@ class TabOpisyNaMapeMixin:
             "mdb": _txt("mapa_mdb_entry"),
             "mapy": _txt("mapa_src_entry"),
             "kol_nr": _txt("mapa_kol_nr_entry", "N"),
+            "font_mm": _txt("mapa_font_mm_entry", "2.5"),
+            "skala": _txt("mapa_skala_entry", "5000"),
+            "p3": _txt("mapa_p3_entry", "-0.25"),
+            "tylko_srodek": _bool("mapa_tylko_srodek_var", False),
             "klucz": "TX",          # pole „Uwagi” mapy — stałe, nieedytowalne
             "a2": True,              # oba pola opisu zawsze wpisywane
             "a5": True,
         }
+
+    # ============================================= układanie opisów na mapie
+    def start_uloz_opisy(self):
+        """Rozsuwa podpisy na mapach tak, aby się nie nakładały."""
+        u = self._opisy_na_mape_ustawienia()
+        if not u["mapy"] or not Path(u["mapy"]).exists():
+            self.log("[UKLAD] Wskaż folder z mapami (.MAP) albo plik mapy.")
+            self.update_status("Brak map", "#D83B01", animate=False)
+            return
+        if self.running:
+            return
+        self._disable_ui_for_process()
+        self.log("[UKLAD] Rozsuwam podpisy na mapach (wysokość pisma %s mm, "
+                 "skala 1:%s)..." % (u.get("font_mm"), u.get("skala")))
+        self.set_progress(0)
+        threading.Thread(target=self.run_uloz_opisy_thread, args=(u,),
+                         daemon=True).start()
+
+    def run_uloz_opisy_thread(self, u):
+        try:
+            from app.core import uklad_opisow as uk
+            from app.core import opisy_na_mape as onm
+
+            def _liczba(txt, dom):
+                try:
+                    return float(str(txt).replace(",", "."))
+                except (TypeError, ValueError):
+                    return dom
+
+            font_mm = _liczba(u.get("font_mm"), 2.5)
+            skala = _liczba(u.get("skala"), 5000)
+            import math as _m
+            # P3 w GEO-MAP podajemy w gradach; w pliku kąt jest w radianach
+            p3 = _liczba(u.get("p3"), -0.25)
+            obrot = p3 * _m.pi / 200.0
+            if font_mm <= 0:
+                font_mm = 2.5
+            if skala <= 0:
+                skala = 5000
+
+            mapy = self._mapy_ze_sciezki(u["mapy"])
+            if not mapy:
+                self.log("[UKLAD] Nie znaleziono plików .MAP.")
+                self.update_status("Brak plików .MAP", "#D83B01", animate=False)
+                return
+            total = len(mapy)
+            self.start_progress_tracking(total, "Układanie opisów")
+            wyniki = []
+            for idx, (klucz, sciezka) in enumerate(sorted(mapy.items()), start=1):
+                self.check_stop()
+                self.progress_current_file = sciezka.name
+                try:
+                    mapa = onm.wczytaj_mape(sciezka)
+                    el = uk.uloz(mapa, wysokosc_mm=font_mm, skala=skala,
+                                 obrot=obrot,
+                                 tylko_srodek=u.get("tylko_srodek", False))
+                    if not el:
+                        wyniki.append({"mapa": sciezka.name, "opisow": 0,
+                                       "zmiany": 0, "wewnatrz": 0, "plik": ""})
+                    else:
+                        lines, zmiany = uk.ustaw_offsety(mapa, el,
+                                                         obrot_rad=obrot)
+                        out = sciezka.parent
+                        nazwa = (Path(sciezka.name).stem + "_ulozone.MAP")
+                        (out / nazwa).write_bytes(onm.przelicz_naglowek(lines))
+                        kol = {}
+                        try:
+                            kol = uk.policz_kolizje(mapa, lines=lines,
+                                                    wysokosc_mm=font_mm,
+                                                    skala=skala, obrot=obrot)
+                        except Exception:
+                            kol = {}
+                        wyniki.append({
+                            "mapa": sciezka.name, "opisow": len(el),
+                            "zmiany": zmiany,
+                            "wewnatrz": sum(1 for e in el if e["wewnatrz"]),
+                            "kol": kol, "plik": nazwa})
+                        self.log("  • %s: opisów %d, przesunięto %d, wewnątrz %d "
+                                 "→ %s" % (sciezka.name, len(el), zmiany,
+                                           sum(1 for e in el if e["wewnatrz"]), nazwa))
+                        if kol:
+                            ostrz = "" if (kol["litery"] == 0 and kol["opis_opis"] == 0
+                                           and kol["linie"] == 0) else "  ⚠️"
+                            self.log("      kontrola: na literze %d, opis na opis %d, "
+                                     "przecięcia linii %d%s"
+                                     % (kol["litery"], kol["opis_opis"],
+                                        kol["linie"], ostrz))
+                except Exception as e:
+                    self.log("  ⚠️ %s: %s" % (sciezka.name, e))
+                self.set_progress(idx / total, current_file=sciezka.name, current=idx)
+            self._uloz_raport(wyniki, u)
+            self.update_status("Ułożono opisy.", "#107C10", animate=False)
+        except InterruptedError:
+            self.log("\n[UKLAD] ZADANIE PRZERWANE PRZEZ UŻYTKOWNIKA.")
+            self.update_status("Przerwano", "#D83B01", animate=False)
+        except Exception as e:
+            self.log("\n[UKLAD] Błąd: %s" % e)
+            traceback.print_exc()
+            self.update_status("Błąd układania", "#D83B01", animate=False)
+        finally:
+            self.running = False
+            self.after(0, self.restore_all_buttons)
+
+    def _uloz_raport(self, wyniki, u):
+        linie = [
+            "FORESTLY — UKŁADANIE OPISÓW NA MAPIE",
+            "Data: %s" % _dt.datetime.now().strftime("%d.%m.%Y %H:%M"),
+            "Wysokość pisma: %s mm, skala 1:%s" % (u.get("font_mm"), u.get("skala")),
+            "-" * 70,
+        ]
+        for w in wyniki:
+            kol = w.get("kol") or {}
+            linie.append("  • %-28s opisów: %4d, przesunięto: %4d, wewnątrz: %4d%s"
+                         % (w["mapa"], w["opisow"], w["zmiany"], w["wewnatrz"],
+                            (", wynik: %s" % w["plik"]) if w["plik"] else ""))
+            if kol:
+                linie.append("      kontrola jakości: opis na literze %d, "
+                             "opis na opis %d, przecięcia linii %d"
+                             % (kol.get("litery", 0), kol.get("opis_opis", 0),
+                                kol.get("linie", 0)))
+        linie += ["-" * 70,
+                  "Razem map: %d, opisów: %d, przesunięto: %d"
+                  % (len(wyniki), sum(w["opisow"] for w in wyniki),
+                     sum(w["zmiany"] for w in wyniki))]
+        out = Path(u["mapy"])
+        if out.is_file():
+            out = out.parent
+        try:
+            (out / "Opisy na mapę - układanie.txt").write_text(
+                "\n".join(linie), encoding="utf-8-sig")
+        except OSError as e:
+            self.log("[UKLAD] Nie udało się zapisać raportu: %s" % e)
+        self.log("\n[UKLAD] Map: %d, opisów: %d, przesunięto: %d"
+                 % (len(wyniki), sum(w["opisow"] for w in wyniki),
+                    sum(w["zmiany"] for w in wyniki)))
 
     @staticmethod
     def _zapisz_braki_csv(folder, wszystkie):
@@ -304,13 +443,59 @@ class TabOpisyNaMapeMixin:
             w["niedopasowane"] = [r["wydz"] for r in wiersze if not r["ok"]]
             if not w["dopasowano"]:
                 return w
+            # układanie ZAWSZE zaraz po wpisaniu (jeden przycisk):
+            # każdy opis w środku wydzielenia i wspólny obrót P3
+            obr = None
+            try:
+                import math as _m2
+                obr = float(str(u.get("p3", "-0.25")).replace(",", ".")) * _m2.pi / 200.0
+            except (TypeError, ValueError):
+                obr = -0.25 * 3.141592653589793 / 200.0
             res = onm.zapisz_mape(mapa, mapa["path"].parent, a2=u["a2"],
-                                  a5=u["a5"], wiersze=wiersze)
+                                  a5=u["a5"], wiersze=wiersze,
+                                  obrot_srodek=obr)
             w["zmiany"] = res["zmiany"]
             w["plik"] = res["nazwa"]
+            try:
+                import math as _m3
+                obr2 = float(str(u.get("p3", "-0.25")).replace(",", ".")) * _m3.pi / 200.0
+            except (TypeError, ValueError):
+                obr2 = -0.25 * 3.141592653589793 / 200.0
+            try:
+                n = self._wyśrodkuj_plik(
+                    res["sciezka"], obr2,
+                    font_mm=float(str(u.get("font_mm", "2.5")).replace(",", ".") or 2.5),
+                    skala=float(str(u.get("skala", "5000")).replace(",", ".") or 5000),
+                    rozsuwaj=bool(u.get("rozsuwaj", False)))
+                self.log("  ✔ %s: wyśrodkowano i obrócono %d opisów (P3=%s grad)"
+                         % (sciezka_mapy.name, n, u.get("p3")))
+            except Exception as e:
+                self.log("  ⚠️ %s: NIE udało się wyśrodkować/obrócić: %s"
+                         % (sciezka_mapy.name, e))
         except Exception as e:
             w["blad"] = str(e)
         return w
+
+    # ------------------------------- wyśrodkowanie i obrót gotowego pliku
+    def _wyśrodkuj_plik(self, sciezka, obr, font_mm=2.5, skala=5000.0,
+                        rozsuwaj=False):
+        """Po wpisaniu: wyśrodkuj i obróć opisy w pliku wynikowym.
+
+        Robimy to na GOTOWYM pliku jako osobny, widoczny krok — dzięki temu
+        nawet gdyby coś w rdzeniu zawiodło po cichu, mapa i tak zostanie
+        ułożona, a błąd zobaczymy w logu.
+        """
+        from app.core import uklad_opisow as uk
+        from app.core import opisy_na_mape as onm
+        mapa = onm.wczytaj_mape(sciezka)
+        el = uk.uloz(mapa, wysokosc_mm=font_mm, skala=skala, obrot=obr,
+                     tylko_srodek=not rozsuwaj)
+        if not el:
+            self.log("  ℹ️ %s: brak opisów do ułożenia." % sciezka.name)
+            return 0
+        lines, _zmiany = uk.ustaw_offsety(mapa, el, obrot_rad=obr)
+        sciezka.write_bytes(onm.przelicz_naglowek(lines))
+        return len(el)
 
     # -------------------------------------------------- raport
     def _opisy_raport(self, wyniki, u):
