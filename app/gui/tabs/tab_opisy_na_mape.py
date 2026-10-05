@@ -200,14 +200,43 @@ class TabOpisyNaMapeMixin:
                                                     skala=skala, obrot=obrot)
                         except Exception:
                             kol = {}
+                        # PRZYCZYNY wysięgników — po co opis wyszedł na zewnątrz
+                        rap = []
+                        try:
+                            rap = uk.raport_zewnatrz(mapa, el,
+                                                     wysokosc_mm=font_mm,
+                                                     skala=skala, obrot=obrot)
+                            if rap:
+                                import csv as _csv
+                                zrodlo = Path(sciezka)
+                                cel_csv = zrodlo.parent / (
+                                    "Opisy na mapę - przyczyny wysięgników.csv")
+                                nowy = not cel_csv.exists()
+                                with open(cel_csv, "a", newline="", encoding="utf-8-sig") as fh:
+                                    wr = _csv.writer(fh, delimiter=";")
+                                    if nowy:
+                                        wr.writerow(["mapa", "wydzielenie", "litera",
+                                                     "opis", "przyczyna", "wyjaśnienie"])
+                                    for r in rap:
+                                        wr.writerow([zrodlo.name, r["a6"], r["litera"],
+                                                     r["tekst"], r["powod"],
+                                                     r["powod_tekst"]])
+                        except Exception:
+                            rap = []
                         wyniki.append({
                             "mapa": sciezka.name, "opisow": len(el),
                             "zmiany": zmiany,
                             "wewnatrz": sum(1 for e in el if e["wewnatrz"]),
-                            "kol": kol, "plik": nazwa})
+                            "kol": kol, "rap": rap, "plik": nazwa})
                         self.log("  • %s: opisów %d, przesunięto %d, wewnątrz %d "
                                  "→ %s" % (sciezka.name, len(el), zmiany,
                                            sum(1 for e in el if e["wewnatrz"]), nazwa))
+                        if rap:
+                            from collections import Counter as _Cnt
+                            _c = _Cnt(r["powod"] for r in rap)
+                            self.log("      wysięgniki: %d — %s" % (
+                                len(rap), ", ".join("%s %d" % (k, v)
+                                                    for k, v in _c.most_common())))
                         if kol:
                             ostrz = "" if (kol["litery"] == 0 and kol["opis_opis"] == 0
                                            and kol["linie"] == 0) else "  ⚠️"

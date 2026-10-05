@@ -328,6 +328,86 @@ def _odc_przecina_prost(a, b, prost):
     return False
 
 
+_OGONKI = {"Ł": "L", "ł": "l", "Ó": "O", "ó": "o", "Ą": "A", "ą": "a",
+           "Ę": "E", "ę": "e", "Ć": "C", "ć": "c", "Ś": "S", "ś": "s",
+           "Ź": "Z", "ź": "z", "Ż": "Z", "ż": "z", "Ń": "N", "ń": "n"}
+
+
+def _bez_ogonkow(tekst):
+    """Polskie znaki na czytelne dla GEO-MAP (Ł->L, Ą->A, Ć->C ...)."""
+    if not tekst:
+        return tekst
+    return "".join(_OGONKI.get(ch, ch) for ch in tekst)
+
+
+def _punkty_srodkowe(pts, krok=2.0):
+    """Punkty wewnątrz wielokąta, posortowane OD NAJBARDZIEJ ŚRODKOWEGO.
+
+    Dla siatki o kroku ``krok`` liczymy, jak daleko każdy punkt leży od granicy
+    wydzielenia, i sortujemy malejąco. Dzięki temu pierwsze sprawdzane pozycje
+    to te najbardziej „w środku" — a nie przypadkowe punkty siatki biegunowej.
+    """
+    try:
+        import numpy as np
+        from matplotlib.path import Path as MPath
+    except Exception:
+        return []
+    xs = [q[0] for q in pts]
+    ys = [q[1] for q in pts]
+    x0, x1 = min(xs), max(xs)
+    y0, y1 = min(ys), max(ys)
+    nx = int((x1 - x0) / krok) + 1
+    ny = int((y1 - y0) / krok) + 1
+    if nx < 2 or ny < 2 or nx * ny > 400000:
+        return []
+    gx = x0 + np.arange(nx) * krok
+    gy = y0 + np.arange(ny) * krok
+    GX, GY = np.meshgrid(gx, gy)
+    P = np.column_stack([GX.ravel(), GY.ravel()])
+    path = MPath(np.asarray(pts, dtype=float), closed=True)
+    w = path.contains_points(P).reshape(ny, nx)
+    if not w.any():
+        return []
+    # odległość od granicy: iteracyjne „erozje" (tania transformata odległości)
+    d = w.astype(np.int32)
+    dist = np.zeros_like(d, dtype=np.float32)
+    cur = d.copy()
+    r = 0
+    while cur.any() and r < 60:
+        dist += cur
+        e = cur.copy()
+        e[1:, :] &= cur[:-1, :]
+        e[:-1, :] &= cur[1:, :]
+        e[:, 1:] &= cur[:, :-1]
+        e[:, :-1] &= cur[:, 1:]
+        cur = e
+        r += 1
+    dist *= krok
+    idx = np.argsort(-dist.ravel())
+    out = []
+    for i in idx:
+        if dist.ravel()[i] <= 0:
+            break
+        out.append((float(P[i, 0]), float(P[i, 1]), float(dist.ravel()[i])))
+    return out
+
+
+def _wydzielenia(objs):
+    """Tylko prawdziwe WYDZIELENIA — nie drogi, granice, ramki mapy.
+
+    Wydzielenie rozpoznajemy po literze (A1) albo po opisie taksacyjnym
+    (A2 z „|"). Dzięki temu opisy nie „przecinają" linii dróg i granic,
+    które nie są granicami wydzieleń.
+    """
+    out = []
+    for o in objs:
+        a1 = (o.get("litera") or "").strip()
+        a2 = (o.get("tekst") or "")
+        if a1 or ("|" in a2):
+            out.append(o)
+    return out
+
+
 def _siatka_krawedzi(poligony, kom):
     """Indeks krawędzi wszystkich poligonów: komórka -> lista odcinków."""
     siatka = {}
@@ -512,7 +592,7 @@ def uloz(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, iteracje=12,
     kom = max(h_linii * 4.0, 1e-6)
     zasieg = kom * 6
     # linie WSZYSTKICH wydzieleń — opis nie może ich przecinać
-    kraw = _siatka_krawedzi(wszystkie_geo, kom)
+    kraw = _siatka_krawedzi(_wydzielenia(wszystkie_geo), kom)
 
     prob_litery = 0
     prob_drobne = 0
@@ -635,6 +715,113 @@ def uloz(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, iteracje=12,
             el["wysiegnik"] = not wewn
         if przesunieto == 0:
             break
+    # ---- doszukiwanie dla opisów, które wyszły na zewnątrz ---------------
+    # Siatka zgrubna bywa za rzadka — dla każdego opisu, który został na
+    # zewnątrz, robimy GĘSTE przeszukanie (1,5 m, 16 kierunków, do 120 m),
+    # i bierzemy pierwszą pozycję, gdzie cały opis leży w środku bez kolizji.
+    krok_g = max(h_linii * 0.12, 1.5)
+    for _ in range(2):
+        poprawki = 0
+        for i, el in enumerate(elementy):
+            if el.get("wewnatrz"):
+                continue
+            base = el["srodek"]
+            roz = el["rozmiar"]
+            pts = el["pts"]
+            lb_wlasna = None
+            li = el.get("lit_info")
+            if li:
+                akt = el.get("offset_litery") or li[1]
+                lb_wlasna = _prost((base[0] + akt[0], base[1] + akt[1]), li[2])
+            najlepsza = None
+            rmax = int(120.0 / krok_g) + 1
+            for r in range(0, rmax):
+                for k in range(16 if r else 1):
+                    a = k * math.pi / 8
+                    dx, dy = math.cos(a) * krok_g * r, math.sin(a) * krok_g * r
+                    p2 = _prost((base[0] + dx, base[1] + dy), roz)
+                    if not _box_w_srodku(p2, pts):
+                        continue
+                    zle = False
+                    for (ka, kb) in _krawedzie_w(p2, kraw, kom):
+                        if _odc_przecina_prost(ka, kb, p2):
+                            zle = True
+                            break
+                    if zle:
+                        continue
+                    if lb_wlasna is not None and _nakladka(p2, lb_wlasna) > 0:
+                        continue
+                    for jj2 in range(len(litery)):
+                        if _nakladka(p2, litery[jj2]) > 0:
+                            zle = True
+                            break
+                    if zle:
+                        continue
+                    for j2, e2 in enumerate(elementy):
+                        if j2 != i and _nakladka(p2, e2["prost"]) > 0:
+                            zle = True
+                            break
+                    if zle:
+                        continue
+                    najlepsza = (dx, dy, p2)
+                    break
+                if najlepsza:
+                    break
+            if najlepsza:
+                dx, dy, p2 = najlepsza
+                el["offset"] = (dx, dy)
+                el["prost"] = p2
+                el["wewnatrz"] = True
+                el["wysiegnik"] = False
+                poprawki += 1
+        if poprawki == 0:
+            break
+
+    # ---- doszukiwanie dla opisów, które wyszły na zewnątrz ---------------
+    krok_g = max(h_linii * 0.12, 1.5)
+    for _ in range(2):
+        poprawki = 0
+        for i, el in enumerate(elementy):
+            if el.get("wewnatrz"):
+                continue
+            base = el["srodek"]; roz = el["rozmiar"]; pts = el["pts"]
+            lb_w = None
+            li = el.get("lit_info")
+            if li:
+                akt = el.get("offset_litery") or li[1]
+                lb_w = _prost((base[0] + akt[0], base[1] + akt[1]), li[2])
+            najlepsza = None
+            for r in range(0, int(120.0 / krok_g) + 1):
+                for k in range(16 if r else 1):
+                    a = k * math.pi / 8
+                    dx, dy = math.cos(a) * krok_g * r, math.sin(a) * krok_g * r
+                    p2 = _prost((base[0] + dx, base[1] + dy), roz)
+                    if not _box_w_srodku(p2, pts):
+                        continue
+                    zle = False
+                    for (ka, kb) in _krawedzie_w(p2, kraw, kom):
+                        if _odc_przecina_prost(ka, kb, p2):
+                            zle = True; break
+                    if zle: continue
+                    if lb_w is not None and _nakladka(p2, lb_w) > 0: continue
+                    for jj2 in range(len(litery)):
+                        if _nakladka(p2, litery[jj2]) > 0:
+                            zle = True; break
+                    if zle: continue
+                    for j2, e2 in enumerate(elementy):
+                        if j2 != i and _nakladka(p2, e2["prost"]) > 0:
+                            zle = True; break
+                    if zle: continue
+                    najlepsza = (dx, dy, p2); break
+                if najlepsza: break
+            if najlepsza:
+                dx, dy, p2 = najlepsza
+                el["offset"] = (dx, dy); el["prost"] = p2
+                el["wewnatrz"] = True; el["wysiegnik"] = False
+                poprawki += 1
+        if poprawki == 0:
+            break
+
     # ---- końcowy przebieg naprawczy ------------------------------------
     # Żadna litera nie może leżeć pod JAKIMKOLWIEK opisem (także sąsiada).
     # Dla każdej takiej litery szukamy wolnego miejsca w środku wydzielenia.
@@ -773,6 +960,34 @@ def ustaw_offsety(mapa, elementy, obrot_rad=0.0):
         if nowa != stara:
             linie[i] = nowa
             zmiany += 1
+    # tekst opisu (A2) bez polskich ogonków — GEO-MAP ich nie wyświetla
+    for e in elementy:
+        o = e["obiekt"]
+        start = o.get("start")
+        if start is None:
+            continue
+        for k, l in enumerate(o.get("linie", [])):
+            if l.startswith(":A2["):
+                i = start + k
+                if 0 <= i < len(linie):
+                    nowy = ":A2[" + _bez_ogonkow(l[4:-1]) + "]"
+                    if nowy != linie[i]:
+                        linie[i] = nowy
+                        zmiany += 1
+                break
+    # tekst opisu (A2) bez polskich ogonków
+    for e in elementy:
+        o = e["obiekt"]; start = o.get("start")
+        if start is None:
+            continue
+        for k, l in enumerate(o.get("linie", [])):
+            if l.startswith(":A2["):
+                i = start + k
+                if 0 <= i < len(linie):
+                    nowy = ":A2[" + _bez_ogonkow(l[4:-1]) + "]"
+                    if nowy != linie[i]:
+                        linie[i] = nowy; zmiany += 1
+                break
     # przesunięte litery (L 2)
     for e in elementy:
         ol = e.get("offset_litery")
@@ -861,7 +1076,7 @@ def policz_kolizje(mapa, lines=None, wysokosc_mm=WYSOKOSC_MM, skala=SKALA,
             if r[0] > 0:
                 ox, oy = off[2]
                 litery.append((o.get("start"), _prost((b[0] + ox, b[1] + oy), r)))
-        if a2 and 3 in off:
+        if a2 and "|" in a2 and 3 in off:
             r = _roz(a2)
             if r[0] > 0:
                 ox, oy = off[3]
@@ -878,7 +1093,7 @@ def policz_kolizje(mapa, lines=None, wysokosc_mm=WYSOKOSC_MM, skala=SKALA,
              if opisy[i][0] != opisy[j][0]
              and _nakladka(opisy[i][2], opisy[j][2]) > 0)
     kom = max(h * 4.0, 1e-6)
-    kraw = _siatka_krawedzi(objs, kom)
+    kraw = _siatka_krawedzi(_wydzielenia(objs), kom)
     prz = 0
     for (_s, _a, r) in opisy:
         for (ka, kb) in _krawedzie_w(r, kraw, kom):
@@ -887,3 +1102,284 @@ def policz_kolizje(mapa, lines=None, wysokosc_mm=WYSOKOSC_MM, skala=SKALA,
                 break
     return {"litery": na_lit, "opis_opis": oo, "linie": prz,
             "opisow": len(opisy), "wewnatrz": wewn, "wysiegnik": wys}
+
+
+# ==================================================== dlaczego na zewnątrz
+
+POWODY = {
+    "za_maly": "wydzielenie mniejsze niż opis — nie ma jak zmieścić",
+    "brak_wewnatrz": "brak jakiejkolwiek pozycji w środku (kształt wydzielenia)",
+    "linie": "w środku zawsze przecina linię wydzielenia",
+    "litera": "w środku zawsze wchodzi na literę (swoją lub sąsiada)",
+    "opis": "w środku zawsze wchodzi na inny opis",
+    "inny": "inne",
+}
+
+
+def raport_zewnatrz(mapa, elementy, wysokosc_mm=WYSOKOSC_MM, skala=SKALA,
+                    obrot=0.0, margines_litery=1.5, krok_drob=2.0, zasieg=120.0):
+    """Dla każdego opisu, który wyszedł NA ZEWNĄTRZ — ustala PRZYCZYNĘ.
+
+    Sprawdza po kolei, co blokuje umieszczenie opisu w środku:
+      1) czy w ogóle istnieje pozycja, gdzie CAŁY opis leży w środku,
+      2) czy któraś z nich nie przecina linii,
+      3) czy któraś nie wchodzi na literę,
+      4) czy któraś nie wchodzi na inny opis.
+    Pierwszy warunek, który nie ma spełnienia, jest przyczyną.
+
+    Zwraca listę słowników: {a6, litera, tekst, powod, opis, powod_tekst}.
+    """
+    h = wysokosc_mm * skala / 1000.0
+    kom = max(h * 4.0, 1e-6)
+    geo = wszystkie_poligony(mapa)
+    kraw = _siatka_krawedzi(_wydzielenia(geo), kom)
+    litery = []
+    for e in elementy:
+        li = e.get("lit_info")
+        if not li:
+            continue
+        li_i, ol, roz_l = li
+        akt = e.get("offset_litery") or ol
+        lb = _prost((e["srodek"][0] + akt[0], e["srodek"][1] + akt[1]), roz_l)
+        litery.append((id(e), lb))
+    opisy = [(id(e), e["prost"]) for e in elementy]
+
+    out = []
+    for e in elementy:
+        if not e.get("wysiegnik"):
+            continue
+        o = e["obiekt"]
+        a6 = ""
+        for l in o.get("linie", []):
+            if l.startswith(":A6["):
+                a6 = l[4:-1]
+                break
+        base = e["srodek"]
+        roz = e["rozmiar"]
+        pts = e["pts"]
+        bb = e.get("bb") or (0.0, 0.0)
+        if bb[0] < roz[0] or bb[1] < roz[1]:
+            out.append({"a6": a6, "litera": o.get("litera", ""),
+                        "tekst": e["tekst"], "powod": "za_maly",
+                        "powod_tekst": POWODY["za_maly"]})
+            continue
+        ma_wewnatrz = ma_linie = ma_litere = ma_opis = False
+        krok = krok_drob
+        rmax = int(zasieg / krok) + 1
+        for r in range(0, rmax):
+            for k in range(16 if r else 1):
+                a = k * math.pi / 8
+                dx, dy = math.cos(a) * krok * r, math.sin(a) * krok * r
+                p2 = _prost((base[0] + dx, base[1] + dy), roz)
+                if not _box_w_srodku(p2, pts):
+                    continue
+                ma_wewnatrz = True
+                if any(_odc_przecina_prost(ka, kb, p2)
+                       for (ka, kb) in _krawedzie_w(p2, kraw, kom)):
+                    continue
+                ma_linie = True
+                if any(_nakladka(_rozszerz(p2, margines_litery), lb) > 0
+                       for (_i, lb) in litery if _i != id(e)):
+                    continue
+                ma_litere = True
+                if any(_nakladka(p2, pr) > 0 for (_i, pr) in opisy if _i != id(e)):
+                    continue
+                ma_opis = True
+                break
+            if ma_opis:
+                break
+        if not ma_wewnatrz:
+            powod = "brak_wewnatrz"
+        elif not ma_linie:
+            powod = "linie"
+        elif not ma_litere:
+            powod = "litera"
+        elif not ma_opis:
+            powod = "opis"
+        else:
+            powod = "inny"
+        out.append({"a6": a6, "litera": o.get("litera", ""), "tekst": e["tekst"],
+                    "powod": powod, "powod_tekst": POWODY[powod]})
+    return out
+
+
+# ====================================================== układanie „wolne"
+
+def _kand_opisu(el, krok):
+    """Kandydaci na pozycję OPISU — od najbardziej środkowego."""
+    if "kand_off" not in el:
+        b = el["srodek"]
+        el["kand_off"] = [(x - b[0], y - b[1])
+                          for (x, y, _d) in _punkty_srodkowe(el["pts"], krok)]
+    return el["kand_off"]
+
+
+def _kand_litery(pts, base, home, krok=2.0, zasieg=140.0):
+    """Kandydaci dla LITERY — od najbliższego jej miejscu domowemu."""
+    out = [(home[0], home[1])]
+    r = 1
+    while r * krok <= zasieg:
+        for k in range(16):
+            a = k * math.pi / 8
+            out.append((home[0] + math.cos(a) * krok * r,
+                        home[1] + math.sin(a) * krok * r))
+        r += 1
+    return out
+
+
+def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
+               krok_srodkowy=3.0, margines_litery=0.5, maks_kand=600,
+               krok_litery=2.0, iteracje=3, prog_dalekiego=500.0):
+    """Układanie opisów „przez WOLNE OBSZARY".
+
+    Kolejność jest odwrotna niż dotąd: najpierw opis zajmuje najbardziej
+    ŚRODKOWE wolne miejsce w wydzieleniu (tak, jakby litery nie było), a
+    dopiero potem LITERA ustępuje — szuka najbliższego wolnego miejsca, które
+    nie wchodzi na żaden opis. Jeśli litera nie ma gdzie uciec, opis próbuje
+    kolejne, coraz mniej środkowe miejsce. Dzięki temu oba elementy mieszczą
+    się w środku, a nie ma nakładek.
+    """
+    wszystkie_geo = wszystkie_poligony(mapa)
+    # TYLKO opisy taksacyjne (oznaczenie z „|") — nie każdy obiekt z A2
+    wszystkie = [o for o in poligony_z_mapy(mapa)
+                 if "|" in (o.get("tekst") or "")]
+    h_linii = wysokosc_mm * skala / 1000.0
+
+    # litery WSZYSTKICH wydzieleń (także tych bez opisu taksacyjnego)
+    litery = []
+    idx_lit = {}
+    for o in wszystkie_geo:
+        lit = (o.get("litera") or "").strip()
+        if not lit:
+            continue
+        pts_l = o["punkty"]
+        if len(pts_l) < 3:
+            continue
+        b_l = srodek_bazowy(pts_l)
+        if b_l is None:
+            continue
+        rl = rozmiar_opisu(lit, wysokosc_mm, skala, obrot)
+        if rl[0] <= 0:
+            continue
+        ol = _off_linii_litery(mapa, o)
+        litery.append(_prost((b_l[0] + ol[0], b_l[1] + ol[1]), rl))
+        idx_lit[id(o)] = len(litery) - 1
+
+    elementy = []
+    for o in wszystkie:
+        pts = o["punkty"]
+        srodek = srodek_bazowy(pts)
+        if srodek is None:
+            continue
+        roz = rozmiar_opisu(o["tekst"], wysokosc_mm, skala, obrot)
+        if roz[0] <= 0:
+            continue
+        ol = _off_linii_litery(mapa, o)
+        lit = (o.get("litera") or "").strip()
+        roz_l = rozmiar_opisu(lit, wysokosc_mm, skala, obrot) if lit else (0.0, 0.0)
+        li = idx_lit.get(id(o))
+        el = {"obiekt": o, "tekst": o["tekst"], "pts": pts, "srodek": srodek,
+              "rozmiar": roz, "offset": (0.0, 0.0),
+              "prost": _prost(srodek, roz), "wewnatrz": False, "wysiegnik": False,
+              "lit_info": (li, ol, roz_l) if li is not None else None,
+              "offset_litery": None,
+              "bb": (max(q[0] for q in pts) - min(q[0] for q in pts),
+                     max(q[1] for q in pts) - min(q[1] for q in pts))}
+        elementy.append(el)
+
+    if not elementy:
+        return []
+
+    kom = max(h_linii * 4.0, 1e-6)
+    kraw = _siatka_krawedzi(_wydzielenia(wszystkie_geo), kom)
+
+    def _przecina(prost):
+        for (ka, kb) in _krawedzie_w(prost, kraw, kom):
+            if _odc_przecina_prost(ka, kb, prost):
+                return True
+        return False
+
+    for _ in range(max(1, iteracje)):
+        zmiany = 0
+        for i, el in enumerate(elementy):
+            base = el["srodek"]
+            roz = el["rozmiar"]
+            pts = el["pts"]
+            li_info = el.get("lit_info")
+            wybor = None
+            zn_lit = None
+            for (dx, dy) in _kand_opisu(el, krok_srodkowy)[:maks_kand]:
+                prost = _prost((base[0] + dx, base[1] + dy), roz)
+                if not _box_w_srodku(prost, pts):
+                    continue
+                if _przecina(prost):
+                    continue
+                zle = False
+                for j2, e2 in enumerate(elementy):
+                    if j2 != i and _nakladka(prost, e2["prost"]) > 0:
+                        zle = True
+                        break
+                if zle:
+                    continue
+                # opis nie może wchodzić na CUDZE litery (własna ustąpi sama)
+                _wlasna = el["lit_info"][0] if el.get("lit_info") else None
+                for jj in range(len(litery)):
+                    if jj != _wlasna and _nakladka(prost, litery[jj]) > 0:
+                        zle = True
+                        break
+                if zle:
+                    continue
+                # opis OK — teraz litera musi ustąpić
+                if li_info is None:
+                    wybor = (dx, dy, prost)
+                    zn_lit = None
+                    break
+                li, ol, roz_l = li_info
+                home = (base[0] + ol[0], base[1] + ol[1])
+                znal = None
+                for (lx, ly) in _kand_litery(pts, base, home, krok_litery):
+                    lb = _prost((lx, ly), roz_l)
+                    if not _box_w_srodku(_rozszerz(lb, margines_litery), pts):
+                        continue
+                    if _przecina(lb):
+                        continue
+                    if _nakladka(_rozszerz(prost, margines_litery), lb) > 0:
+                        continue
+                    zle = False
+                    for j2, e2 in enumerate(elementy):
+                        if j2 != i and _nakladka(e2["prost"], lb) > 0:
+                            zle = True
+                            break
+                    if zle:
+                        continue
+                    for jj in range(len(litery)):
+                        if jj != li and _nakladka(litery[jj], lb) > 0:
+                            zle = True
+                            break
+                    if zle:
+                        continue
+                    znal = (lx, ly, lb)
+                    break
+                if znal is None:
+                    continue          # litera nie ma gdzie uciec — następny środek
+                wybor = (dx, dy, prost)
+                zn_lit = (li, znal)
+                break
+            if wybor is None:
+                el["wewnatrz"] = False
+                el["wysiegnik"] = True
+                continue
+            dx, dy, prost = wybor
+            if abs(dx - el["offset"][0]) > 1e-9 or abs(dy - el["offset"][1]) > 1e-9:
+                zmiany += 1
+            el["offset"] = (dx, dy)
+            el["prost"] = prost
+            el["wewnatrz"] = True
+            el["wysiegnik"] = False
+            if zn_lit is not None:
+                li, (lx, ly, lb) = zn_lit
+                litery[li] = lb
+                el["offset_litery"] = (lx - base[0], ly - base[1])
+        if zmiany == 0:
+            break
+    return elementy

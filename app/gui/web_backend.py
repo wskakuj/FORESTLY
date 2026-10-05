@@ -2128,6 +2128,13 @@ class WebBackend(
             nowe, zmiany = uk.ustaw_offsety(mapa, el, obrot_rad=obrot)
             po = uk.policz_kolizje(mapa, lines=nowe, wysokosc_mm=mm,
                                    skala=skala, obrot=obrot)
+            try:
+                rap = uk.raport_zewnatrz(mapa, el, wysokosc_mm=mm, skala=skala,
+                                         obrot=obrot)
+            except Exception:
+                rap = []
+            from collections import Counter as _Cnt
+            podsum = dict(_Cnt(r["powod"] for r in rap))
             raw = onm.przelicz_naglowek(nowe)
             tekst = raw.decode("latin1", errors="replace")
             self.log("[EDYTOR] Ułożono %d opisów (przesunięto %d). "
@@ -2135,7 +2142,8 @@ class WebBackend(
                      % (len(el), zmiany, po.get("litery", 0),
                         po.get("opis_opis", 0), po.get("linie", 0)))
             return {"ok": True, "dane": tekst, "zmiany": zmiany,
-                    "stat": po, "przed": przed}
+                    "stat": po, "przed": przed, "powody": podsum,
+                    "raport": rap}
         except Exception as e:
             self.log("[EDYTOR] Błąd układania: %s" % e)
             return {"ok": False, "error": str(e)}

@@ -1014,9 +1014,14 @@ document.getElementById("uloz").onclick = async () => {
         for (let i = 0; i < r.dane.length; i++) u8[i] = r.dane.charCodeAt(i) & 255;
         wczytajBajty(u8, ST.nazwa);
         const st = r.stat || {};
+        const pw = r.powody || {};
+        const opisPow = Object.keys(pw).map(k => k + ": " + pw[k]).join(", ");
         alert("Ułożono algorytmem Forestly.\nKontrola: na literze " + (st.litery || 0) +
               ", opis na opis " + (st.opis_opis || 0) +
-              ", przecięcia linii " + (st.linie || 0));
+              ", przecięcia linii " + (st.linie || 0) +
+              "\nOpisów w środku: " + (st.wewnatrz || 0) +
+              ", z wysięgnikiem: " + (st.wysiegnik || 0) +
+              (opisPow ? ("\nPrzyczyny wysięgników — " + opisPow) : ""));
         return;
       }
     } catch (e) { /* niżej: zapasowy rozkład w JS */ }
