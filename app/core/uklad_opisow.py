@@ -638,7 +638,7 @@ def uloz(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, iteracje=12,
     # ---- końcowy przebieg naprawczy ------------------------------------
     # Żadna litera nie może leżeć pod JAKIMKOLWIEK opisem (także sąsiada).
     # Dla każdej takiej litery szukamy wolnego miejsca w środku wydzielenia.
-    for _ in range(12):
+    for _ in range(4):
         poprawki = 0
         for i, el in enumerate(elementy):
             if not el.get("lit_info"):

@@ -318,9 +318,16 @@ function parseMap(u8) {
     const txt = o.attrs["A2"] || "";
     if (!txt.trim()) continue;
     o.Ls.sort((a, b) => a.n - b.n);
-    o.liniaOpisu = o.Ls.length ? o.Ls[o.Ls.length - 1] : null;
-    o.liniaLitery = o.Ls.length >= 2 ? o.Ls[o.Ls.length - 2] : null;
+    // rozpoznajemy po TYPIE linii: L 2 = litera (A1), L 3 = opis (A2)
+    o.liniaOpisu = o.Ls.filter(z => z.n === 3).slice(-1)[0] || null;
+    o.liniaLitery = o.Ls.filter(z => z.n === 2).slice(-1)[0] || null;
     o.tekst = txt; o.litera = o.attrs["A1"] || ""; o.a6 = o.attrs["A6"] || "";
+    // WYSIĘGNIK: czytamy z pliku (flag=133 + dwie liczby = koniec wysięgnika).
+    // Bez tego mapa z wysięgnikami wyglądała w edytorze jak bez nich.
+    o.wysiegnik = !!(o.liniaOpisu && o.liniaOpisu.flag === 133);
+    const qw = o.liniaOpisu ? (o.liniaOpisu.raw || "").split(/\s+/) : [];
+    o.wysDane = (o.wysiegnik && qw.length >= 9)
+        ? [parseFloat(qw[7]), parseFloat(qw[8])] : null;
     o.kod = o.typ;
     // opis taksacyjny = oznaczenie z „|" (np. „SO31|0.52"); reszta (numery
     // działek itp.) nas nie interesuje i nie rysujemy dla niej ramek
@@ -586,7 +593,11 @@ function przelicz() {
     o.box = (ST.zakotwicz === "lewygorny")
       ? [o.poz[0], o.poz[1] - o.roz[1], o.poz[0] + o.roz[0], o.poz[1]]
       : prost(o.poz, o.roz);
-    if (o.wysiegnik) {
+    if (o.wysiegnik && o.wysDane && !o.wysRuszany) {
+      o.wysStart = o.poz;
+      o.wysEnd = [o.baza[0] + o.wysDane[0], o.baza[1] + o.wysDane[1]];
+      o.wysStr = (o.wysEnd[0] < o.poz[0]) ? "L" : "R";
+    } else if (o.wysiegnik) {
       // koniec wysięgnika: środek LITERY (dociągnięty do niej), a gdy jej nie ma
       // — najbliższy punkt na obrysie wydzielenia
       const lit = o.liniaLitery ? [o.centroid[0] + o.liniaLitery.dx, o.centroid[1] + o.liniaLitery.dy] : null;
