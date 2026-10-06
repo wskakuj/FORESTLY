@@ -7,7 +7,6 @@
     <list default="true" id="5553df60-78eb-40cf-b78a-3e24e8981b9c" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/core/uklad_opisow.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/uklad_opisow.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/core/zamiany_opisow.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/zamiany_opisow.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/webapp/edytor_opisow.html" beforeDir="false" afterPath="$PROJECT_DIR$/webapp/edytor_opisow.html" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />

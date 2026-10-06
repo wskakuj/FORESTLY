@@ -929,7 +929,7 @@ def _dlugosc_odc_w_prost(a, b, prost):
 # to z naszego modelu (czcionka/odstępy). Dlatego przy sprawdzaniu, czy
 # wysięgnik przecina opis, liczymy prostokąt z zapasem — wybieramy wtedy
 # bezpieczniejszy koniec kreski i bezpieczniejsze miejsce opisu.
-MARGINES_TEKSTU = 1.18
+MARGINES_TEKSTU = 2.0
 
 
 def _roz_zapas(roz):

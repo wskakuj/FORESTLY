@@ -35,6 +35,10 @@
               margin-right: 6px; vertical-align: -2px; }
   .leg div { margin: 7px 0; font-size: 13.5px; color: #9aa7b6; }
   .uwaga { font-size: 13px; color: #93a2b4; margin-top: 10px; line-height: 1.45; }
+  .zapas-lbl { display: inline-flex; align-items: center; gap: 6px;
+               font-size: 12.5px; color: #9aa7b6; }
+  .zapas-lbl input { width: 64px; padding: 3px 5px; background: #1b2027;
+                     color: #e8eef7; border: 1px solid #2a313a; border-radius: 5px; }
   /* --- wskaźnik pracy (długie zadania: układanie) --- */
   #busy { position: fixed; inset: 0; background: rgba(8, 12, 18, .62);
           display: none; align-items: center; justify-content: center;
@@ -82,6 +86,7 @@
     <button id="fit">Dopasuj widok</button>
     <h2>Układanie</h2>
 <button id="uloz">Ułóż automatycznie (algorytm Forestly)</button>
+                    <label class="zapas-lbl" title="Ile razy szerszy zakładać napis w GEO-MAP. Jeśli wysięgniki dalej tną opisy — zwiększ.">zapas szerokości tekstu <input id="zapas" type="number" min="1" max="3" step="0.05" value="2.0"></label>
                     <button id="zapisz" class="pri">Zapisz .MAP (ulozone)</button>
     <h2>Legenda</h2>
     <div class="leg">
@@ -1093,6 +1098,11 @@ async function ulozAkcja(p) {  const a0 = api();
         const u8 = new Uint8Array(r.dane.length);
         for (let i = 0; i < r.dane.length; i++) u8[i] = r.dane.charCodeAt(i) & 255;
         wczytajBajty(u8, ST.nazwa);
+        if (ST.parsed) {
+          poprawWysiegniki(ST.parsed);
+          ustawWysiegnikiFlagi(ST.parsed);
+          przelicz(); rysuj();
+        }
         const st = r.stat || {};
         const pw = r.powody || {};
         const opisPow = Object.keys(pw).map(k => k + ": " + pw[k]).join(", ");
@@ -1161,7 +1171,7 @@ async function ulozAkcja(p) {  const a0 = api();
 /* Zapas na szerokość tekstu: GEO-MAP rysuje napis nieco szerzej, niż wynika
    to z naszego modelu — przy sprawdzaniu przecięć liczymy prostokąt z zapasem,
    żeby wybrać bezpieczniejszy koniec kreski i bezpieczniejsze miejsce opisu. */
-const MARGINES_TEKSTU = 1.18;
+let MARGINES_TEKSTU = 2.0;      // zapas na szerokość tekstu (do strojenia)
 function rozZapas(roz) {
   if (!roz || roz[0] <= 0) return roz;
   return [roz[0] * MARGINES_TEKSTU, roz[1] * MARGINES_TEKSTU];
@@ -1270,11 +1280,24 @@ document.getElementById("zapisz").onclick = () => {
     try { zapiszAkcja(p); } finally { ukryjBusy(); }
   }, 40);
 };
-function zapiszAkcja(p) {  const obrot = katRad();
-  for (let i = p.objs.length - 1; i >= 0; i--) { posprzatajDuplikaty(p, p.objs[i]); }
-  // wysięgnik nie może przechodzić przez własny opis — w razie potrzeby
-  // przesuwamy sam opis (inaczej przy opisie nad/pod literą zawsze tnie)
-  poprawWysiegniki(p);
+const _inp_zapas = document.getElementById("zapas");
+if (_inp_zapas) {
+  _inp_zapas.value = String(MARGINES_TEKSTU);
+  _inp_zapas.onchange = () => {
+    const v = parseFloat(_inp_zapas.value);
+    if (!isNaN(v) && v >= 1 && v <= 3) {
+      MARGINES_TEKSTU = v;
+      if (ST.parsed) {
+        poprawWysiegniki(ST.parsed);
+        ustawWysiegnikiFlagi(ST.parsed);
+        przelicz(); rysuj();
+      }
+    }
+  };
+}
+
+function ustawWysiegnikiFlagi(p) {
+  const obrot = katRad();
   for (const o of p.objs) {
     if (!o.opis || !o.liniaOpisu) continue;
     // wysięgnik, gdy opis wyszedł poza wydzielenie
@@ -1320,6 +1343,14 @@ function zapiszAkcja(p) {  const obrot = katRad();
     }
     if (o.liniaLitery) ustawLinie(p, o.liniaLitery, o.liniaLitery.dx, o.liniaLitery.dy);
   }
+}
+
+function zapiszAkcja(p) {  const obrot = katRad();
+  for (let i = p.objs.length - 1; i >= 0; i--) { posprzatajDuplikaty(p, p.objs[i]); }
+  // wysięgnik nie może przechodzić przez własny opis — w razie potrzeby
+  // przesuwamy sam opis (inaczej przy opisie nad/pod literą zawsze tnie)
+  poprawWysiegniki(p);
+  ustawWysiegnikiFlagi(p);
   const out = zbudujPlik(p);
   const nazwaOut = ST.nazwa.replace(/\.map$/i, "") + "_ulozone.MAP";
   const a = api();
