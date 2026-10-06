@@ -74,11 +74,6 @@
     <h2>Forestly</h2>
     <button id="zForestlyBtn" style="display:none">Wczytaj mapę z folderu zakładki</button>
     <select id="zForestly" style="display:none;width:100%;margin:6px 0;padding:7px 10px;background:#0d1117;color:#d7dee8;border:1px solid #39424e;border-radius:7px"></select>
-    <h2>Widok mapy</h2>
-    <label class="row">Obrót mapy [°]<input id="obrotW" type="number" step="15" value="-90"></label>
-    <button id="odbijX">Odbij poziomo (lewo↔prawo)</button>
-    <button id="odbijY">Odbij pionowo (góra↔dół)</button>
-    <button id="resetW">Reset widoku</button>
     <h2>Widok</h2>
     <label class="chk"><input id="tylkoNak" type="checkbox"> Pokaż tylko nakładające się</label>
     <label class="chk"><input id="litery" type="checkbox" checked> Pokaż litery (L 2)</label>
@@ -86,9 +81,7 @@
     <button id="fit">Dopasuj widok</button>
     <h2>Układanie</h2>
 <button id="uloz">Ułóż automatycznie (algorytm Forestly)</button>
-                    <label class="zapas-lbl" title="Ile razy szerszy zakładać napis w GEO-MAP. Jeśli wysięgniki dalej tną opisy — zwiększ.">zapas szerokości tekstu <input id="zapas" type="number" min="1" max="3" step="0.05" value="2.0"></label>
                     <button id="zapisz" class="pri">Zapisz .MAP (ulozone)</button>
-                    <label class="zapas-lbl" title="Zaznacz, jeśli strona wysięgnika jest odwrotna niż powinna."><input id="odwroc" type="checkbox"> odwróć stronę wysięgnika</label>
     <h2>Legenda</h2>
     <div class="leg">
       <div><span style="background:#2ec36b"></span>opis w porządku</div>
@@ -967,14 +960,18 @@ document.getElementById("fit").onclick = () => { dopasujWidok(); rysuj(); };
   });
   if (api() && api().edytor_lista_map) { const b = document.getElementById("zForestlyBtn"); if (b) b.style.display = ""; }
 }
-document.getElementById("odbijX").onclick = () => { ST.flipX = !ST.flipX; rysuj(); };
-document.getElementById("odbijY").onclick = () => { ST.flipY = !ST.flipY; rysuj(); };
-document.getElementById("obrotW").oninput = e => { ST.rotW = parseFloat(e.target.value) || 0; rysuj(); };
-document.getElementById("resetW").onclick = () => {
-  ST.flipX = false; ST.flipY = false; ST.rotW = 0;
-  document.getElementById("obrotW").value = 0;
-  dopasujWidok(); rysuj();
-};
+/* kontrolki widoku mapy usunięte — zostaje widok domyślny */
+{
+  const _b1 = document.getElementById("odbijX"); if (_b1) _b1.onclick = () => { ST.flipX = !ST.flipX; rysuj(); };
+  const _b2 = document.getElementById("odbijY"); if (_b2) _b2.onclick = () => { ST.flipY = !ST.flipY; rysuj(); };
+  const _b3 = document.getElementById("obrotW"); if (_b3) _b3.oninput = e => { ST.rotW = parseFloat(e.target.value) || 0; rysuj(); };
+  const _b4 = document.getElementById("resetW");
+  if (_b4) _b4.onclick = () => {
+    ST.flipX = false; ST.flipY = false; ST.rotW = 0;
+    if (_b3) _b3.value = 0;
+    dopasujWidok(); rysuj();
+  };
+}
 document.getElementById("obrysy").onchange = e => { ST.pokazObrysy = e.target.checked; rysuj(); };
 {
   const wczytaj = () => {
