@@ -575,14 +575,16 @@ def build_schema():
                      "mapa_zrodlo:mietek"),
                 # ---------- TAKSATOR ----------
                 _grp(_path("mapa_mdb", "mapa_mdb_entry",
-                           "Baza taksatora (.mdb):",
-                           "np. BYSŁAW.mdb", kind="file"),
+                           "Baza taksatora (.mdb) — plik albo folder:",
+                           "np. BYSŁAW.mdb — albo folder z bazami .mdb "
+                           "(dopasuję po nazwie mapy)", kind="both"),
                      "mapa_zrodlo:taksator"),
                 # ---------- wspólne ----------
                 _path("mapa_src", "mapa_src_entry",
                       "Folder z mapami (.MAP) albo plik mapy:",
-                      "Wskaż folder z mapami — albo pojedynczy plik .MAP",
-                      kind="open"),
+                      "Wskaż folder z mapami (wszystkie mapy naraz) — "
+                      "albo pojedynczy plik .MAP",
+                      kind="both"),
                 _info("Program wpisuje do mapy opisy z wybranej bazy — "
                       "zależnie od źródła: A2 „Oznaczenie” i A5 „Opis taks.” "
                       "(Forestly GO / MIETEK) albo A1 i A2 „Oznaczenie” "
@@ -595,6 +597,11 @@ def build_schema():
             ],
             "buttons": [
                 _button("run", "Wpisz opisy do map", "start_opisy_na_mape"),
+                _button("run_uloz", "Ułóż opisy na mapach (folder / plik)",
+                        "start_uloz_opisy", "secondary",
+                        "Rozsuwa podpisy, żeby się nie nakładały — na WSZYSTKICH "
+                        "mapach z folderu (albo na jednej wskazanej). Wynik: "
+                        "<NAZWA>_ulozone.MAP obok każdej mapy."),
                 _button("run_braki", "Sprawdź braki przed wpisaniem",
                         "start_sprawdz_opisy_na_mape", "secondary"),
                 _button("run_edytor", "Otwórz edytor opisów (okno)",

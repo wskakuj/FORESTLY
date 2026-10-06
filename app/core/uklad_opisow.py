@@ -79,9 +79,21 @@ def wszystkie_poligony(mapa):
                 if m:
                     linie_l.append((int(m.group(1)), k))
             linie_l.sort()
-            # typ linii jest pewny: L 2 = litera (A1), L 3 = opis (A2)
+            # Zasada: L 3 = opis (A2), L 2 = litera (A1).
+            # Są jednak mapy (np. obiekty 5310), w których opis siedzi na
+            # L 2 i nie ma wcale L 3 — wtedy L 2 JEST opisem, a litery
+            # osobnej linii nie ma.
             _op = next((k for t, k in linie_l if t == 3), None)
             _li = next((k for t, k in linie_l if t == 2), None)
+            # „L 2” jest opisem TYLKO wtedy, gdy obiekt ma prawdziwy opis
+            # (tekst A2 z „|”, np. „SO31|0.52”). Inaczej L 2 to zwykły
+            # podpis (numer działki) i NIE WOLNO go ruszać.
+            if _op is None and _li is not None and "|" in (tekst or ""):
+                # Mapa po QGIS: opis (A2 z „|”) jest wpisany, ale NIE ma
+                # jeszcze linii „L 3” — GEO-MAP tworzy ją dopiero przy
+                # układaniu. Zaznaczamy, że trzeba taką linię DODAĆ;
+                # literą pozostaje linia „L 2”.
+                _op = "NOWA"
             out.append({"start": i, "linie": blok, "punkty": pts,
                         "tekst": tekst, "litera": litera, "linie_L": linie_l,
                         "linia_opisu": _op, "linia_litery": _li})
@@ -978,10 +990,15 @@ def ustaw_offsety(mapa, elementy, obrot_rad=0.0):
     offs = {id(e["obiekt"]): e["offset"] for e in elementy}
     linie = list(mapa["lines"])
     zmiany = 0
+    _nowe_opisy = []
     for e in elementy:
         o = e["obiekt"]
         dx, dy = e["offset"]
         i = o.get("linia_opisu")
+        if i == "NOWA":
+            # opis nie ma jeszcze linii „L 3” (mapa po QGIS) — dopiszemy ją
+            _nowe_opisy.append(e)
+            continue
         if i is None:
             continue
         stara = linie[i]
@@ -1053,39 +1070,14 @@ def ustaw_offsety(mapa, elementy, obrot_rad=0.0):
         elif len(p) >= 4:
             nowa = "%s %s %.3f %.3f %.7f" % (p[0], p[1], dx, dy, obrot_rad)
         else:
-            nowa = "L 3 %.3f %.3f %.7f 1.0000000 5" % (dx, dy, obrot_rad)
+            nowa = "%s %s %.3f %.3f %.7f 1.0000000 5" % (
+                p[0] if p else "L", p[1] if len(p) > 1 else "3",
+                dx, dy, obrot_rad)
         if nowa != stara:
             linie[i] = nowa
             zmiany += 1
-    # tekst opisu (A2) bez polskich ogonków — GEO-MAP ich nie wyświetla
-    for e in elementy:
-        o = e["obiekt"]
-        start = o.get("start")
-        if start is None:
-            continue
-        for k, l in enumerate(o.get("linie", [])):
-            if l.startswith(":A2["):
-                i = start + k
-                if 0 <= i < len(linie):
-                    nowy = ":A2[" + l[4:-1] + "]"
-                    if nowy != linie[i]:
-                        linie[i] = nowy
-                        zmiany += 1
-                break
-    # tekst opisu (A2) bez polskich ogonków
-    for e in elementy:
-        o = e["obiekt"]; start = o.get("start")
-        if start is None:
-            continue
-        for k, l in enumerate(o.get("linie", [])):
-            if l.startswith(":A2["):
-                i = start + k
-                if 0 <= i < len(linie):
-                    nowy = ":A2[" + l[4:-1] + "]"
-                    if nowy != linie[i]:
-                        linie[i] = nowy; zmiany += 1
-                break
-    # przesunięte litery (L 2)
+    # przesunięte litery (L 2) — tylko w mapach, gdzie L 2 to naprawdę
+    # litera (obok linii opisu L 3); inaczej L 2 jest opisem
     for e in elementy:
         ol = e.get("offset_litery")
         if ol is None:
@@ -1154,11 +1146,40 @@ def ustaw_offsety(mapa, elementy, obrot_rad=0.0):
     # NA KOŃCU: usuń zdublowane linie L i atrybuty (podwójne litery w GEO-MAP).
     # Obiekty przetwarzamy od KOŃCA, żeby usunięcia nie psuły indeksów
     # wcześniejszych obiektów.
-    for e in reversed(elementy):
-        try:
-            zmiany += _posprzataj_duplikaty(linie, e["obiekt"])
-        except Exception:
-            pass
+    # DOPISANIE BRAKUJĄCYCH LINII „L 3” — tak robi to GEO-MAP przy układaniu
+    # (mapy po QGIS mają opis w A2, ale bez linii „L 3”). Nową linię wstawiamy
+    # zaraz po linii litery „L 2”. Wstawiamy od końca, żeby indeksy się nie
+    # przesuwały.
+    if _nowe_opisy:
+        _do_wstawienia = []
+        for e in _nowe_opisy:
+            o = e["obiekt"]
+            i_l2 = o.get("linia_litery")
+            if i_l2 is None:
+                continue
+            dx, dy = e["offset"]
+            if e.get("wysiegnik"):
+                opis_c = (e["srodek"][0] + dx, e["srodek"][1] + dy)
+                _li = e.get("lit_info")
+                if _li is not None and _li[2][0] > 0:
+                    lit_c = (e["srodek"][0] + _li[1][0], e["srodek"][1] + _li[1][1])
+                    kon = _koniec_wys(lit_c, _li[2], opis_c)
+                else:
+                    kon = _punkt_na_granicy(opis_c, e["srodek"], e["pts"])
+                _box = _prost(opis_c, _roz_zapas(e["rozmiar"]))
+                _l = _dlugosc_odc_w_prost((_box[0], opis_c[1]), kon, _box)
+                _p = _dlugosc_odc_w_prost((_box[2], opis_c[1]), kon, _box)
+                flaga = 133 if _l <= _p else 69
+                tekst = "L 3 %.3f %.3f %.7f 1.0000000 %d %.3f %.3f" % (
+                    dx, dy, obrot_rad, flaga,
+                    kon[0] - e["srodek"][0], kon[1] - e["srodek"][1])
+            else:
+                tekst = "L 3 %.3f %.3f %.7f 1.0000000 5" % (dx, dy, obrot_rad)
+            _do_wstawienia.append((i_l2 + 1, tekst))
+        for _idx, _tekst in sorted(_do_wstawienia, reverse=True):
+            linie.insert(_idx, _tekst)
+            zmiany += 1
+    # UWAGA: NIE usuwamy tu żadnych linii ani atrybutów.
     return linie, zmiany
 
 
@@ -1402,6 +1423,9 @@ def raport_zewnatrz(mapa, elementy, wysokosc_mm=WYSOKOSC_MM, skala=SKALA,
 
 # ====================================================== układanie „wolne"
 
+DIAG = {}
+
+
 def _kand_opisu(el, krok):
     """Kandydaci na pozycję OPISU — od najbardziej środkowego."""
     if "kand_off" not in el:
@@ -1409,6 +1433,28 @@ def _kand_opisu(el, krok):
         el["kand_off"] = [(x - b[0], y - b[1])
                           for (x, y, _d) in _punkty_srodkowe(el["pts"], krok)]
     return el["kand_off"]
+
+
+def _odl_od_krawedzi(p, pts):
+    """Najmniejsza odległość punktu od boków wydzielenia (w metrach)."""
+    import math as _m
+    best = 1e9
+    n = len(pts)
+    for a in range(n):
+        x1, y1 = pts[a]
+        x2, y2 = pts[(a + 1) % n]
+        dx, dy = x2 - x1, y2 - y1
+        dl = dx * dx + dy * dy
+        if dl < 1e-12:
+            t = 0.0
+        else:
+            t = ((p[0] - x1) * dx + (p[1] - y1) * dy) / dl
+            t = max(0.0, min(1.0, t))
+        px, py = x1 + t * dx, y1 + t * dy
+        d = _m.hypot(p[0] - px, p[1] - py)
+        if d < best:
+            best = d
+    return best
 
 
 def _kand_litery_prio(prost, roz_l, home, krok=2.0, zasieg=140.0):
@@ -1550,12 +1596,34 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
             # (0,5 potem 0,25 m). Dzięki temu opis, który mieści się
             # „na styk", zostaje W ŚRODKU, zamiast wychodzić na
             # zewnątrz z wysięgnikiem.
+            wybor_zapas = None   # dobry srodek, nawet gdy litera nie ustapi
             for marg_wew in (1.0, 0.5, 0.25):
-                for (dx, dy) in _kand_opisu(el, krok_srodkowy)[:maks_kand]:
+                _kands = _kand_opisu(el, krok_srodkowy)[:maks_kand]
+                # Preferuj pozycję NAJDALEJ od linii wydzielenia (czyli bliżej
+                # jego środka) — inaczej opis siada w narożniku, na liniach.
+                try:
+                    _kands = sorted(_kands,
+                                    key=lambda q: -_odl_od_krawedzi(
+                                        (base[0] + q[0], base[1] + q[1]), pts))
+                except Exception:
+                    pass
+                if li_info is not None:
+                    # Gdy opis i litera mieszczą się RAZEM w wydzieleniu,
+                    # wybieramy takie miejsce, żeby LITERA wypadła po LEWEJ
+                    # stronie opisu (kolejność kandydatów decyduje o wyborze).
+                    _kands = sorted(_kands,
+                                    key=lambda q: 0 if (li_info[1][0] - q[0]) <= -1.0 else 1)
+                _d = DIAG.setdefault(el["tekst"], {"kand": 0, "poza_obrysem": 0,
+                                             "przecina": 0, "na_opisie": 0,
+                                             "na_literze": 0, "ok": 0})
+                for (dx, dy) in _kands:
+                    _d["kand"] += 1
                     prost = _prost((base[0] + dx, base[1] + dy), roz)
                     if not _box_w_srodku(_rozszerz(prost, marg_wew), pts):
+                        _d["poza_obrysem"] += 1
                         continue
                     if _przecina(prost):
+                        _d["przecina"] += 1
                         continue
                     zle = False
                     for j2, e2 in enumerate(elementy):
@@ -1563,6 +1631,7 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
                             zle = True
                             break
                     if zle:
+                        _d["na_opisie"] += 1
                         continue
                     # opis nie może wchodzić na CUDZE litery (własna ustąpi sama)
                     _wlasna = el["lit_info"][0] if el.get("lit_info") else None
@@ -1571,7 +1640,9 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
                             zle = True
                             break
                     if zle:
+                        _d["na_literze"] += 1
                         continue
+                    _d["ok"] += 1
                     # opis OK — teraz litera musi ustąpić
                     if li_info is None:
                         wybor = (dx, dy, prost)
@@ -1604,15 +1675,27 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
                         znal = (lx, ly, lb)
                         break
                     if znal is None:
-                        continue          # litera nie ma gdzie uciec — następny środek
+                        # REGULA: jesli opis zmiescil sie w srodku, to ma tam
+                        # zostac — nawet gdy litera nie ma gdzie uciec.
+                        # Litera zostaje na swoim miejscu, opis jest wazniejszy.
+                        if wybor_zapas is None:
+                            wybor_zapas = (dx, dy, prost)
+                        continue
                     if math.hypot(dx, dy) > 45.0:
-                        continue          # nie oddalamy opisu daleko od środka
+                        # daleko od obecnego miejsca — zapamietaj jako zapas,
+                        # ale szukaj dalej czegos blizej
+                        if wybor_zapas is None:
+                            wybor_zapas = (dx, dy, prost)
+                        continue
                     wybor = (dx, dy, prost)
                     zn_lit = (li, znal)
                     break
 
                 if wybor is not None:
                     break
+            if wybor is None and wybor_zapas is not None:
+                wybor = wybor_zapas
+                zn_lit = None      # litera zostaje tam, gdzie byla
             if wybor is None:
                 # Brak miejsca w środku — odsuwamy opis NA ZEWNĄTRZ, ale
                 # DALeko od granicy (żeby nie leżał na linii) i tak, by nie
@@ -1656,7 +1739,8 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
                                   _dlugosc_odc_w_prost((pbox_[2], opis_c[1]), kon_, pbox_))
                         if _stroma(kon_, opis_c, roz): prz += 1000.0
                         return prz
-                    _kand_out.sort(key=lambda kk: (round(_przeciecie_wys(kk), 2), math.hypot(kk[0], kk[1])))
+                    _kand_out.sort(key=lambda kk: (round(_przeciecie_wys(kk), 2),
+                                                   math.hypot(kk[0], kk[1])))
                     wybor = _kand_out[0]
             if wybor is None:
                 el["wewnatrz"] = False
@@ -1699,8 +1783,13 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
             stara = litery[li_i]
             litery[li_i] = lb
             zn = None
+            _najlepszy = None
+            _najlepszy_odl = -1.0
             for (lx, ly) in _kand_litery_prio(e["prost"], roz_l, lpoz):
                 lb2 = _prost((lx, ly), roz_l)
+                _odl = _odl_od_krawedzi((lx, ly), e["pts"])
+                if _odl > _najlepszy_odl:
+                    _najlepszy_odl = _odl
                 if not _box_w_srodku(_rozszerz(lb2, margines_litery), e["pts"]):
                     continue
                 if _przecina(lb2):
@@ -1727,6 +1816,35 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
                 poprawki += 1
             else:
                 litery[li_i] = stara
+            # jeśli znaleziono pozycję, ale była blisko krawędzi — spróbuj
+            # jeszcze raz z dala od linii (największy odstęp)
+            if e.get("offset_litery") is not None:
+                _akt = e["offset_litery"]
+                _poz = (e["srodek"][0] + _akt[0], e["srodek"][1] + _akt[1])
+                if _odl_od_krawedzi(_poz, e["pts"]) < 7.0:
+                    _best = None
+                    _best_d = -1.0
+                    for (lx, ly) in _kand_litery_prio(e["prost"], roz_l, lpoz):
+                        lb2 = _prost((lx, ly), roz_l)
+                        if not _box_w_srodku(_rozszerz(lb2, margines_litery), e["pts"]):
+                            continue
+                        if _przecina(lb2):
+                            continue
+                        _zle = False
+                        for e2 in elementy:
+                            if _nakladka(_rozszerz(e2["prost"], margines_litery), lb2) > 0:
+                                _zle = True
+                                break
+                        if _zle:
+                            continue
+                        _d = _odl_od_krawedzi((lx, ly), e["pts"])
+                        if _d > _best_d:
+                            _best_d, _best = _d, (lx, ly, lb2)
+                    if _best and _best_d > _odl_od_krawedzi(_poz, e["pts"]):
+                        lx, ly, lb2 = _best
+                        litery[li_i] = lb2
+                        e["offset_litery"] = (lx - e["srodek"][0], ly - e["srodek"][1])
+                        poprawki += 1
         if poprawki == 0:
             break
     # ---- na koniec: WYSIĘGNIK nie może przecinać własnego opisu ----

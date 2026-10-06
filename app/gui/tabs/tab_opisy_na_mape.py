@@ -122,7 +122,7 @@ class TabOpisyNaMapeMixin:
             "kol_nr": _txt("mapa_kol_nr_entry", "N"),
             "font_mm": "2.5",          # stałe — pole usunięte
             "skala": "5000",           # stałe — pole usunięte
-            "p3": "0.25",              # stałe — pole usunięte
+            "p3": "-0.25",             # stałe — zgodne z programem ukladania (bylo +0.25)
             "tylko_srodek": True,      # zawsze: wyśrodkuj i obróć
             "klucz": "TX",          # pole „Uwagi” mapy — stałe, nieedytowalne
             "a2": True,              # oba pola opisu zawsze wpisywane
@@ -161,7 +161,7 @@ class TabOpisyNaMapeMixin:
             skala = _liczba(u.get("skala"), 5000)
             import math as _m
             # P3 w GEO-MAP podajemy w gradach; w pliku kąt jest w radianach
-            p3 = _liczba(u.get("p3"), 0.25)
+            p3 = _liczba(u.get("p3"), -0.25)
             obrot = p3 * _m.pi / 200.0
             if font_mm <= 0:
                 font_mm = 2.5
@@ -335,8 +335,9 @@ class TabOpisyNaMapeMixin:
             self.update_status("Brak map", "#D83B01", animate=False)
             return
         if u["tryb"] == "taksator":
-            if not u["mdb"] or not Path(u["mdb"]).is_file():
-                self.log("[MAPY] Wskaż plik bazy taksatora (.mdb).")
+            if not self._bazy_ze_sciezki(u["mdb"]):
+                self.log("[MAPY] Wskaż plik bazy taksatora (.mdb) — "
+                         "albo folder z bazami .mdb (dopasuję po nazwie mapy).")
                 self.update_status("Brak bazy .mdb", "#D83B01", animate=False)
                 return
             if self.running:
@@ -418,6 +419,36 @@ class TabOpisyNaMapeMixin:
             self.after(0, self.restore_all_buttons)
 
     # -------------------------------------------------- źródło jednej mapy
+    @staticmethod
+    def _bazy_ze_sciezki(sciezka):
+        """Folder -> wszystkie bazy .mdb; plik .mdb -> tylko ta jedna."""
+        if not sciezka:
+            return {}
+        p = Path(sciezka)
+        if p.is_file() and p.suffix.lower() == ".mdb":
+            return {_klucz_nazwy(p.stem): p}
+        if p.is_dir():
+            return {_klucz_nazwy(q.stem): q for q in sorted(p.glob("*.mdb"))}
+        return {}
+
+    def _baza_dla_mapy(self, nazwa_mapy, bazy, cache):
+        """Baza .mdb dopasowana po nazwie mapy (albo jedyna dostępna).
+
+        Zwraca (sciezka_bazy, baza) albo (None, None).
+        """
+        if not bazy:
+            return None, None
+        # _dopasuj zwraca ŚCIEŻKĘ kandydata (nie klucz)
+        sciezka = self._dopasuj(nazwa_mapy, bazy)
+        if sciezka is None and len(bazy) == 1:
+            sciezka = next(iter(bazy.values()))
+        if sciezka is None:
+            return None, None
+        if sciezka not in cache:
+            from app.core import opisy_na_mape_taksator as tk
+            cache[sciezka] = tk.czytaj_baze(str(sciezka)) or {}
+        return sciezka, cache[sciezka]
+
     def _zrodlo_dla_mapy(self, sciezka_mapy, zrodla, u):
         """Dopasowuje i wczytuje źródło opisów. Zwraca (sc, zrodlo, blad)."""
         sc = self._dopasuj(sciezka_mapy.stem, zrodla)
@@ -584,8 +615,9 @@ class TabOpisyNaMapeMixin:
             self.update_status("Brak map", "#D83B01", animate=False)
             return
         if u["tryb"] == "taksator":
-            if not u["mdb"] or not Path(u["mdb"]).is_file():
-                self.log("[SPRAWDZ] Wskaż plik bazy taksatora (.mdb).")
+            if not self._bazy_ze_sciezki(u["mdb"]):
+                self.log("[SPRAWDZ] Wskaż plik bazy taksatora (.mdb) — "
+                         "albo folder z bazami .mdb.")
                 self.update_status("Brak bazy .mdb", "#D83B01", animate=False)
                 return
             if self.running:
@@ -676,11 +708,8 @@ class TabOpisyNaMapeMixin:
             from app.core import opisy_na_mape_taksator as tk
             from app.core import opisy_na_mape as onm
             self.update_status("Czytanie bazy taksatora...", "#0078D7")
-            baza = tk.czytaj_baze(u["mdb"])
-            if not baza:
-                self.log("[SPRAWDZ] Nie udało się wczytać wydzieleń z bazy.")
-                self.update_status("Baza bez wydzieleń", "#D83B01", animate=False)
-                return
+            bazy = self._bazy_ze_sciezki(u["mdb"])
+            cache = {}
             mapy = self._mapy_ze_sciezki(u["mapy"])
             if not mapy:
                 self.log("[SPRAWDZ] Nie znaleziono plików .MAP.")
@@ -693,6 +722,13 @@ class TabOpisyNaMapeMixin:
                 self.check_stop()
                 self.progress_current_file = sciezka.name
                 try:
+                    sc_b, baza = self._baza_dla_mapy(sciezka.stem, bazy, cache)
+                    if not baza:
+                        self.log("  ⚠️ %s: brak bazy .mdb o tej nazwie — pomijam."
+                                 % sciezka.name)
+                        self.set_progress(idx / total, current_file=sciezka.name,
+                                          current=idx)
+                        continue
                     mapa = onm.wczytaj_mape(sciezka)
                     wiersze = tk.zbuduj_wiersze(mapa, baza)
                     wszystkie += tk.braki_do_przegladu(sciezka.name, wiersze)
@@ -726,14 +762,8 @@ class TabOpisyNaMapeMixin:
             from app.core import opisy_na_mape_taksator as tk
             from app.core import opisy_na_mape as onm
             self.update_status("Czytanie bazy taksatora...", "#0078D7")
-            baza = tk.czytaj_baze(u["mdb"])
-            if not baza:
-                self.log("[TAKSATOR] Nie udało się wczytać wydzieleń z bazy "
-                         "(sprawdź, czy to baza taksatora i czy działa sterownik "
-                         "MS Access).")
-                self.update_status("Baza bez wydzieleń", "#D83B01", animate=False)
-                return
-            self.log("[TAKSATOR] Wydzieleń w bazie: %d" % len(baza))
+            bazy = self._bazy_ze_sciezki(u["mdb"])
+            cache = {}
             mapy = self._mapy_ze_sciezki(u["mapy"])
             if not mapy:
                 self.log("[TAKSATOR] Nie znaleziono plików .MAP.")
@@ -749,6 +779,15 @@ class TabOpisyNaMapeMixin:
                      "zmiany": 0, "plik": "", "blad": "",
                      "niedopasowane": [], "bez_oznaczenia": []}
                 try:
+                    sc_b, baza = self._baza_dla_mapy(sciezka.stem, bazy, cache)
+                    if not baza:
+                        self.log("  ⚠️ %s: brak bazy .mdb o tej nazwie — pomijam."
+                                 % sciezka.name)
+                        w["blad"] = "brak bazy .mdb o tej nazwie"
+                        wyniki.append(w)
+                        self.set_progress(idx / total, current_file=sciezka.name,
+                                          current=idx)
+                        continue
                     mapa = onm.wczytaj_mape(sciezka)
                     pom = []
                     wiersze = tk.zbuduj_wiersze(mapa, baza, pominiete=pom)

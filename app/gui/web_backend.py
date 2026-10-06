@@ -1210,6 +1210,76 @@ class WebBackend(
             self.log(f"[EDYCJA PDF] {r.get('blad')}")
         return r
 
+
+    def _zapytaj_plik_czy_folder(self):
+        """Pyta, czy wskazać folder (całość), czy pojedynczy plik.
+
+        Okno w stylu programu (ciemny motyw Forestly). Zwraca
+        'folder', 'file' albo None (anulowano).
+        """
+        try:
+            import tkinter as tk
+
+            TLO = "#20242c"        # tło jak w programie
+            RAMA = "#2b313b"       # obramowanie
+            TEKST = "#e8eaed"
+            SZARY = "#9aa4b2"
+            ZIEL = "#2ea043"       # akcent programu
+            ZIEL_H = "#3fb950"
+
+            root = tk.Tk()
+            root.title("Forestly — co wskazać?")
+            root.configure(bg=TLO)
+            root.attributes("-topmost", True)
+            root.resizable(False, False)
+
+            szer, wys = 430, 168
+            ekr_w = root.winfo_screenwidth()
+            ekr_h = root.winfo_screenheight()
+            root.geometry("%dx%d+%d+%d" % (szer, wys,
+                                           (ekr_w - szer) // 2,
+                                           (ekr_h - wys) // 2))
+
+            wybor = {"v": None}
+
+            def _w(v):
+                wybor["v"] = v
+                root.destroy()
+
+            tk.Label(root, text="Co chcesz wskazać?",
+                     bg=TLO, fg=TEKST,
+                     font=("Segoe UI", 13, "bold")).pack(pady=(18, 2))
+            tk.Label(root, text="Folder ułoży wszystkie pliki naraz — "
+                                "pojedynczy plik tylko jeden.",
+                     bg=TLO, fg=SZARY,
+                     font=("Segoe UI", 9)).pack(pady=(0, 14))
+
+            ramka = tk.Frame(root, bg=TLO)
+            ramka.pack()
+
+            def _btn(tekst, wartosc, akcent=False):
+                b = tk.Button(
+                    ramka, text=tekst, width=20, height=2,
+                    font=("Segoe UI", 10, "bold" if akcent else "normal"),
+                    bg=(ZIEL if akcent else RAMA),
+                    fg=("#ffffff" if akcent else TEKST),
+                    activebackground=(ZIEL_H if akcent else "#374151"),
+                    activeforeground=("#ffffff" if akcent else TEKST),
+                    relief="flat", bd=0, cursor="hand2",
+                    command=lambda: _w(wartosc))
+                b.pack(side="left", padx=8)
+                return b
+
+            _btn("Folder (całość)", "folder", akcent=True)
+            _btn("Pojedynczy plik", "file")
+
+            root.bind("<Escape>", lambda e: _w(None))
+            root.update_idletasks()
+            root.mainloop()
+            return wybor["v"]
+        except Exception:
+            return None
+
     def browse(self, control_id, kind):
         """Otwiera natywne okno wyboru (pywebview) i zwraca ścieżkę."""
         try:
@@ -1223,7 +1293,24 @@ class WebBackend(
                 D_FOLDER = getattr(webview, "FOLDER_DIALOG", None)
                 D_OPEN = getattr(webview, "OPEN_DIALOG", None)
                 D_SAVE = getattr(webview, "SAVE_DIALOG", None)
-            if kind == "folder":
+            _folder_wybrany = (kind == "folder")
+            if kind == "both":
+                # pytamy: cały folder, czy jeden plik
+                _co = self._zapytaj_plik_czy_folder()
+                if _co == "folder":
+                    result = win.create_file_dialog(D_FOLDER)
+                    path = result[0] if result else None
+                    _folder_wybrany = True
+                elif _co == "file":
+                    fdesc = BROWSE_FILTERS.get(control_id,
+                                               ("Wszystkie pliki", ("*.*",)))
+                    result = win.create_file_dialog(
+                        D_OPEN,
+                        file_types=(f"{fdesc[0]} ({';'.join(fdesc[1])})",),)
+                    path = result[0] if result else None
+                else:
+                    path = None
+            elif kind == "folder":
                 result = win.create_file_dialog(D_FOLDER)
                 path = result[0] if result else None
             elif kind == "save":
@@ -1244,7 +1331,8 @@ class WebBackend(
             path = None
         if path:
             # folder trafia do historii wprost; plik — jego katalog nadrzędny
-            self.add_to_history(str(path) if kind == "folder" else str(Path(path).parent))
+            self.add_to_history(str(path) if _folder_wybrany
+                                else str(Path(path).parent))
             controls = {c["id"]: c for t in self.schema["tabs"]
                         for c in t["controls"] if c.get("id")}
             c = controls.get(control_id)
@@ -2646,7 +2734,19 @@ class WebBackend(
                 d_folder = getattr(webview, "FOLDER_DIALOG", None)
                 d_open = getattr(webview, "OPEN_DIALOG", None)
                 d_save = getattr(webview, "SAVE_DIALOG", None)
-            if kind == "folder":
+            _folder_wybrany = (kind == "folder")
+            if kind == "both":
+                _co = self._zapytaj_plik_czy_folder()
+                if _co == "folder":
+                    res = win.create_file_dialog(d_folder)
+                    p = res[0] if res else None
+                    _folder_wybrany = True
+                elif _co == "file":
+                    res = win.create_file_dialog(d_open)
+                    p = res[0] if res else None
+                else:
+                    p = None
+            elif kind == "folder":
                 res = win.create_file_dialog(d_folder)
                 p = res[0] if res else None
             elif kind == "save":
@@ -2659,7 +2759,8 @@ class WebBackend(
             self.log(f"[BŁĄD] Wybór pliku: {e}")
             return None
         if p:
-            self.add_to_history(str(p) if kind == "folder" else str(Path(p).parent))
+            self.add_to_history(str(p) if _folder_wybrany
+                                else str(Path(p).parent))
         return p
 
     # ------------------------------------------------------- zamykanie

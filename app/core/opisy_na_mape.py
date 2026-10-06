@@ -32,9 +32,50 @@ import hashlib
 import re
 import unicodedata
 
-from app.core import mazovia as _maz
+MAP_ENCODING = "cp1250"
 
-MAP_ENCODING = "mazovia"   # kodowanie GEO-MAP (DOS, obsługuje polskie znaki)
+# ---------------------------------------------------------------- Mazowia (CP667)
+# GEO-MAP czyta i zapisuje mapy w kodowaniu MAZOWIA, nie CP1250.
+# Dlatego "Ł" musi byc bajtem 0x9C, a "ą" bajtem 0x86 (nie 0xA3/0xB9).
+# Tabela wg CP667 (potwierdzona na pliku uzytkownika: Ł->9C, ą->86).
+_MAZOWIA_ZNAK = {
+    0x86: "ą", 0x8D: "ć", 0x8F: "Ą", 0x90: "Ę", 0x91: "ę", 0x92: "ł",
+    0x95: "Ć", 0x98: "Ś", 0x9C: "Ł", 0x9E: "ś", 0xA0: "Ź", 0xA1: "Ż",
+    0xA2: "ó", 0xA3: "Ó", 0xA4: "ń", 0xA5: "Ń", 0xA6: "ź", 0xA7: "ż",
+}
+_MAZOWIA_BAJT = {v: k for k, v in _MAZOWIA_ZNAK.items()}
+
+# bajt -> znak: polskie litery po mazowiańsku, reszta jak CP1250
+_MAZ_NA_ZNAK = {
+    b: (_MAZOWIA_ZNAK[b] if b in _MAZOWIA_ZNAK
+        else bytes([b]).decode("cp1250", "surrogateescape"))
+    for b in range(256)
+}
+
+
+def maz_na_tekst(raw: bytes) -> str:
+    """Bajty pliku .MAP -> tekst (Mazowia + reszta CP1250)."""
+    return "".join(_MAZ_NA_ZNAK[b] for b in raw)
+
+
+def tekst_na_maz(tekst: str) -> bytes:
+    """Tekst -> bajty pliku .MAP w Mazowii (polskie litery mazowiańskie)."""
+    out = bytearray()
+    for ch in tekst:
+        b = _MAZOWIA_BAJT.get(ch)
+        if b is not None:
+            out.append(b)
+            continue
+        try:
+            out += ch.encode("cp1250")
+        except UnicodeEncodeError:
+            # znak z surrogateescape (bajt nieznany) -> oddaj ten sam bajt
+            o = ord(ch)
+            out.append(o - 0xDC00 if 0xDC80 <= o <= 0xDCFF else 0x3F)
+    return bytes(out)
+
+
+
 TYP_POLIGONU = "5310"
 
 # --- regexy ------------------------------------------------------------------
@@ -65,7 +106,7 @@ def wczytaj_mape(path):
     przy zapisie zamieniłyby się na „?” i suma kontrolna by się rozjechała.
     """
     raw = Path(path).read_bytes()
-    text = _maz.decode(raw)
+    text = maz_na_tekst(raw)
     return {"path": Path(path), "raw": raw, "lines": text.split("\r\n")}
 
 
@@ -130,7 +171,7 @@ def przelicz_naglowek(lines):
     Zwraca gotowe bajty pliku wynikowego (CP1250, CRLF).
     """
     body = "\r\n".join(lines[1:])
-    body_bytes = _maz.encode(body, errors="replace")
+    body_bytes = tekst_na_maz(body)
     n = body.count("\n") + 1
     chk = hashlib.md5(body_bytes).hexdigest()
     hdr = lines[0]
@@ -142,7 +183,7 @@ def przelicz_naglowek(lines):
     hdr = re.sub(r"N=\[(\s*\d+)\]", _n, hdr)
     hdr = re.sub(r"CHK=\[([0-9a-fA-F]+)\]", "CHK=[" + chk + "]", hdr)
     lines[0] = hdr
-    return _maz.encode("\r\n".join(lines), errors="replace")
+    return tekst_na_maz("\r\n".join(lines))
 
 
 def znajdz_poligony(lines, typ=TYP_POLIGONU):
