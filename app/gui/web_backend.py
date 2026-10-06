@@ -2137,10 +2137,13 @@ class WebBackend(
             podsum = dict(_Cnt(r["powod"] for r in rap))
             raw = onm.przelicz_naglowek(nowe)
             tekst = raw.decode("latin1", errors="replace")
+            _wew = po.get("wewnatrz", 0)
+            _wys = sum(1 for e in el if e.get("wysiegnik"))
             self.log("[EDYTOR] Ułożono %d opisów (przesunięto %d). "
-                     "Kontrola: na literze %d, opis na opis %d, przecięcia linii %d"
+                     "Kontrola: na literze %d, opis na opis %d, przecięcia linii %d. "
+                     "W środku wydzielenia: %d, z wysięgnikiem: %d"
                      % (len(el), zmiany, po.get("litery", 0),
-                        po.get("opis_opis", 0), po.get("linie", 0)))
+                        po.get("opis_opis", 0), po.get("linie", 0), _wew, _wys))
             return {"ok": True, "dane": tekst, "zmiany": zmiany,
                     "stat": po, "przed": przed, "powody": podsum,
                     "raport": rap}

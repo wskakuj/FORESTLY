@@ -381,6 +381,26 @@ function wSrodku(p, pts) {
 
 function prost(c, r) { return [c[0] - r[0] / 2, c[1] - r[1] / 2, c[0] + r[0] / 2, c[1] + r[1] / 2]; }
 
+/* Długość części odcinka a-b leżącej wewnątrz prostokąta (x0,y0,x1,y1).
+   Służy do wyboru końca kreski, z którego wysięgnik nie przecina opisu. */
+function dlugoscWProst(a, b, box) {
+  const dx = b[0] - a[0], dy = b[1] - a[1];
+  let t0 = 0, t1 = 1;
+  const osie = [[dx, box[0], box[2], a[0]], [dy, box[1], box[3], a[1]]];
+  for (const [d, lo, hi, wsp] of osie) {
+    if (Math.abs(d) < 1e-12) {
+      if (wsp < lo || wsp > hi) return 0;
+      continue;
+    }
+    let r0 = (lo - wsp) / d, r1 = (hi - wsp) / d;
+    if (r0 > r1) { const t = r0; r0 = r1; r1 = t; }
+    if (r0 > t0) t0 = r0;
+    if (r1 < t1) t1 = r1;
+    if (t0 > t1) return 0;
+  }
+  return Math.max(0, t1 - t0) * Math.hypot(dx, dy);
+}
+
 /* Czy CAŁY prostokąt leży w wydzieleniu? Sprawdzamy rogi, środki boków
    i środek — sam środek to za mało (opis mógł wystawać rogami). */
 function boxWSrodku(box, pts) {
@@ -1129,10 +1149,14 @@ document.getElementById("zapisz").onclick = () => {
         }
       }
       wys = [kon[0] - o.baza[0], kon[1] - o.baza[1]];
-      // Strona wysięgnika: wychodzi z tego KOŃCA kreski opisu, który leży
-      // BLIŻEJ litery (dzięki temu nie przecina tekstu opisu).
-      // W pliku GEO-MAP 133 = koniec od strony mniejszego X, 69 = większego X.
-      const flaga = (lit[0] <= poz[0]) ? 133 : 69;
+      // Strona wysięgnika: ten KONIEC kreski opisu, z którego odcinek do
+      // wysięgnika NIE przecina prostokąta opisu (mniejsze przecięcie =
+      // czytelniej). W pliku GEO-MAP 133 = koniec od strony mniejszego X,
+      // 69 = od strony większego X.
+      const _boxO = prost(poz, _roz);
+      const _dl1 = dlugoscWProst([_boxO[0], poz[1]], kon, _boxO);
+      const _dl2 = dlugoscWProst([_boxO[2], poz[1]], kon, _boxO);
+      const flaga = (_dl1 <= _dl2) ? 133 : 69;
       ustawOpis(p, o, o.liniaOpisu.dx, o.liniaOpisu.dy, obrot, wys, flaga);
     } else {
       ustawOpis(p, o, o.liniaOpisu.dx, o.liniaOpisu.dy, obrot, null);

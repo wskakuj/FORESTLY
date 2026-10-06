@@ -901,6 +901,30 @@ def _off_linii_litery(mapa, o):
     return (0.0, 0.0)
 
 
+def _dlugosc_odc_w_prost(a, b, prost):
+    """Długość części odcinka a-b leżącej wewnątrz prostokąta (x0,y0,x1,y1).
+
+    Służy do wyboru końca kreski opisu, z którego wysięgnik nie przecina
+    tekstu opisu."""
+    x0, y0, x1, y1 = prost
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    t0, t1 = 0.0, 1.0
+    # Liang-Barsky: t musi spełniać lo <= wsp + t*d <= hi dla każdej osi
+    for d, lo, hi, wsp in ((dx, x0, x1, a[0]), (dy, y0, y1, a[1])):
+        if abs(d) < 1e-12:
+            if wsp < lo or wsp > hi:
+                return 0.0
+            continue
+        r0, r1 = (lo - wsp) / d, (hi - wsp) / d
+        if r0 > r1:
+            r0, r1 = r1, r0
+        t0 = max(t0, r0)
+        t1 = min(t1, r1)
+        if t0 > t1:
+            return 0.0
+    return max(0.0, t1 - t0) * math.hypot(dx, dy)
+
+
 def ustaw_offsety(mapa, elementy, obrot_rad=0.0):
     """Wstawia policzone dx/dy ORAZ kąt do linii opisu w tekście mapy.
 
@@ -960,7 +984,16 @@ def ustaw_offsety(mapa, elementy, obrot_rad=0.0):
             # użytkownika): flaga 133 = koniec od strony MNIEJSZEGO X,
             # 69 = od strony WIĘKSZEGO X — czyli odwrotnie, niż wygląda
             # to na ekranie (podgląd GEO-MAP jest lustrzany w poziomie).
-            flaga = 133 if lpoz[0] <= opis_x else 69
+            # Wybór końca kreski: ten, z którego odcinek do końca wysięgnika
+            # NIE przecina prostokąta opisu (mniejsze przecięcie = czytelniej).
+            # Gdy oba przecinają tyle samo — koniec bliżej litery.
+            _box = _prost((e["srodek"][0] + dx, e["srodek"][1] + dy),
+                          e["rozmiar"])
+            _cy = (e["srodek"][1] + dy)
+            _l = _dlugosc_odc_w_prost((_box[0], _cy), kon, _box)
+            _p = _dlugosc_odc_w_prost((_box[2], _cy), kon, _box)
+            # 133 = koniec od strony MNIEJSZEGO X, 69 = WIĘKSZEGO X
+            flaga = 133 if _l <= _p else 69
             nowa = "%s %s %.3f %.3f %.7f 1.0000000 %d %.3f %.3f" % (
                 p[0] if p else "L", p[1] if len(p) > 1 else "3",
                 dx, dy, obrot_rad, flaga, wx, wy)
@@ -1055,9 +1088,19 @@ def ustaw_offsety(mapa, elementy, obrot_rad=0.0):
                 lit_x, lit_y = opis_x, opis_y
         else:
             lit_x, lit_y = opis_x, opis_y
-        # strona: koniec kreski bliżej litery. W pliku GEO-MAP 133 = strona
-        # mniejszego X, 69 = większego X (patrz komentarz w ustaw_offsety)
-        flaga = 133 if lit_x <= opis_x else 69
+        # strona: koniec kreski, z którego wysięgnik nie przecina opisu
+        # (133 = strona mniejszego X, 69 = większego X)
+        try:
+            _box = _prost((opis_x, opis_y), e["rozmiar"])
+            try:
+                _kon = (e["srodek"][0] + float(q[7]), e["srodek"][1] + float(q[8]))
+            except (ValueError, IndexError):
+                _kon = (lit_x, lit_y)
+            _l = _dlugosc_odc_w_prost((_box[0], opis_y), _kon, _box)
+            _p = _dlugosc_odc_w_prost((_box[2], opis_y), _kon, _box)
+            flaga = 133 if _l <= _p else 69
+        except Exception:
+            flaga = 133 if lit_x <= opis_x else 69
         nowa = "%s %s %s %s %s %s %d %s %s" % (
             q[0], q[1], q[2], q[3], q[4], q[5], flaga, q[7], q[8])
         if nowa != linie[i_op]:
