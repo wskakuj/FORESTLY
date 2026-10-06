@@ -939,6 +939,15 @@ def _roz_zapas(roz):
     return (roz[0] * MARGINES_TEKSTU, roz[1] * MARGINES_TEKSTU)
 
 
+STROMOSC_MAX = 0.6
+
+
+def _stroma(kon, opis_srodek, roz):
+    dx = abs(kon[0] - opis_srodek[0]); dy = abs(kon[1] - opis_srodek[1])
+    if dx < 1e-9: return True
+    return dy > STROMOSC_MAX * dx
+
+
 def _koniec_wys(lit_srodek, lit_roz, opis_srodek):
     """Punkt na ŚCIANCE prostokąta litery, od strony opisu (koniec wysięgnika)."""
     cx, cy = lit_srodek
@@ -1028,7 +1037,7 @@ def ustaw_offsety(mapa, elementy, obrot_rad=0.0):
             _l = _dlugosc_odc_w_prost((_box[0], _cy), kon, _box)
             _p = _dlugosc_odc_w_prost((_box[2], _cy), kon, _box)
             # 69 = koniec od strony MNIEJSZEGO X, 133 = WIĘKSZEGO X
-            flaga = 69 if _l < _p else 133
+            flaga = 133 if _l <= _p else 69
             nowa = "%s %s %.3f %.3f %.7f 1.0000000 %d %.3f %.3f" % (
                 p[0] if p else "L", p[1] if len(p) > 1 else "3",
                 dx, dy, obrot_rad, flaga, wx, wy)
@@ -1133,9 +1142,9 @@ def ustaw_offsety(mapa, elementy, obrot_rad=0.0):
                 _kon = (lit_x, lit_y)
             _l = _dlugosc_odc_w_prost((_box[0], opis_y), _kon, _box)
             _p = _dlugosc_odc_w_prost((_box[2], opis_y), _kon, _box)
-            flaga = 69 if _l < _p else 133
+            flaga = 133 if _l <= _p else 69
         except Exception:
-            flaga = 69 if lit_x <= opis_x else 133
+            flaga = 133 if lit_x <= opis_x else 69
         nowa = "%s %s %s %s %s %s %d %s %s" % (
             q[0], q[1], q[2], q[3], q[4], q[5], flaga, q[7], q[8])
         if nowa != linie[i_op]:
@@ -1643,8 +1652,10 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
                             kon_ = _koniec_wys(lit_c, li_info[2], opis_c)
                         else:
                             kon_ = _punkt_na_granicy(opis_c, base, pts)
-                        return min(_dlugosc_odc_w_prost((pbox_[0], opis_c[1]), kon_, pbox_),
-                                   _dlugosc_odc_w_prost((pbox_[2], opis_c[1]), kon_, pbox_))
+                        prz = min(_dlugosc_odc_w_prost((pbox_[0], opis_c[1]), kon_, pbox_),
+                                  _dlugosc_odc_w_prost((pbox_[2], opis_c[1]), kon_, pbox_))
+                        if _stroma(kon_, opis_c, roz): prz += 1000.0
+                        return prz
                     _kand_out.sort(key=lambda kk: (round(_przeciecie_wys(kk), 2), math.hypot(kk[0], kk[1])))
                     wybor = _kand_out[0]
             if wybor is None:
@@ -1739,8 +1750,10 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
                 opis_c = (base[0] + dx_, base[1] + dy_)
                 pbox = _prost(opis_c, _roz_zapas(roz))
                 kon_ = _koniec_wys(lit_c, roz_l, opis_c)
-                return min(_dlugosc_odc_w_prost((pbox[0], opis_c[1]), kon_, pbox),
-                           _dlugosc_odc_w_prost((pbox[2], opis_c[1]), kon_, pbox))
+                prz = min(_dlugosc_odc_w_prost((pbox[0], opis_c[1]), kon_, pbox),
+                          _dlugosc_odc_w_prost((pbox[2], opis_c[1]), kon_, pbox))
+                if _stroma(kon_, opis_c, roz): prz += 1000.0
+                return prz
 
             cur_dx, cur_dy = el["offset"]
             cur_prz = _przec(cur_dx, cur_dy)

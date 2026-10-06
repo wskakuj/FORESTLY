@@ -88,6 +88,7 @@
 <button id="uloz">Ułóż automatycznie (algorytm Forestly)</button>
                     <label class="zapas-lbl" title="Ile razy szerszy zakładać napis w GEO-MAP. Jeśli wysięgniki dalej tną opisy — zwiększ.">zapas szerokości tekstu <input id="zapas" type="number" min="1" max="3" step="0.05" value="2.0"></label>
                     <button id="zapisz" class="pri">Zapisz .MAP (ulozone)</button>
+                    <label class="zapas-lbl" title="Zaznacz, jeśli strona wysięgnika jest odwrotna niż powinna."><input id="odwroc" type="checkbox"> odwróć stronę wysięgnika</label>
     <h2>Legenda</h2>
     <div class="leg">
       <div><span style="background:#2ec36b"></span>opis w porządku</div>
@@ -1296,6 +1297,15 @@ if (_inp_zapas) {
   };
 }
 
+let ODWROC_STRONE = false;
+const _inp_odwroc = document.getElementById("odwroc");
+if (_inp_odwroc) {
+  _inp_odwroc.onchange = () => {
+    ODWROC_STRONE = !!_inp_odwroc.checked;
+    if (ST.parsed) { poprawWysiegniki(ST.parsed); ustawWysiegnikiFlagi(ST.parsed); przelicz(); rysuj(); }
+  };
+}
+
 function ustawWysiegnikiFlagi(p) {
   const obrot = katRad();
   for (const o of p.objs) {
@@ -1336,7 +1346,8 @@ function ustawWysiegnikiFlagi(p) {
       const _boxO = prost(poz, rozZapas(_roz));
       const _dl1 = dlugoscWProst([_boxO[0], poz[1]], kon, _boxO);
       const _dl2 = dlugoscWProst([_boxO[2], poz[1]], kon, _boxO);
-      const flaga = (_dl1 < _dl2) ? 69 : 133;
+      let flaga = (_dl1 <= _dl2) ? 133 : 69;
+      if (ODWROC_STRONE) flaga = (flaga === 133) ? 69 : 133;
       ustawOpis(p, o, o.liniaOpisu.dx, o.liniaOpisu.dy, obrot, wys, flaga);
     } else {
       ustawOpis(p, o, o.liniaOpisu.dx, o.liniaOpisu.dy, obrot, null);
