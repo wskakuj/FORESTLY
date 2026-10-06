@@ -380,23 +380,37 @@ function wSrodku(p, pts) {
 }
 
 function prost(c, r) { return [c[0] - r[0] / 2, c[1] - r[1] / 2, c[0] + r[0] / 2, c[1] + r[1] / 2]; }
+
+/* Czy CAŁY prostokąt leży w wydzieleniu? Sprawdzamy rogi, środki boków
+   i środek — sam środek to za mało (opis mógł wystawać rogami). */
+function boxWSrodku(box, pts) {
+  const x0 = box[0], y0 = box[1], x1 = box[2], y1 = box[3];
+  const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+  const probki = [[x0, y0], [x1, y0], [x1, y1], [x0, y1],
+                  [mx, y0], [mx, y1], [x0, my], [x1, my], [mx, my]];
+  for (const p of probki) if (!wSrodku(p, pts)) return false;
+  return true;
+}
 function nakladka(a, b) {
   const x = Math.min(a[2], b[2]) - Math.max(a[0], b[0]);
   const y = Math.min(a[3], b[3]) - Math.max(a[1], b[1]);
   return (x > 0 && y > 0) ? x * y : 0;
 }
 
-/* --- zapis nowej linii opisu do tablicy linii --- */
-function ustawOpis(parsed, o, dx, dy, kat, wys, strona) {
+/* --- zapis nowej linii opisu do tablicy linii ---
+   ``flaga`` to numer flagi wysięgnika (133 albo 69) — patrz eksport. */
+function ustawOpis(parsed, o, dx, dy, kat, wys, flaga) {
   const L = o.liniaOpisu; if (!L) return;
   const q = parsed.lines[L.li].split(/\s+/);
   const nr = q[1] || "3";
   let s;
   if (wys) {
-    // 133 = wysięgnik wychodzi z prawej strony opisu, 69 = z lewej
-    const flaga = (strona === "L") ? 69 : 133;
+    // W pliku GEO-MAP: 133 = koniec kreski od strony MNIEJSZEGO X,
+    // 69 = od strony WIĘKSZEGO X (podgląd GEO-MAP jest lustrzany w poziomie,
+    // więc na ekranie wygląda to odwrotnie).
+    const fl = (flaga === 69 || flaga === 133) ? flaga : 133;
     s = "L " + nr + " " + dx.toFixed(3) + " " + dy.toFixed(3) + " " + kat.toFixed(7)
-      + " 1.0000000 " + flaga + " " + wys[0].toFixed(3) + " " + wys[1].toFixed(3);
+      + " 1.0000000 " + fl + " " + wys[0].toFixed(3) + " " + wys[1].toFixed(3);
   } else {
     s = "L " + nr + " " + dx.toFixed(3) + " " + dy.toFixed(3) + " " + kat.toFixed(7) + " 1.0000000 5";
   }
@@ -1090,6 +1104,11 @@ document.getElementById("zapisz").onclick = () => {
     if (!o.baza) o.baza = bazaPunktu(o.pts);
     const poz = [o.baza[0] + o.liniaOpisu.dx, o.baza[1] + o.liniaOpisu.dy];
     let wys = null;
+    // Wysięgnik tylko wtedy, gdy CAŁY prostokąt opisu nie mieści się
+    // w wydzieleniu (nie sam środek — inaczej opis wystający rogami był
+    // uznawany za „w środku" i nie dostawał wysięgnika).
+    const _roz = rozmiarTekstu(o.tekst, ST.mm, ST.skala, obrot);
+    o.wysiegnik = !boxWSrodku(prost(poz, _roz), o.pts);
     if (o.wysiegnik) {
       const lit = o.liniaLitery ? [o.baza[0] + o.liniaLitery.dx, o.baza[1] + o.liniaLitery.dy]
                                 : punktNaGranicy(poz, o.baza, o.pts);
@@ -1110,11 +1129,11 @@ document.getElementById("zapisz").onclick = () => {
         }
       }
       wys = [kon[0] - o.baza[0], kon[1] - o.baza[1]];
-      // Strona wysięgnika liczona ZAWSZE z bieżącego położenia litery
-      // względem opisu: litera z lewej -> wysięgnik wychodzi z LEWEJ strony
-      // opisu (flaga 69), litera z prawej -> z PRAWEJ (flaga 133).
-      const strona = (lit[0] < poz[0]) ? "L" : "R";
-      ustawOpis(p, o, o.liniaOpisu.dx, o.liniaOpisu.dy, obrot, wys, strona);
+      // Strona wysięgnika: wychodzi z tego KOŃCA kreski opisu, który leży
+      // BLIŻEJ litery (dzięki temu nie przecina tekstu opisu).
+      // W pliku GEO-MAP 133 = koniec od strony mniejszego X, 69 = większego X.
+      const flaga = (lit[0] <= poz[0]) ? 133 : 69;
+      ustawOpis(p, o, o.liniaOpisu.dx, o.liniaOpisu.dy, obrot, wys, flaga);
     } else {
       ustawOpis(p, o, o.liniaOpisu.dx, o.liniaOpisu.dy, obrot, null);
     }

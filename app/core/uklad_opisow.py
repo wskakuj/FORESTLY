@@ -954,18 +954,25 @@ def ustaw_offsety(mapa, elementy, obrot_rad=0.0):
                 kon = _punkt_na_granicy((e["srodek"][0] + dx, e["srodek"][1] + dy),
                                         lpoz, e["pts"])
             wx, wy = kon[0] - e["srodek"][0], kon[1] - e["srodek"][1]
-            # STRONA WYSIĘGNIKA (potwierdzone u użytkownika):
-            #   133 = wysięgnik wychodzi z PRAWEJ strony opisu,
-            #    69 = z LEWEJ.
-            # Wysięgnik ma wychodzić z tej strony, z której leży litera —
-            # wtedy nie przecina tekstu opisu.
-            flaga = 133 if lpoz[0] >= opis_x else 69
+            # STRONA WYSIĘGNIKA. Wysięgnik ma wychodzić z tego KOŃCA kreski
+            # opisu, który leży BLIŻEJ litery — wtedy nie przecina tekstu.
+            # Uwaga na kodowanie w pliku GEO-MAP (potwierdzone na mapach
+            # użytkownika): flaga 133 = koniec od strony MNIEJSZEGO X,
+            # 69 = od strony WIĘKSZEGO X — czyli odwrotnie, niż wygląda
+            # to na ekranie (podgląd GEO-MAP jest lustrzany w poziomie).
+            flaga = 133 if lpoz[0] <= opis_x else 69
             nowa = "%s %s %.3f %.3f %.7f 1.0000000 %d %.3f %.3f" % (
                 p[0] if p else "L", p[1] if len(p) > 1 else "3",
                 dx, dy, obrot_rad, flaga, wx, wy)
         elif len(p) >= 6:
-            nowa = "%s %s %.3f %.3f %.7f %s" % (p[0], p[1], dx, dy,
-                                                obrot_rad, " ".join(p[5:]))
+            # Opis BEZ wysięgnika: piszemy linię bez ogona wysięgnika.
+            # UWAGA: nie wolno zachować starego ogona z pliku wejściowego
+            # (flaga 69/133 + koniec) — inaczej opis, który teraz mieści się
+            # w środku wydzielenia, dalej nosi w pliku flagę wysięgnika
+            # z poprzedniego układania i GEO-MAP rysuje niepotrzebny wysięgnik.
+            skala = p[5] if len(p) > 5 and p[5] else "1.0000000"
+            nowa = "%s %s %.3f %.3f %.7f %s 5" % (p[0], p[1], dx, dy,
+                                                  obrot_rad, skala)
         elif len(p) >= 4:
             nowa = "%s %s %.3f %.3f %.7f" % (p[0], p[1], dx, dy, obrot_rad)
         else:
@@ -1048,9 +1055,9 @@ def ustaw_offsety(mapa, elementy, obrot_rad=0.0):
                 lit_x, lit_y = opis_x, opis_y
         else:
             lit_x, lit_y = opis_x, opis_y
-        # strona: 133 = z prawej, 69 = z lewej — wybieramy stronę LITERY,
-        # a gdy litera jest dokładnie nad/pod opisem — stronę krótszą
-        flaga = 133 if lit_x >= opis_x else 69
+        # strona: koniec kreski bliżej litery. W pliku GEO-MAP 133 = strona
+        # mniejszego X, 69 = większego X (patrz komentarz w ustaw_offsety)
+        flaga = 133 if lit_x <= opis_x else 69
         nowa = "%s %s %s %s %s %s %d %s %s" % (
             q[0], q[1], q[2], q[3], q[4], q[5], flaga, q[7], q[8])
         if nowa != linie[i_op]:
@@ -1116,11 +1123,13 @@ def _linia_typu(mapa, o, typ):
     start = o.get("start")
     if start is None:
         return None
+    # UWAGA: o["linie"] to blok BEZ wiersza '*' (wszystkie_poligony robi
+    # blok = lines[i+1:j]), więc indeks w bloku to start + 1 + k.
     for k, l in enumerate(o.get("linie", [])):
         if l.startswith("L "):
             q = l.split()
             if len(q) >= 2 and q[1] == str(typ):
-                return start + k
+                return start + 1 + k
     return None
 
 
@@ -1449,65 +1458,74 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
             li_info = el.get("lit_info")
             wybor = None
             zn_lit = None
-            for (dx, dy) in _kand_opisu(el, krok_srodkowy)[:maks_kand]:
-                prost = _prost((base[0] + dx, base[1] + dy), roz)
-                if not _box_w_srodku(_rozszerz(prost, 1.0), pts):
-                    continue
-                if _przecina(prost):
-                    continue
-                zle = False
-                for j2, e2 in enumerate(elementy):
-                    if j2 != i and _nakladka(prost, e2["prost"]) > 0:
-                        zle = True
-                        break
-                if zle:
-                    continue
-                # opis nie może wchodzić na CUDZE litery (własna ustąpi sama)
-                _wlasna = el["lit_info"][0] if el.get("lit_info") else None
-                for jj in range(len(litery)):
-                    if jj != _wlasna and _nakladka(prost, litery[jj]) > 0:
-                        zle = True
-                        break
-                if zle:
-                    continue
-                # opis OK — teraz litera musi ustąpić
-                if li_info is None:
-                    wybor = (dx, dy, prost)
-                    zn_lit = None
-                    break
-                li, ol, roz_l = li_info
-                home = (base[0] + ol[0], base[1] + ol[1])
-                znal = None
-                for (lx, ly) in _kand_litery_prio(prost, roz_l, home, krok_litery):
-                    lb = _prost((lx, ly), roz_l)
-                    if not _box_w_srodku(_rozszerz(lb, margines_litery), pts):
+            # Zapas od granicy wydzielenia: najpierw z luzem (1 m),
+            # a gdy w wydzieleniu nie ma tyle miejsca — mniejszy
+            # (0,5 potem 0,25 m). Dzięki temu opis, który mieści się
+            # „na styk", zostaje W ŚRODKU, zamiast wychodzić na
+            # zewnątrz z wysięgnikiem.
+            for marg_wew in (1.0, 0.5, 0.25):
+                for (dx, dy) in _kand_opisu(el, krok_srodkowy)[:maks_kand]:
+                    prost = _prost((base[0] + dx, base[1] + dy), roz)
+                    if not _box_w_srodku(_rozszerz(prost, marg_wew), pts):
                         continue
-                    if _przecina(lb):
-                        continue
-                    if _nakladka(_rozszerz(prost, max(margines_litery, 2.5)), lb) > 0:
+                    if _przecina(prost):
                         continue
                     zle = False
                     for j2, e2 in enumerate(elementy):
-                        if j2 != i and _nakladka(e2["prost"], lb) > 0:
+                        if j2 != i and _nakladka(prost, e2["prost"]) > 0:
                             zle = True
                             break
                     if zle:
                         continue
+                    # opis nie może wchodzić na CUDZE litery (własna ustąpi sama)
+                    _wlasna = el["lit_info"][0] if el.get("lit_info") else None
                     for jj in range(len(litery)):
-                        if jj != li and _nakladka(litery[jj], lb) > 0:
+                        if jj != _wlasna and _nakladka(prost, litery[jj]) > 0:
                             zle = True
                             break
                     if zle:
                         continue
-                    znal = (lx, ly, lb)
+                    # opis OK — teraz litera musi ustąpić
+                    if li_info is None:
+                        wybor = (dx, dy, prost)
+                        zn_lit = None
+                        break
+                    li, ol, roz_l = li_info
+                    home = (base[0] + ol[0], base[1] + ol[1])
+                    znal = None
+                    for (lx, ly) in _kand_litery_prio(prost, roz_l, home, krok_litery):
+                        lb = _prost((lx, ly), roz_l)
+                        if not _box_w_srodku(_rozszerz(lb, margines_litery), pts):
+                            continue
+                        if _przecina(lb):
+                            continue
+                        if _nakladka(_rozszerz(prost, max(margines_litery, 2.5)), lb) > 0:
+                            continue
+                        zle = False
+                        for j2, e2 in enumerate(elementy):
+                            if j2 != i and _nakladka(e2["prost"], lb) > 0:
+                                zle = True
+                                break
+                        if zle:
+                            continue
+                        for jj in range(len(litery)):
+                            if jj != li and _nakladka(litery[jj], lb) > 0:
+                                zle = True
+                                break
+                        if zle:
+                            continue
+                        znal = (lx, ly, lb)
+                        break
+                    if znal is None:
+                        continue          # litera nie ma gdzie uciec — następny środek
+                    if math.hypot(dx, dy) > 45.0:
+                        continue          # nie oddalamy opisu daleko od środka
+                    wybor = (dx, dy, prost)
+                    zn_lit = (li, znal)
                     break
-                if znal is None:
-                    continue          # litera nie ma gdzie uciec — następny środek
-                if math.hypot(dx, dy) > 45.0:
-                    continue          # nie oddalamy opisu daleko od środka
-                wybor = (dx, dy, prost)
-                zn_lit = (li, znal)
-                break
+
+                if wybor is not None:
+                    break
             if wybor is None:
                 # Brak miejsca w środku — odsuwamy opis NA ZEWNĄTRZ, ale
                 # DALeko od granicy (żeby nie leżał na linii) i tak, by nie
