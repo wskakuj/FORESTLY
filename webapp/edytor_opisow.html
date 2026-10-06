@@ -287,9 +287,12 @@ function parseMap(u8) {
     o.liniaOpisu = o.Ls.filter(z => z.n === 3).slice(-1)[0] || null;
     o.liniaLitery = o.Ls.filter(z => z.n === 2).slice(-1)[0] || null;
     o.tekst = txt; o.litera = o.attrs["A1"] || ""; o.a6 = o.attrs["A6"] || "";
-    // WYSIĘGNIK: czytamy z pliku (flag=133 + dwie liczby = koniec wysięgnika).
-    // Bez tego mapa z wysięgnikami wyglądała w edytorze jak bez nich.
-    o.wysiegnik = !!(o.liniaOpisu && o.liniaOpisu.flag === 133);
+    // WYSIĘGNIK: czytamy z pliku. Flaga 133 = wysięgnik wychodzi z PRAWEJ
+    // strony opisu, 69 = z LEWEJ — OBIE oznaczają „jest wysięgnik".
+    // (Wcześniej rozpoznawana była tylko 133, więc wysięgniki „z lewej"
+    // ginęły przy wczytaniu i przy zapisie mapy.)
+    o.wysiegnik = !!(o.liniaOpisu
+                     && (o.liniaOpisu.flag === 133 || o.liniaOpisu.flag === 69));
     const qw = o.liniaOpisu ? (o.liniaOpisu.raw || "").split(/\s+/) : [];
     o.wysDane = (o.wysiegnik && qw.length >= 9)
         ? [parseFloat(qw[7]), parseFloat(qw[8])] : null;
@@ -583,14 +586,29 @@ function przelicz() {
       o.wysEnd = [o.baza[0] + o.wysDane[0], o.baza[1] + o.wysDane[1]];
       o.wysStr = (o.wysEnd[0] < o.poz[0]) ? "L" : "R";
     } else if (o.wysiegnik) {
-      // koniec wysięgnika: środek LITERY (dociągnięty do niej), a gdy jej nie ma
-      // — najbliższy punkt na obrysie wydzielenia
-      const lit = o.liniaLitery ? [o.centroid[0] + o.liniaLitery.dx, o.centroid[1] + o.liniaLitery.dy] : null;
-      o.wysEnd = lit || punktNaGranicy(o.poz, o.centroid, o.pts);
-      if (!o.wysStr) {
-        // start z tej krawędzi opisu, która jest zwrócona do litery
-        o.wysStr = (o.wysEnd[0] < o.poz[0]) ? "L" : "R";
+      // koniec wysięgnika: ŚCIANKA boxa litery od strony opisu (dociągnięty do
+      // litery), a gdy jej nie ma — najbliższy punkt na obrysie wydzielenia
+      const lit = o.liniaLitery ? [o.baza[0] + o.liniaLitery.dx, o.baza[1] + o.liniaLitery.dy] : null;
+      if (lit) {
+        const lroz = rozmiarTekstu(o.litera, ST.mm, ST.skala, obrot);
+        let kon = lit;
+        if (lroz && lroz[0] > 0) {
+          const hx = lroz[0] / 2, hy = lroz[1] / 2;
+          const ddx = o.poz[0] - lit[0], ddy = o.poz[1] - lit[1];
+          if (Math.abs(ddx) < 1e-9) kon = [lit[0], lit[1] + (ddy >= 0 ? hy : -hy)];
+          else if (Math.abs(ddy) < 1e-9) kon = [lit[0] + (ddx >= 0 ? hx : -hx), lit[1]];
+          else {
+            const tx = hx / Math.abs(ddx), ty = hy / Math.abs(ddy);
+            if (tx <= ty) kon = [lit[0] + (ddx > 0 ? hx : -hx), lit[1] + ddy * tx];
+            else kon = [lit[0] + ddx * ty, lit[1] + (ddy > 0 ? hy : -hy)];
+          }
+        }
+        o.wysEnd = kon;
+      } else {
+        o.wysEnd = punktNaGranicy(o.poz, o.baza, o.pts);
       }
+      // start z tej krawędzi opisu, która jest zwrócona do litery
+      o.wysStr = (o.wysEnd[0] < o.poz[0]) ? "L" : "R";
       // punkt startu na krawędzi prostokąta opisu (z wybranej strony)
       const sx = (o.wysStr === "L") ? o.box[0] : o.box[2];
       o.wysStart = [sx, o.poz[1]];
@@ -1075,13 +1093,31 @@ document.getElementById("zapisz").onclick = () => {
     if (o.wysiegnik) {
       const lit = o.liniaLitery ? [o.baza[0] + o.liniaLitery.dx, o.baza[1] + o.liniaLitery.dy]
                                 : punktNaGranicy(poz, o.baza, o.pts);
-      wys = [lit[0] - o.baza[0], lit[1] - o.baza[1]];
-      var strona = o.wysStr || ((lit[0] < poz[0]) ? "L" : "R");
+      // Koniec wysięgnika: ŚCIANKA boxa litery od strony opisu (nie środek
+      // litery) — tak samo liczy to algorytm Forestly. Bez tego zapis z
+      // edytora cofał wysięgnik do środka litery.
+      let kon = lit;
+      const lroz = o.liniaLitery ? rozmiarTekstu(o.litera, ST.mm, ST.skala, obrot) : null;
+      if (lroz && lroz[0] > 0) {
+        const cx = lit[0], cy = lit[1], hx = lroz[0] / 2, hy = lroz[1] / 2;
+        const ddx = poz[0] - cx, ddy = poz[1] - cy;
+        if (Math.abs(ddx) < 1e-9) kon = [cx, cy + (ddy >= 0 ? hy : -hy)];
+        else if (Math.abs(ddy) < 1e-9) kon = [cx + (ddx >= 0 ? hx : -hx), cy];
+        else {
+          const tx = hx / Math.abs(ddx), ty = hy / Math.abs(ddy);
+          if (tx <= ty) kon = [cx + (ddx > 0 ? hx : -hx), cy + ddy * tx];
+          else kon = [cx + ddx * ty, cy + (ddy > 0 ? hy : -hy)];
+        }
+      }
+      wys = [kon[0] - o.baza[0], kon[1] - o.baza[1]];
+      // Strona wysięgnika liczona ZAWSZE z bieżącego położenia litery
+      // względem opisu: litera z lewej -> wysięgnik wychodzi z LEWEJ strony
+      // opisu (flaga 69), litera z prawej -> z PRAWEJ (flaga 133).
+      const strona = (lit[0] < poz[0]) ? "L" : "R";
       ustawOpis(p, o, o.liniaOpisu.dx, o.liniaOpisu.dy, obrot, wys, strona);
     } else {
       ustawOpis(p, o, o.liniaOpisu.dx, o.liniaOpisu.dy, obrot, null);
     }
-    ustawOpis(p, o, o.liniaOpisu.dx, o.liniaOpisu.dy, obrot, wys);
     if (o.liniaLitery) ustawLinie(p, o.liniaLitery, o.liniaLitery.dx, o.liniaLitery.dy);
   }
   const out = zbudujPlik(p);
