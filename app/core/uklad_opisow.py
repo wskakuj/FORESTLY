@@ -1067,7 +1067,7 @@ def ustaw_offsety(mapa, elementy, obrot_rad=0.0):
             if l.startswith(":A2["):
                 i = start + k
                 if 0 <= i < len(linie):
-                    nowy = ":A2[" + _bez_ogonkow(l[4:-1]) + "]"
+                    nowy = ":A2[" + l[4:-1] + "]"
                     if nowy != linie[i]:
                         linie[i] = nowy
                         zmiany += 1
@@ -1081,7 +1081,7 @@ def ustaw_offsety(mapa, elementy, obrot_rad=0.0):
             if l.startswith(":A2["):
                 i = start + k
                 if 0 <= i < len(linie):
-                    nowy = ":A2[" + _bez_ogonkow(l[4:-1]) + "]"
+                    nowy = ":A2[" + l[4:-1] + "]"
                     if nowy != linie[i]:
                         linie[i] = nowy; zmiany += 1
                 break

@@ -2138,6 +2138,16 @@ class WebBackend(
             raw = onm.przelicz_naglowek(nowe)
             tekst = raw.decode("latin1", errors="replace")
             _wew = po.get("wewnatrz", 0)
+            # DIAGNOSTYKA: jaki kod i parametry liczą ułożenie
+            try:
+                import hashlib as _hl
+                _md5 = _hl.md5(Path(uk.__file__).read_bytes()).hexdigest()[:8]
+                from app.core import opisy_na_mape as _onm
+                _md5b = _hl.md5(Path(_onm.__file__).read_bytes()).hexdigest()[:8]
+            except Exception:
+                _md5 = _md5b = "?"
+            self.log("[EDYTOR] algorytm: %s  czytnik: %s  (mm=%s, skala=%s, p3=%s)"
+                     % (_md5, _md5b, mm, skala, p3))
             _wys = sum(1 for e in el if e.get("wysiegnik"))
             self.log("[EDYTOR] Ułożono %d opisów (przesunięto %d). "
                      "Kontrola: na literze %d, opis na opis %d, przecięcia linii %d. "

@@ -32,7 +32,9 @@ import hashlib
 import re
 import unicodedata
 
-MAP_ENCODING = "cp1250"
+from app.core import mazovia as _maz
+
+MAP_ENCODING = "mazovia"   # kodowanie GEO-MAP (DOS, obsługuje polskie znaki)
 TYP_POLIGONU = "5310"
 
 # --- regexy ------------------------------------------------------------------
@@ -63,7 +65,7 @@ def wczytaj_mape(path):
     przy zapisie zamieniłyby się na „?” i suma kontrolna by się rozjechała.
     """
     raw = Path(path).read_bytes()
-    text = raw.decode(MAP_ENCODING, errors="surrogateescape")
+    text = _maz.decode(raw)
     return {"path": Path(path), "raw": raw, "lines": text.split("\r\n")}
 
 
@@ -128,7 +130,7 @@ def przelicz_naglowek(lines):
     Zwraca gotowe bajty pliku wynikowego (CP1250, CRLF).
     """
     body = "\r\n".join(lines[1:])
-    body_bytes = body.encode(MAP_ENCODING, errors="surrogateescape")
+    body_bytes = _maz.encode(body, errors="replace")
     n = body.count("\n") + 1
     chk = hashlib.md5(body_bytes).hexdigest()
     hdr = lines[0]
@@ -140,7 +142,7 @@ def przelicz_naglowek(lines):
     hdr = re.sub(r"N=\[(\s*\d+)\]", _n, hdr)
     hdr = re.sub(r"CHK=\[([0-9a-fA-F]+)\]", "CHK=[" + chk + "]", hdr)
     lines[0] = hdr
-    return ("\r\n".join(lines)).encode(MAP_ENCODING, errors="surrogateescape")
+    return _maz.encode("\r\n".join(lines), errors="replace")
 
 
 def znajdz_poligony(lines, typ=TYP_POLIGONU):
@@ -480,7 +482,7 @@ def wpisz_do_mapy(mapa, wiersze, a2=True, a5=True, a1=True, a4=True,
         o = w["o"]
         if a5 and w["noweA5"] and w["noweA5"] != (o.get("A5") or "").strip():
             k5 = blok_koniec(lines, start)
-            ustaw_atrybut(lines, start, k5, "A5", bez_ogonkow(w["noweA5"]))
+            ustaw_atrybut(lines, start, k5, "A5", w["noweA5"])
             zmienione += 1
         if a4 and w.get("noweA4") and w["noweA4"] != (o.get("A4") or "").strip():
             k4 = blok_koniec(lines, start)
@@ -488,7 +490,7 @@ def wpisz_do_mapy(mapa, wiersze, a2=True, a5=True, a1=True, a4=True,
             zmienione += 1
         if a2 and w["noweA2"] and w["noweA2"] != (o.get("A2") or "").strip():
             k2 = blok_koniec(lines, start)
-            ustaw_atrybut(lines, start, k2, "A2", bez_ogonkow(w["noweA2"]))
+            ustaw_atrybut(lines, start, k2, "A2", w["noweA2"])
             zmienione += 1
         if a1:
             a6 = (o.get("A6") or "").strip()
@@ -496,7 +498,7 @@ def wpisz_do_mapy(mapa, wiersze, a2=True, a5=True, a1=True, a4=True,
                 lit = litera_z_oznaczenia(a6)
                 if (o.get("A1") or "").strip() != lit:
                     k1 = blok_koniec(lines, start)
-                    ustaw_atrybut(lines, start, k1, "A1", bez_ogonkow(lit), zaraz_po="ID")
+                    ustaw_atrybut(lines, start, k1, "A1", lit, zaraz_po="ID")
                     zmienione += 1
     if obrot_srodek is not None:
         # wyśrodkuj i obróć opisy (tryb „na razie") zaraz po wpisaniu
