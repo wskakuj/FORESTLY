@@ -1178,6 +1178,14 @@ function rozZapas(roz) {
   return [roz[0] * MARGINES_TEKSTU, roz[1] * MARGINES_TEKSTU];
 }
 
+const STROMOSC_MAX = 0.5;
+function stroma(kon, opisSrodek) {
+  const dx = Math.abs(kon[0] - opisSrodek[0]);
+  const dy = Math.abs(kon[1] - opisSrodek[1]);
+  if (dx < 1e-9) return true;
+  return dy > STROMOSC_MAX * dx;
+}
+
 function koniecWys(lit, lroz, poz) {
   if (!lit) return null;
   if (!lroz || lroz[0] <= 0) return lit;
@@ -1215,8 +1223,24 @@ function poprawWysiegniki(p) {
       const przec = (dx, dy) => {
         const poz = [o.baza[0] + dx, o.baza[1] + dy];
         const box = prost(poz, rozZapas(roz));
-        return Math.min(dlugoscWProst([box[0], poz[1]], kon(poz), box),
-                        dlugoscWProst([box[2], poz[1]], kon(poz), box));
+        const k = kon(poz);
+        const d1 = dlugoscWProst([box[0], poz[1]], k, box);
+        const d2 = dlugoscWProst([box[2], poz[1]], k, box);
+        let kara = Math.min(d1, d2);
+        const start = (d1 < d2) ? [box[0], poz[1]] : [box[2], poz[1]];
+        if (stroma(k, poz)) kara += 1000;
+        /* cudzy opis sprawdzamy tylko gdy własny jest już czysty */
+        if (kara < 0.3) {
+          const x0 = Math.min(start[0], k[0]), x1 = Math.max(start[0], k[0]);
+          const y0 = Math.min(start[1], k[1]), y1 = Math.max(start[1], k[1]);
+          for (const b of p.objs) {
+            if (b === o || !b.box) continue;
+            const bb = b.box;
+            if (bb[2] < x0 - 1 || bb[0] > x1 + 1 || bb[3] < y0 - 1 || bb[1] > y1 + 1) continue;
+            if (dlugoscWProst(start, k, bb) > 1.0) { kara += 1000; break; }
+          }
+        }
+        return kara;
       };
       const cur = przec(o.liniaOpisu.dx, o.liniaOpisu.dy);
       if (cur <= 0.3) continue;

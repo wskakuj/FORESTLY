@@ -939,7 +939,7 @@ def _roz_zapas(roz):
     return (roz[0] * MARGINES_TEKSTU, roz[1] * MARGINES_TEKSTU)
 
 
-STROMOSC_MAX = 0.6
+STROMOSC_MAX = 0.5
 
 
 def _stroma(kon, opis_srodek, roz):
@@ -1753,6 +1753,22 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
                 prz = min(_dlugosc_odc_w_prost((pbox[0], opis_c[1]), kon_, pbox),
                           _dlugosc_odc_w_prost((pbox[2], opis_c[1]), kon_, pbox))
                 if _stroma(kon_, opis_c, roz): prz += 1000.0
+                # WYSIĘGNIK NIE MOŻE PRZECINAĆ ŻADNEGO OPISU (także cudzego)
+                if prz < 0.3:
+                    l_ = _dlugosc_odc_w_prost((pbox[0], opis_c[1]), kon_, pbox)
+                    p_ = _dlugosc_odc_w_prost((pbox[2], opis_c[1]), kon_, pbox)
+                    st_ = (pbox[0] if l_ < p_ else pbox[2], opis_c[1])
+                    x0 = min(st_[0], kon_[0]); x1 = max(st_[0], kon_[0])
+                    y0 = min(st_[1], kon_[1]); y1 = max(st_[1], kon_[1])
+                    for e2 in elementy:
+                        if e2 is el:
+                            continue
+                        b2 = e2["prost"]
+                        if b2[2] < x0 - 1 or b2[0] > x1 + 1 or b2[3] < y0 - 1 or b2[1] > y1 + 1:
+                            continue
+                        if _dlugosc_odc_w_prost(st_, kon_, b2) > 1.0:
+                            prz += 1000.0
+                            break
                 return prz
 
             cur_dx, cur_dy = el["offset"]
