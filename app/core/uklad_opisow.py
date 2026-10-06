@@ -925,6 +925,20 @@ def _dlugosc_odc_w_prost(a, b, prost):
     return max(0.0, t1 - t0) * math.hypot(dx, dy)
 
 
+# Zapas na szerokość tekstu: GEO-MAP rysuje napis nieco szerzej, niż wynika
+# to z naszego modelu (czcionka/odstępy). Dlatego przy sprawdzaniu, czy
+# wysięgnik przecina opis, liczymy prostokąt z zapasem — wybieramy wtedy
+# bezpieczniejszy koniec kreski i bezpieczniejsze miejsce opisu.
+MARGINES_TEKSTU = 1.18
+
+
+def _roz_zapas(roz):
+    """Rozmiar opisu powiększony o zapas na szerokość tekstu GEO-MAP."""
+    if not roz or roz[0] <= 0:
+        return roz
+    return (roz[0] * MARGINES_TEKSTU, roz[1] * MARGINES_TEKSTU)
+
+
 def _koniec_wys(lit_srodek, lit_roz, opis_srodek):
     """Punkt na ŚCIANCE prostokąta litery, od strony opisu (koniec wysięgnika)."""
     cx, cy = lit_srodek
@@ -1009,7 +1023,7 @@ def ustaw_offsety(mapa, elementy, obrot_rad=0.0):
             # NIE przecina prostokąta opisu (mniejsze przecięcie = czytelniej).
             # Gdy oba przecinają tyle samo — koniec bliżej litery.
             _box = _prost((e["srodek"][0] + dx, e["srodek"][1] + dy),
-                          e["rozmiar"])
+                          _roz_zapas(e["rozmiar"]))
             _cy = (e["srodek"][1] + dy)
             _l = _dlugosc_odc_w_prost((_box[0], _cy), kon, _box)
             _p = _dlugosc_odc_w_prost((_box[2], _cy), kon, _box)
@@ -1112,7 +1126,7 @@ def ustaw_offsety(mapa, elementy, obrot_rad=0.0):
         # strona: koniec kreski, z którego wysięgnik nie przecina opisu
         # (133 = strona mniejszego X, 69 = większego X)
         try:
-            _box = _prost((opis_x, opis_y), e["rozmiar"])
+            _box = _prost((opis_x, opis_y), _roz_zapas(e["rozmiar"]))
             try:
                 _kon = (e["srodek"][0] + float(q[7]), e["srodek"][1] + float(q[8]))
             except (ValueError, IndexError):
@@ -1620,8 +1634,10 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
                 # wybierz kandydata, przy którym WYSIĘGNIK NIE PRZECINA opisu
                 if _kand_out:
                     def _przeciecie_wys(kand):
-                        dxx_, dyy_, pbox_ = kand
+                        dxx_, dyy_, _pb = kand
                         opis_c = (base[0] + dxx_, base[1] + dyy_)
+                        # ocena z zapasem na szerokość tekstu (patrz MARGINES_TEKSTU)
+                        pbox_ = _prost(opis_c, _roz_zapas(roz))
                         if li_info is not None and li_info[2][0] > 0:
                             lit_c = (base[0] + li_info[1][0], base[1] + li_info[1][1])
                             kon_ = _koniec_wys(lit_c, li_info[2], opis_c)
@@ -1721,7 +1737,7 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
 
             def _przec(dx_, dy_):
                 opis_c = (base[0] + dx_, base[1] + dy_)
-                pbox = _prost(opis_c, roz)
+                pbox = _prost(opis_c, _roz_zapas(roz))
                 kon_ = _koniec_wys(lit_c, roz_l, opis_c)
                 return min(_dlugosc_odc_w_prost((pbox[0], opis_c[1]), kon_, pbox),
                            _dlugosc_odc_w_prost((pbox[2], opis_c[1]), kon_, pbox))

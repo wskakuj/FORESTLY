@@ -105,17 +105,38 @@ def zapisz(slownik):
 def zastosuj(wartosc, slownik=None):
     """Zamienia opis wg słownika, zachowując część z powierzchnią.
 
-    Jeśli słownik nie zawiera klucza — zwraca wartość bez zmian.
+    Działa w DWÓCH przypadkach (tak, jak oczekuje użytkownik):
+      1) cała część opisowa równa się kluczowi —
+         "Rola i droga polna|0.20"  ->  "Rola i dr. pol.|0.20"
+      2) klucz WYSTĘPUJE wewnątrz dłuższego opisu —
+         "Rola i droga polna, wydz. leśne|0.55"
+             ->  "Rola i dr. pol., wydz. leśne|0.55"
+
+    Powierzchnia (po ostatnim „|") zostaje bez zmian, więc jedna zapamiętana
+    zamiana działa dla wszystkich powierzchni i wszystkich liter wydzieleń.
     """
     if slownik is None:
         slownik = wczytaj()
     if not slownik:
         return wartosc
     opis, pow_ = _podziel(wartosc)
+
+    # 1) dokładne trafienie w całą część opisową
     if opis in slownik:
         nowy = slownik[opis]
         return ("%s|%s" % (nowy, pow_)) if pow_ else nowy
-    return wartosc
+
+    # 2) klucz występuje w opisie — zamieniamy samo wystąpienie.
+    #    Klucze od najdłuższego, żeby krótszy nie psuł dłuższego.
+    wynik = opis
+    zmieniono = False
+    for k in sorted(slownik, key=len, reverse=True):
+        if k and k in wynik:
+            wynik = wynik.replace(k, slownik[k])
+            zmieniono = True
+    if not zmieniono:
+        return wartosc
+    return ("%s|%s" % (wynik, pow_)) if pow_ else wynik
 
 
 def zapamietaj(pary, slownik=None):

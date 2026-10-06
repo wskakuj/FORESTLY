@@ -35,7 +35,22 @@
               margin-right: 6px; vertical-align: -2px; }
   .leg div { margin: 7px 0; font-size: 13.5px; color: #9aa7b6; }
   .uwaga { font-size: 13px; color: #93a2b4; margin-top: 10px; line-height: 1.45; }
+  /* --- wskaźnik pracy (długie zadania: układanie) --- */
+  #busy { position: fixed; inset: 0; background: rgba(8, 12, 18, .62);
+          display: none; align-items: center; justify-content: center;
+          flex-direction: column; gap: 14px; z-index: 9999; }
+  #busy.on { display: flex; }
+  #busy .spin { width: 44px; height: 44px; border-radius: 50%;
+                border: 4px solid #2a3646; border-top-color: #2ec36b;
+                animation: bspin .9s linear infinite; }
+  @keyframes bspin { to { transform: rotate(360deg); } }
+  #busy .btxt { color: #e8eef7; font-size: 14.5px; text-align: center;
+                max-width: 420px; line-height: 1.5; }
+  #busy .bczas { color: #93a2b4; font-size: 13px; }
 </style></head><body>
+<div id="busy"><div class="spin"></div>
+  <div class="btxt" id="busy-txt">Pracuję…</div>
+  <div class="bczas" id="busy-czas"></div></div>
 <header>
   <h1>Edytor opisów GEO-MAP</h1>
   <div id="drop">Przeciągnij plik <b>.MAP</b> tutaj</div>
@@ -1036,9 +1051,38 @@ const _b_srodek = document.getElementById("srodek"); if (_b_srodek) _b_srodek.on
    Najpierw pytamy BACKEND (Python) — to ten sam, sprawdzony algorytm co
    „Ułóż opisy automatycznie" w zakładce Forestly. Własny rozkład w JS jest
    tylko awaryjnym zapasem, gdy edytor działa bez Forestly (sam plik HTML). */
+/* --- wskaźnik pracy: pokazuje się natychmiast po kliknięciu, więc widać,
+   że program liczy (układanie opisów trwa i wcześniej nic się nie działo). --- */
+let _busyT0 = 0, _busyTimer = null;
+function pokazBusy(tekst) {
+  const b = document.getElementById("busy");
+  if (!b) return;
+  document.getElementById("busy-txt").textContent = tekst || "Pracuję…";
+  document.getElementById("busy-czas").textContent = "";
+  b.classList.add("on");
+  _busyT0 = Date.now();
+  if (_busyTimer) clearInterval(_busyTimer);
+  _busyTimer = setInterval(() => {
+    const s = Math.round((Date.now() - _busyT0) / 1000);
+    document.getElementById("busy-czas").textContent =
+      (s < 60) ? (s + " s") : (Math.floor(s / 60) + " min " + (s % 60) + " s");
+  }, 500);
+}
+function ukryjBusy() {
+  const b = document.getElementById("busy");
+  if (b) b.classList.remove("on");
+  if (_busyTimer) { clearInterval(_busyTimer); _busyTimer = null; }
+}
+
 const _b_uloz = document.getElementById("uloz"); if (_b_uloz) _b_uloz.onclick = async () => {
   const p = ST.parsed; if (!p) return;
-  const a0 = api();
+  pokazBusy("Układanie opisów — algorytm Forestly. To może potrwać kilkanaście sekund…");
+  try {
+    await ulozAkcja(p);
+  } catch (e) { alert("Nie udało się ułożyć: " + (e && e.message ? e.message : e)); }
+  finally { ukryjBusy(); }
+};
+async function ulozAkcja(p) {  const a0 = api();
   if (a0 && a0.edytor_uloz) {
     try {
       const out = zbudujPlik(p);
@@ -1110,10 +1154,19 @@ const _b_uloz = document.getElementById("uloz"); if (_b_uloz) _b_uloz.onclick = 
     przelicz();
   }
   rysuj();
-};
+}
 
 /* --- eksport .MAP --- */
 /* --- koniec wysięgnika na ŚCIANCE prostokąta litery (jak liczy Forestly) --- */
+/* Zapas na szerokość tekstu: GEO-MAP rysuje napis nieco szerzej, niż wynika
+   to z naszego modelu — przy sprawdzaniu przecięć liczymy prostokąt z zapasem,
+   żeby wybrać bezpieczniejszy koniec kreski i bezpieczniejsze miejsce opisu. */
+const MARGINES_TEKSTU = 1.18;
+function rozZapas(roz) {
+  if (!roz || roz[0] <= 0) return roz;
+  return [roz[0] * MARGINES_TEKSTU, roz[1] * MARGINES_TEKSTU];
+}
+
 function koniecWys(lit, lroz, poz) {
   if (!lit) return null;
   if (!lroz || lroz[0] <= 0) return lit;
@@ -1150,7 +1203,7 @@ function poprawWysiegniki(p) {
       const kon = (poz) => lit ? koniecWys(lit, lroz, poz) : punktNaGranicy(poz, o.baza, o.pts);
       const przec = (dx, dy) => {
         const poz = [o.baza[0] + dx, o.baza[1] + dy];
-        const box = prost(poz, roz);
+        const box = prost(poz, rozZapas(roz));
         return Math.min(dlugoscWProst([box[0], poz[1]], kon(poz), box),
                         dlugoscWProst([box[2], poz[1]], kon(poz), box));
       };
@@ -1211,7 +1264,13 @@ function poprawWysiegniki(p) {
 
 document.getElementById("zapisz").onclick = () => {
   const p = ST.parsed; if (!p) return;
-  const obrot = katRad();
+  pokazBusy("Zapisuję mapę…");
+  // chwila zwłoki, żeby przeglądarka zdążyła pokazać wskaźnik
+  setTimeout(() => {
+    try { zapiszAkcja(p); } finally { ukryjBusy(); }
+  }, 40);
+};
+function zapiszAkcja(p) {  const obrot = katRad();
   for (let i = p.objs.length - 1; i >= 0; i--) { posprzatajDuplikaty(p, p.objs[i]); }
   // wysięgnik nie może przechodzić przez własny opis — w razie potrzeby
   // przesuwamy sam opis (inaczej przy opisie nad/pod literą zawsze tnie)
@@ -1251,7 +1310,7 @@ document.getElementById("zapisz").onclick = () => {
       // wysięgnika NIE przecina prostokąta opisu (mniejsze przecięcie =
       // czytelniej). W pliku GEO-MAP 133 = koniec od strony WIĘKSZEGO X,
       // 69 = od strony MNIEJSZEGO X.
-      const _boxO = prost(poz, _roz);
+      const _boxO = prost(poz, rozZapas(_roz));
       const _dl1 = dlugoscWProst([_boxO[0], poz[1]], kon, _boxO);
       const _dl2 = dlugoscWProst([_boxO[2], poz[1]], kon, _boxO);
       const flaga = (_dl1 < _dl2) ? 69 : 133;
@@ -1278,7 +1337,7 @@ document.getElementById("zapisz").onclick = () => {
   link.download = nazwaOut;
   link.click();
   setTimeout(() => URL.revokeObjectURL(link.href), 4000);
-};
+}
 
 window.addEventListener("resize", () => {
   cv.width = cv.clientWidth; cv.height = cv.clientHeight; rysuj();
