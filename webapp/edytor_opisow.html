@@ -287,8 +287,8 @@ function parseMap(u8) {
     o.liniaOpisu = o.Ls.filter(z => z.n === 3).slice(-1)[0] || null;
     o.liniaLitery = o.Ls.filter(z => z.n === 2).slice(-1)[0] || null;
     o.tekst = txt; o.litera = o.attrs["A1"] || ""; o.a6 = o.attrs["A6"] || "";
-    // WYSIĘGNIK: czytamy z pliku. Flaga 133 / 69 wybiera koniec kreski, z
-    // którego wychodzi wysięgnik — OBIE oznaczają „jest wysięgnik".
+    // WYSIĘGNIK: czytamy z pliku. Flaga 133 = wysięgnik wychodzi z PRAWEJ
+    // strony opisu, 69 = z LEWEJ — OBIE oznaczają „jest wysięgnik".
     // (Wcześniej rozpoznawana była tylko 133, więc wysięgniki „z lewej"
     // ginęły przy wczytaniu i przy zapisie mapy.)
     o.wysiegnik = !!(o.liniaOpisu
@@ -426,7 +426,7 @@ function ustawOpis(parsed, o, dx, dy, kat, wys, flaga) {
   let s;
   if (wys) {
     // W pliku GEO-MAP: 133 = koniec kreski od strony WIĘKSZEGO X,
-    // 69 = od strony MNIEJSZEGO X (potwierdzone na zrzutach ekranu).
+    // 69 = od strony MNIEJSZEGO X (potwierdzone zrzutami ekranu).
     const fl = (flaga === 69 || flaga === 133) ? flaga : 133;
     s = "L " + nr + " " + dx.toFixed(3) + " " + dy.toFixed(3) + " " + kat.toFixed(7)
       + " 1.0000000 " + fl + " " + wys[0].toFixed(3) + " " + wys[1].toFixed(3);
@@ -1113,10 +1113,109 @@ const _b_uloz = document.getElementById("uloz"); if (_b_uloz) _b_uloz.onclick = 
 };
 
 /* --- eksport .MAP --- */
+/* --- koniec wysięgnika na ŚCIANCE prostokąta litery (jak liczy Forestly) --- */
+function koniecWys(lit, lroz, poz) {
+  if (!lit) return null;
+  if (!lroz || lroz[0] <= 0) return lit;
+  const cx = lit[0], cy = lit[1], hx = lroz[0] / 2, hy = lroz[1] / 2;
+  const ddx = poz[0] - cx, ddy = poz[1] - cy;
+  if (Math.abs(ddx) < 1e-9) return [cx, cy + (ddy >= 0 ? hy : -hy)];
+  if (Math.abs(ddy) < 1e-9) return [cx + (ddx >= 0 ? hx : -hx), cy];
+  const tx = hx / Math.abs(ddx), ty = hy / Math.abs(ddy);
+  if (tx <= ty) return [cx + (ddx > 0 ? hx : -hx), cy + ddy * tx];
+  return [cx + ddx * ty, cy + (ddy > 0 ? hy : -hy)];
+}
+
+/* --- WYSIĘGNIK NIE MOŻE PRZECINAĆ WŁASNEGO OPISU ---
+   Gdy opis leży nad/pod literą, żaden koniec kreski nie jest czysty —
+   wtedy trzeba PRZESUNĄĆ sam opis. Robimy to przy zapisie (ten sam etap,
+   który ma algorytm Forestly). Szukamy miejsca poza wydzieleniem, które
+   nie koliduje z innymi opisami i literami i przy którym wysięgnik jest
+   czysty; jeśli takiego nie ma — zostawiamy jak jest. */
+function poprawWysiegniki(p) {
+  if (!p || !p.objs) return;
+  const obrot = katRad();
+  const kom = Math.max(ST.mm * ST.skala / 1000 * 4, 1e-6);
+  const siatka = siatkaKrawedzi(p.objs, kom);
+  for (let it = 0; it < 3; it++) {
+    let zmiany = 0;
+    for (const o of p.objs) {
+      if (!o.opis || !o.liniaOpisu || !o.baza) continue;
+      const roz = rozmiarTekstu(o.tekst, ST.mm, ST.skala, obrot);
+      if (roz[0] <= 0) continue;
+      const poz0 = [o.baza[0] + o.liniaOpisu.dx, o.baza[1] + o.liniaOpisu.dy];
+      if (boxWSrodku(prost(poz0, roz), o.pts)) continue;   // jest w środku — bez wysięgnika
+      const lit = o.liniaLitery ? [o.baza[0] + o.liniaLitery.dx, o.baza[1] + o.liniaLitery.dy] : null;
+      const lroz = o.liniaLitery ? rozmiarTekstu(o.litera, ST.mm, ST.skala, obrot) : null;
+      const kon = (poz) => lit ? koniecWys(lit, lroz, poz) : punktNaGranicy(poz, o.baza, o.pts);
+      const przec = (dx, dy) => {
+        const poz = [o.baza[0] + dx, o.baza[1] + dy];
+        const box = prost(poz, roz);
+        return Math.min(dlugoscWProst([box[0], poz[1]], kon(poz), box),
+                        dlugoscWProst([box[2], poz[1]], kon(poz), box));
+      };
+      const cur = przec(o.liniaOpisu.dx, o.liniaOpisu.dy);
+      if (cur <= 0.3) continue;
+      const kolizja = (box) => {
+        for (const b of p.objs) {
+          if (b !== o && b.box && nakladka(box, b.box) > 0) return true;
+          if (b.lbox && nakladka(box, b.lbox) > 0) return true;   // litery, też własna
+        }
+        return false;
+      };
+      // 1) NAJPIERW w środku wydzielenia — wtedy wysięgnik w ogóle znika
+      //    (tak robi algorytm Forestly; to najlepsze rozwiązanie)
+      let best = null;
+      for (let r = 1; r <= 12 && !best; r++) {
+        for (let k = 0; k < 36; k++) {
+          const a = k * Math.PI / 18;
+          const dx = Math.cos(a) * 6.0 * r, dy = Math.sin(a) * 6.0 * r;
+          const box = prost([o.baza[0] + dx, o.baza[1] + dy], roz);
+          if (!boxWSrodku(box, o.pts)) continue;
+          if (kolizja(box)) continue;
+          best = [dx, dy, 0];
+          break;
+        }
+      }
+      // 2) jeśli nie — poza wydzieleniem, byle wysięgnik był czysty
+      if (!best) {
+        for (let r = 1; r <= 16; r++) {
+          for (let k = 0; k < 36; k++) {
+            const a = k * Math.PI / 18;
+            const odl = 6.0 * r;
+            const dx = Math.cos(a) * odl, dy = Math.sin(a) * odl;
+            const box = prost([o.baza[0] + dx, o.baza[1] + dy], roz);
+            if (boxWSrodku(box, o.pts)) continue;          // to ma być poza
+            let zle = false;
+            for (const [ka, kb] of krawedzieW(box, siatka, kom)) {
+              if (odcPrzecinaProst(ka, kb, box)) { zle = true; break; }
+            }
+            if (zle || kolizja(box)) continue;
+            const pr = przec(dx, dy);
+            if (pr < 0.3) { best = [dx, dy, pr]; break; }
+            if (!best || pr < best[2]) best = [dx, dy, pr];
+          }
+          if (best && best[2] < 0.3) break;
+        }
+      }
+      if (best && best[2] < cur - 0.2) {
+        o.liniaOpisu.dx = best[0];
+        o.liniaOpisu.dy = best[1];
+        o.box = prost([o.baza[0] + best[0], o.baza[1] + best[1]], roz);
+        zmiany++;
+      }
+    }
+    if (!zmiany) break;
+  }
+}
+
 document.getElementById("zapisz").onclick = () => {
   const p = ST.parsed; if (!p) return;
   const obrot = katRad();
   for (let i = p.objs.length - 1; i >= 0; i--) { posprzatajDuplikaty(p, p.objs[i]); }
+  // wysięgnik nie może przechodzić przez własny opis — w razie potrzeby
+  // przesuwamy sam opis (inaczej przy opisie nad/pod literą zawsze tnie)
+  poprawWysiegniki(p);
   for (const o of p.objs) {
     if (!o.opis || !o.liniaOpisu) continue;
     // wysięgnik, gdy opis wyszedł poza wydzielenie
@@ -1151,7 +1250,7 @@ document.getElementById("zapisz").onclick = () => {
       // Strona wysięgnika: ten KONIEC kreski opisu, z którego odcinek do
       // wysięgnika NIE przecina prostokąta opisu (mniejsze przecięcie =
       // czytelniej). W pliku GEO-MAP 133 = koniec od strony WIĘKSZEGO X,
-      // 69 = od strony MNIEJSZEGO X (potwierdzone na zrzutach użytkownika).
+      // 69 = od strony MNIEJSZEGO X.
       const _boxO = prost(poz, _roz);
       const _dl1 = dlugoscWProst([_boxO[0], poz[1]], kon, _boxO);
       const _dl2 = dlugoscWProst([_boxO[2], poz[1]], kon, _boxO);

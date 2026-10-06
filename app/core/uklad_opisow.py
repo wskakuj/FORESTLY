@@ -926,9 +926,7 @@ def _dlugosc_odc_w_prost(a, b, prost):
 
 
 def _koniec_wys(lit_srodek, lit_roz, opis_srodek):
-    """Punkt na ŚCIANCE prostokąta litery, od strony opisu (koniec wysięgnika).
-
-    Gdy litera nie ma rozmiaru — zwraca jej środek."""
+    """Punkt na ŚCIANCE prostokąta litery, od strony opisu (koniec wysięgnika)."""
     cx, cy = lit_srodek
     if not lit_roz or lit_roz[0] <= 0:
         return (cx, cy)
@@ -971,9 +969,7 @@ def ustaw_offsety(mapa, elementy, obrot_rad=0.0):
             # na ŚCIANCE boxa litery (nie w jego środku).
             lit = (e.get("offset_litery") if e.get("offset_litery") is not None
                    else _off_linii_litery(mapa, o))
-            # rozmiar litery: w układaniu „wolne" nie ma klucza „lit_roz",
-            # jest w lit_info — bez tego wysięgnik kończył się na GRANICY
-            # wydzielenia (a nie na literze) i przechodził przez tekst opisu
+            # rozmiar litery: w układaniu „wolne" jest w lit_info, nie lit_roz
             lroz = e.get("lit_roz")
             if not lroz:
                 _li = e.get("lit_info")
@@ -1003,19 +999,21 @@ def ustaw_offsety(mapa, elementy, obrot_rad=0.0):
                 kon = _punkt_na_granicy((e["srodek"][0] + dx, e["srodek"][1] + dy),
                                         lpoz, e["pts"])
             wx, wy = kon[0] - e["srodek"][0], kon[1] - e["srodek"][1]
-            # STRONA WYSIĘGNIKA. Wysięgnik wychodzi z tego KOŃCA kreski opisu,
-            # z którego odcinek do końca wysięgnika NIE przecina prostokąta
-            # opisu (mniejsze przecięcie = czytelniej).
-            # KODOWANIE W PLIKU GEO-MAP — potwierdzone na zrzutach ekranu
-            # użytkownika: flaga 133 = koniec od strony WIĘKSZEGO X,
-            # 69 = od strony MNIEJSZEGO X. (Wcześniejsze „odwrócenie" było
-            # błędne i to ono pchało wysięgnik przez własny tekst.)
+            # STRONA WYSIĘGNIKA. Wysięgnik ma wychodzić z tego KOŃCA kreski
+            # opisu, który leży BLIŻEJ litery — wtedy nie przecina tekstu.
+            # Uwaga na kodowanie w pliku GEO-MAP (potwierdzone na mapach
+            # użytkownika): flaga 133 = koniec od strony MNIEJSZEGO X,
+            # 69 = od strony WIĘKSZEGO X — czyli odwrotnie, niż wygląda
+            # to na ekranie (podgląd GEO-MAP jest lustrzany w poziomie).
+            # Wybór końca kreski: ten, z którego odcinek do końca wysięgnika
+            # NIE przecina prostokąta opisu (mniejsze przecięcie = czytelniej).
+            # Gdy oba przecinają tyle samo — koniec bliżej litery.
             _box = _prost((e["srodek"][0] + dx, e["srodek"][1] + dy),
                           e["rozmiar"])
             _cy = (e["srodek"][1] + dy)
             _l = _dlugosc_odc_w_prost((_box[0], _cy), kon, _box)
             _p = _dlugosc_odc_w_prost((_box[2], _cy), kon, _box)
-            # mniejsze przecięcie decyduje; 69 = mniejszy X, 133 = większy X
+            # 69 = koniec od strony MNIEJSZEGO X, 133 = WIĘKSZEGO X
             flaga = 69 if _l < _p else 133
             nowa = "%s %s %.3f %.3f %.7f 1.0000000 %d %.3f %.3f" % (
                 p[0] if p else "L", p[1] if len(p) > 1 else "3",
@@ -1112,8 +1110,7 @@ def ustaw_offsety(mapa, elementy, obrot_rad=0.0):
         else:
             lit_x, lit_y = opis_x, opis_y
         # strona: koniec kreski, z którego wysięgnik nie przecina opisu
-        # (69 = strona MNIEJSZEGO X, 133 = WIĘKSZEGO X — tak jest w pliku
-        #  GEO-MAP, potwierdzone na zrzutach użytkownika)
+        # (133 = strona mniejszego X, 69 = większego X)
         try:
             _box = _prost((opis_x, opis_y), e["rozmiar"])
             try:
@@ -1620,25 +1617,19 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
                         if zle:
                             continue
                         _kand_out.append((dxx, dyy, p2))
-                # Z kandydatów wybieramy taki, przy którym WYSIĘGNIK NIE
-                # PRZECINA WŁASNEGO OPISU (inaczej linia idzie przez tekst —
-                # tak było, gdy opis leżał nad/pod literą). Dopiero potem
-                # decyduje odległość od środka wydzielenia.
+                # wybierz kandydata, przy którym WYSIĘGNIK NIE PRZECINA opisu
                 if _kand_out:
                     def _przeciecie_wys(kand):
                         dxx_, dyy_, pbox_ = kand
                         opis_c = (base[0] + dxx_, base[1] + dyy_)
                         if li_info is not None and li_info[2][0] > 0:
-                            lit_c = (base[0] + li_info[1][0],
-                                     base[1] + li_info[1][1])
+                            lit_c = (base[0] + li_info[1][0], base[1] + li_info[1][1])
                             kon_ = _koniec_wys(lit_c, li_info[2], opis_c)
                         else:
                             kon_ = _punkt_na_granicy(opis_c, base, pts)
-                        return min(
-                            _dlugosc_odc_w_prost((pbox_[0], opis_c[1]), kon_, pbox_),
-                            _dlugosc_odc_w_prost((pbox_[2], opis_c[1]), kon_, pbox_))
-                    _kand_out.sort(key=lambda kk: (round(_przeciecie_wys(kk), 2),
-                                                   math.hypot(kk[0], kk[1])))
+                        return min(_dlugosc_odc_w_prost((pbox_[0], opis_c[1]), kon_, pbox_),
+                                   _dlugosc_odc_w_prost((pbox_[2], opis_c[1]), kon_, pbox_))
+                    _kand_out.sort(key=lambda kk: (round(_przeciecie_wys(kk), 2), math.hypot(kk[0], kk[1])))
                     wybor = _kand_out[0]
             if wybor is None:
                 el["wewnatrz"] = False
@@ -1713,9 +1704,8 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
             break
     # ---- na koniec: WYSIĘGNIK nie może przecinać własnego opisu ----
     # (gdy opis wyszedł nad/pod literę, linia z końca kreski idzie przez
-    #  wiersz tekstu; tu szukamy innego miejsca poza wydzieleniem, przy którym
-    #  wysięgnik jest czysty). Robimy to PO ułożeniu liter, bo ich ruch
-    #  zmienia geometrię wysięgnika.
+    #  wiersz tekstu; szukamy miejsca poza wydzieleniem, przy którym jest
+    #  czysto). PO ułożeniu liter, bo ich ruch zmienia geometrię wysięgnika.
     for _ in range(3):
         poprawki = 0
         for el in elementy:
@@ -1724,9 +1714,7 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
             li = el.get("lit_info")
             if not li:
                 continue
-            base = el["srodek"]
-            roz = el["rozmiar"]
-            pts = el["pts"]
+            base = el["srodek"]; roz = el["rozmiar"]; pts = el["pts"]
             li_i, ol, roz_l = li
             akt = el.get("offset_litery") or ol
             lit_c = (base[0] + akt[0], base[1] + akt[1])
@@ -1735,9 +1723,8 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
                 opis_c = (base[0] + dx_, base[1] + dy_)
                 pbox = _prost(opis_c, roz)
                 kon_ = _koniec_wys(lit_c, roz_l, opis_c)
-                return min(
-                    _dlugosc_odc_w_prost((pbox[0], opis_c[1]), kon_, pbox),
-                    _dlugosc_odc_w_prost((pbox[2], opis_c[1]), kon_, pbox))
+                return min(_dlugosc_odc_w_prost((pbox[0], opis_c[1]), kon_, pbox),
+                           _dlugosc_odc_w_prost((pbox[2], opis_c[1]), kon_, pbox))
 
             cur_dx, cur_dy = el["offset"]
             cur_prz = _przec(cur_dx, cur_dy)
@@ -1753,33 +1740,29 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
                     if _przecina(p2):
                         continue
                     if _box_w_srodku(p2, pts):
-                        continue          # to ma być poza wydzieleniem
+                        continue
                     zle = False
                     for e2 in elementy:
                         if e2 is el:
                             continue
                         if _nakladka(p2, e2["prost"]) > 0:
-                            zle = True
-                            break
+                            zle = True; break
                     if zle:
                         continue
                     for jj in range(len(litery)):
                         if jj != li_i and _nakladka(p2, litery[jj]) > 0:
-                            zle = True
-                            break
+                            zle = True; break
                     if zle:
                         continue
                     pr = _przec(dxx, dyy)
                     if pr < 0.3:
-                        best = (dxx, dyy, p2, pr)
-                        break
+                        best = (dxx, dyy, p2, pr); break
                     if best is None or pr < best[3]:
                         best = (dxx, dyy, p2, pr)
                 if best is not None and best[3] < 0.3:
                     break
             if best is not None and best[3] < cur_prz - 0.2:
-                el["offset"] = (best[0], best[1])
-                el["prost"] = best[2]
+                el["offset"] = (best[0], best[1]); el["prost"] = best[2]
                 poprawki += 1
         if not poprawki:
             break
