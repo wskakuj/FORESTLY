@@ -583,15 +583,6 @@ def build_schema():
                       "Folder z mapami (.MAP) albo plik mapy:",
                       "Wskaż folder z mapami — albo pojedynczy plik .MAP",
                       kind="open"),
-                _text("mapa_font_mm", "mapa_font_mm_entry",
-                      "Wysokość pisma podpisu [mm] (układanie):", "2.5"),
-                _text("mapa_skala", "mapa_skala_entry",
-                      "Skala mapy (układanie), np. 5000 dla 1:5000:", "5000"),
-                _text("mapa_p3", "mapa_p3_entry",
-                      "Obrót opisów (P3 w GEO-MAP, w gradach):", "-0.25"),
-                _check("mapa_tylko_srodek", "mapa_tylko_srodek_var",
-                       "Tylko wyśrodkuj i obróć opisy (BEZ rozsuwania — opisy "
-                       "mogą wtedy zasłaniać litery)", False),
                 _info("Program wpisuje do mapy opisy z wybranej bazy — "
                       "zależnie od źródła: A2 „Oznaczenie” i A5 „Opis taks.” "
                       "(Forestly GO / MIETEK) albo A1 i A2 „Oznaczenie” "
@@ -606,8 +597,6 @@ def build_schema():
                 _button("run", "Wpisz opisy do map", "start_opisy_na_mape"),
                 _button("run_braki", "Sprawdź braki przed wpisaniem",
                         "start_sprawdz_opisy_na_mape", "secondary"),
-                _button("run_uloz", "Ułóż opisy automatycznie",
-                        "start_uloz_opisy", "secondary"),
                 _button("run_edytor", "Otwórz edytor opisów (okno)",
                         "open_edytor_opisow", "secondary"),
             ],

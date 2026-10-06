@@ -1,3 +1,4 @@
+import re
 """Automatyczne układanie opisów na mapie GEO-MAP.
 
 Problem: opisy (np. „SO35|1.00") mają punkt bazowy w środku wydzielenia i przy
@@ -468,7 +469,7 @@ def _przeciecie(a, b, c, d):
 
 # ------------------------------------------------------------- układanie
 
-def uloz(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, iteracje=12,
+def uloz(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, iteracje=12, tryb="wolne",
          kara_zewnatrz=20.0, kara_linii=6.0, kara_odleglosci=0.02,
          kara_litery=19.0, kara_opisu=2.0, kara_przeszkody=2.0,
          margines_litery=1.5,
@@ -483,6 +484,9 @@ def uloz(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, iteracje=12,
 
     Zwraca listę elementów ruchomych (opisów) z policzonym ``offset``.
     """
+    if tryb == "wolne":
+        return uloz_wolne(mapa, wysokosc_mm=wysokosc_mm, skala=skala,
+                          obrot=obrot, margines_litery=margines_litery)
     wszystkie = poligony if poligony is not None else poligony_z_mapy(mapa)
     wszystkie_geo = wszystkie_poligony(mapa)
     h_linii = wysokosc_mm * skala / 1000.0
@@ -926,6 +930,9 @@ def ustaw_offsety(mapa, elementy, obrot_rad=0.0):
                    else _off_linii_litery(mapa, o))
             lroz = e.get("lit_roz") or (0.0, 0.0)
             lpoz = (e["srodek"][0] + lit[0], e["srodek"][1] + lit[1])
+            # UWAGA: offset litery bywa dopisany dopiero po tym miejscu, więc
+            # strona liczona jest z OSTATECZNYCH pozycji opis↔litera
+            opis_x = e["srodek"][0] + dx
             if lroz[0] > 0:
                 cx, cy = lpoz
                 hx, hy = lroz[0] / 2.0, lroz[1] / 2.0
@@ -947,9 +954,15 @@ def ustaw_offsety(mapa, elementy, obrot_rad=0.0):
                 kon = _punkt_na_granicy((e["srodek"][0] + dx, e["srodek"][1] + dy),
                                         lpoz, e["pts"])
             wx, wy = kon[0] - e["srodek"][0], kon[1] - e["srodek"][1]
-            nowa = "%s %s %.3f %.3f %.7f 1.0000000 133 %.3f %.3f" % (
+            # STRONA WYSIĘGNIKA (potwierdzone u użytkownika):
+            #   133 = wysięgnik wychodzi z PRAWEJ strony opisu,
+            #    69 = z LEWEJ.
+            # Wysięgnik ma wychodzić z tej strony, z której leży litera —
+            # wtedy nie przecina tekstu opisu.
+            flaga = 133 if lpoz[0] >= opis_x else 69
+            nowa = "%s %s %.3f %.3f %.7f 1.0000000 %d %.3f %.3f" % (
                 p[0] if p else "L", p[1] if len(p) > 1 else "3",
-                dx, dy, obrot_rad, wx, wy)
+                dx, dy, obrot_rad, flaga, wx, wy)
         elif len(p) >= 6:
             nowa = "%s %s %.3f %.3f %.7f %s" % (p[0], p[1], dx, dy,
                                                 obrot_rad, " ".join(p[5:]))
@@ -1007,7 +1020,95 @@ def ustaw_offsety(mapa, elementy, obrot_rad=0.0):
         if nowa != stara:
             linie[i] = nowa
             zmiany += 1
+    # NA KOŃCU: popraw STRONĘ WYSIĘGNIKA z tego, co faktycznie jest w liniach.
+    # Liczymy z gotowego pliku (nie z pamięci), więc flaga zawsze zgadza się
+    # ze stroną, po której stoi litera.
+    for e in elementy:
+        if not e.get("wysiegnik"):
+            continue
+        o = e["obiekt"]
+        i_op = _linia_typu(mapa, o, 3)
+        i_li = _linia_typu(mapa, o, 2)
+        if i_op is None:
+            continue
+        q = linie[i_op].split()
+        if len(q) < 9:
+            continue
+        try:
+            opis_x = e["srodek"][0] + float(q[2])
+            opis_y = e["srodek"][1] + float(q[3])
+        except ValueError:
+            continue
+        if i_li is not None:
+            ql = linie[i_li].split()
+            try:
+                lit_x = e["srodek"][0] + float(ql[2])
+                lit_y = e["srodek"][1] + float(ql[3])
+            except (ValueError, IndexError):
+                lit_x, lit_y = opis_x, opis_y
+        else:
+            lit_x, lit_y = opis_x, opis_y
+        # strona: 133 = z prawej, 69 = z lewej — wybieramy stronę LITERY,
+        # a gdy litera jest dokładnie nad/pod opisem — stronę krótszą
+        flaga = 133 if lit_x >= opis_x else 69
+        nowa = "%s %s %s %s %s %s %d %s %s" % (
+            q[0], q[1], q[2], q[3], q[4], q[5], flaga, q[7], q[8])
+        if nowa != linie[i_op]:
+            linie[i_op] = nowa
+            zmiany += 1
+
+    # NA KOŃCU: usuń zdublowane linie L i atrybuty (podwójne litery w GEO-MAP).
+    # Obiekty przetwarzamy od KOŃCA, żeby usunięcia nie psuły indeksów
+    # wcześniejszych obiektów.
+    for e in reversed(elementy):
+        try:
+            zmiany += _posprzataj_duplikaty(linie, e["obiekt"])
+        except Exception:
+            pass
     return linie, zmiany
+
+
+RE_ATR = re.compile(r"^:([A-Za-z0-9]+)\[(.*)\]\s*$")
+
+
+def _posprzataj_duplikaty(linie, o):
+    """Usuwa ZDUBLOWANE linie ``L`` i atrybuty (A1/A2/...) w bloku obiektu.
+
+    GEO-MAP rysuje literę dla KAŻDEJ linii ``L 2`` — jeśli w pliku są dwie,
+    litera pokazuje się podwójnie, a skasowanie jednej usuwa obie. Ten sam
+    problem dotyczy zdublowanego atrybutu ``:A2[...]``. Zostawiamy pierwszy
+    wpis, resztę usuwamy.
+    """
+    start = o.get("start")
+    if start is None:
+        return 0
+    blok = o.get("linie") or []
+    # koniec bloku: pierwsza linia po nim, która nie należy do bloku
+    koniec = start + len(blok)
+    if koniec > len(linie):
+        koniec = len(linie)
+    widziane_l = set()
+    widziane_a = set()
+    do_usuniecia = []
+    for k in range(start + 1, koniec):
+        l = linie[k]
+        if l.startswith("L "):
+            q = l.split()
+            klucz = q[1] if len(q) > 1 else "?"
+            if klucz in widziane_l:
+                do_usuniecia.append(k)
+            else:
+                widziane_l.add(klucz)
+        else:
+            mm = RE_ATR.match(l)
+            if mm:
+                if mm.group(1) in widziane_a:
+                    do_usuniecia.append(k)
+                else:
+                    widziane_a.add(mm.group(1))
+    for k in reversed(do_usuniecia):
+        del linie[k]
+    return len(do_usuniecia)
 
 
 def _linia_typu(mapa, o, typ):
@@ -1214,6 +1315,45 @@ def _kand_opisu(el, krok):
     return el["kand_off"]
 
 
+def _kand_litery_prio(prost, roz_l, home, krok=2.0, zasieg=140.0):
+    """Kandydaci dla LITERY w kolejności preferencji.
+
+    PRIORYTET (potwierdzony przez użytkownika): litera ma stać Z LEWEJ STRONY
+    OPISU, w tej samej linii (wyśrodkowana w pionie względem opisu). Dopiero
+    gdy tam się nie zmieści — z prawej, potem nad/pod, na końcu dalej.
+    """
+    x0, y0, x1, y1 = prost
+    cx, cy = (x0 + x1) / 2.0, (y0 + y1) / 2.0
+    hw, hh = roz_l[0] / 2.0, roz_l[1] / 2.0
+    out = []
+    # 1) z lewej, w linii opisu
+    out.append((x0 - hw - krok, cy))
+    for k in range(2, 8):
+        out.append((x0 - hw - krok * k, cy))
+    # 2) z prawej, w linii opisu
+    for k in range(1, 8):
+        out.append((x1 + hw + krok * k, cy))
+    # 3) nad i pod opstem (wyśrodkowane w poziomie)
+    for k in range(1, 8):
+        out.append((cx, y0 - hh - krok * k))
+        out.append((cx, y1 + hh + krok * k))
+    # 4) ukosy
+    for k in range(1, 8):
+        out.append((x0 - hw - krok * k, y0 - hh - krok * k))
+        out.append((x1 + hw + krok * k, y0 - hh - krok * k))
+        out.append((x0 - hw - krok * k, y1 + hh + krok * k))
+        out.append((x1 + hw + krok * k, y1 + hh + krok * k))
+    # 5) wokół domu (gdyby powyższe nie wyszły)
+    r = 1
+    while r * krok <= zasieg:
+        for k in range(16):
+            a = k * math.pi / 8
+            out.append((home[0] + math.cos(a) * krok * r,
+                        home[1] + math.sin(a) * krok * r))
+        r += 1
+    return out
+
+
 def _kand_litery(pts, base, home, krok=2.0, zasieg=140.0):
     """Kandydaci dla LITERY — od najbliższego jej miejscu domowemu."""
     out = [(home[0], home[1])]
@@ -1240,9 +1380,10 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
     się w środku, a nie ma nakładek.
     """
     wszystkie_geo = wszystkie_poligony(mapa)
-    # TYLKO opisy taksacyjne (oznaczenie z „|") — nie każdy obiekt z A2
-    wszystkie = [o for o in poligony_z_mapy(mapa)
-                 if "|" in (o.get("tekst") or "")]
+    # TYLKO opisy taksacyjne (oznaczenie z „|") — nie każdy obiekt z A2.
+    # UWAGA: bierzemy je z TEJ SAMEJ listy co litery (jedno parsowanie!),
+    # inaczej id() obiektów nie pasuje i litery nie są dopasowywane.
+    wszystkie = [o for o in wszystkie_geo if "|" in (o.get("tekst") or "")]
     h_linii = wysokosc_mm * skala / 1000.0
 
     # litery WSZYSTKICH wydzieleń (także tych bez opisu taksacyjnego)
@@ -1310,7 +1451,7 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
             zn_lit = None
             for (dx, dy) in _kand_opisu(el, krok_srodkowy)[:maks_kand]:
                 prost = _prost((base[0] + dx, base[1] + dy), roz)
-                if not _box_w_srodku(prost, pts):
+                if not _box_w_srodku(_rozszerz(prost, 1.0), pts):
                     continue
                 if _przecina(prost):
                     continue
@@ -1337,13 +1478,13 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
                 li, ol, roz_l = li_info
                 home = (base[0] + ol[0], base[1] + ol[1])
                 znal = None
-                for (lx, ly) in _kand_litery(pts, base, home, krok_litery):
+                for (lx, ly) in _kand_litery_prio(prost, roz_l, home, krok_litery):
                     lb = _prost((lx, ly), roz_l)
                     if not _box_w_srodku(_rozszerz(lb, margines_litery), pts):
                         continue
                     if _przecina(lb):
                         continue
-                    if _nakladka(_rozszerz(prost, margines_litery), lb) > 0:
+                    if _nakladka(_rozszerz(prost, max(margines_litery, 2.5)), lb) > 0:
                         continue
                     zle = False
                     for j2, e2 in enumerate(elementy):
@@ -1362,9 +1503,40 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
                     break
                 if znal is None:
                     continue          # litera nie ma gdzie uciec — następny środek
+                if math.hypot(dx, dy) > 45.0:
+                    continue          # nie oddalamy opisu daleko od środka
                 wybor = (dx, dy, prost)
                 zn_lit = (li, znal)
                 break
+            if wybor is None:
+                # Brak miejsca w środku — odsuwamy opis NA ZEWNĄTRZ, ale
+                # DALeko od granicy (żeby nie leżał na linii) i tak, by nie
+                # wchodził na inne opisy. Wtedy dostaje wysięgnik.
+                for r in range(1, 22):
+                    for k in range(24):
+                        a = k * math.pi / 12
+                        dxx = math.cos(a) * (25.0 + r * 6.0)
+                        dyy = math.sin(a) * (25.0 + r * 6.0)
+                        p2 = _prost((base[0] + dxx, base[1] + dyy), roz)
+                        if _przecina(p2):
+                            continue
+                        zle = False
+                        for j2, e2 in enumerate(elementy):
+                            if j2 != i and _nakladka(p2, e2["prost"]) > 0:
+                                zle = True
+                                break
+                        if not zle:
+                            _wl = el["lit_info"][0] if el.get("lit_info") else None
+                            for jj in range(len(litery)):
+                                if jj != _wl and _nakladka(p2, litery[jj]) > 0:
+                                    zle = True
+                                    break
+                        if zle:
+                            continue
+                        wybor = (dxx, dyy, p2)
+                        break
+                    if wybor:
+                        break
             if wybor is None:
                 el["wewnatrz"] = False
                 el["wysiegnik"] = True
@@ -1374,12 +1546,66 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
                 zmiany += 1
             el["offset"] = (dx, dy)
             el["prost"] = prost
-            el["wewnatrz"] = True
-            el["wysiegnik"] = False
+            # „w środku" liczone CAŁYM prostokątem z marginesem — jeśli opis
+            # wyszedł poza wydzielenie, MUSI dostać wysięgnik
+            el["wewnatrz"] = _box_w_srodku(prost, pts)
+            el["wysiegnik"] = not el["wewnatrz"]
             if zn_lit is not None:
                 li, (lx, ly, lb) = zn_lit
                 litery[li] = lb
                 el["offset_litery"] = (lx - base[0], ly - base[1])
         if zmiany == 0:
+            break
+
+    # ---- na koniec: żadna litera nie może leżeć pod opisem ----
+    for _ in range(6):
+        poprawki = 0
+        for e in elementy:
+            li = e.get("lit_info")
+            if not li:
+                continue
+            li_i, ol, roz_l = li
+            akt = e.get("offset_litery") or ol
+            lpoz = (e["srodek"][0] + akt[0], e["srodek"][1] + akt[1])
+            lb = _prost(lpoz, roz_l)
+            pod = False
+            for e2 in elementy:
+                if _nakladka(_rozszerz(e2["prost"], margines_litery), lb) > 0:
+                    pod = True
+                    break
+            if not pod and _box_w_srodku(_rozszerz(lb, margines_litery), e["pts"]):
+                continue
+            stara = litery[li_i]
+            litery[li_i] = lb
+            zn = None
+            for (lx, ly) in _kand_litery_prio(e["prost"], roz_l, lpoz):
+                lb2 = _prost((lx, ly), roz_l)
+                if not _box_w_srodku(_rozszerz(lb2, margines_litery), e["pts"]):
+                    continue
+                if _przecina(lb2):
+                    continue
+                zle = False
+                for e2 in elementy:
+                    if _nakladka(_rozszerz(e2["prost"], margines_litery), lb2) > 0:
+                        zle = True
+                        break
+                if zle:
+                    continue
+                for jj in range(len(litery)):
+                    if jj != li_i and _nakladka(litery[jj], lb2) > 0:
+                        zle = True
+                        break
+                if zle:
+                    continue
+                zn = (lx, ly, lb2)
+                break
+            if zn:
+                lx, ly, lb2 = zn
+                litery[li_i] = lb2
+                e["offset_litery"] = (lx - e["srodek"][0], ly - e["srodek"][1])
+                poprawki += 1
+            else:
+                litery[li_i] = stara
+        if poprawki == 0:
             break
     return elementy

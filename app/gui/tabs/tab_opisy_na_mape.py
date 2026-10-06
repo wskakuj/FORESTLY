@@ -120,10 +120,10 @@ class TabOpisyNaMapeMixin:
             "mdb": _txt("mapa_mdb_entry"),
             "mapy": _txt("mapa_src_entry"),
             "kol_nr": _txt("mapa_kol_nr_entry", "N"),
-            "font_mm": _txt("mapa_font_mm_entry", "2.5"),
-            "skala": _txt("mapa_skala_entry", "5000"),
-            "p3": _txt("mapa_p3_entry", "-0.25"),
-            "tylko_srodek": _bool("mapa_tylko_srodek_var", False),
+            "font_mm": "2.5",          # stałe — pole usunięte
+            "skala": "5000",           # stałe — pole usunięte
+            "p3": "0.25",              # stałe — pole usunięte
+            "tylko_srodek": True,      # zawsze: wyśrodkuj i obróć
             "klucz": "TX",          # pole „Uwagi” mapy — stałe, nieedytowalne
             "a2": True,              # oba pola opisu zawsze wpisywane
             "a5": True,
@@ -161,7 +161,7 @@ class TabOpisyNaMapeMixin:
             skala = _liczba(u.get("skala"), 5000)
             import math as _m
             # P3 w GEO-MAP podajemy w gradach; w pliku kąt jest w radianach
-            p3 = _liczba(u.get("p3"), -0.25)
+            p3 = _liczba(u.get("p3"), 0.25)
             obrot = p3 * _m.pi / 200.0
             if font_mm <= 0:
                 font_mm = 2.5

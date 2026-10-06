@@ -48,34 +48,6 @@
   <canvas id="cv"></canvas>
   <aside id="panel">
 
-    <h2>Kalibracja podglądu</h2>
-    <div class="uwaga">Dopasuj podgląd do GEO-MAP: zmieniaj, aż ramki pokryją się
-      z tym, co widzisz w GEO-MAP. Ustawienia liczone są w metrach.</div>
-    <label class="row">Czcionka
-      <select id="kalFont" style="width:112px;background:#0d1117;color:#d7dee8;border:1px solid #39424e;border-radius:7px;padding:7px 10px">
-        <option value="monospace">monospace</option>
-        <option value="Arial, sans-serif">Arial</option>
-        <option value="'Segoe UI', sans-serif">Segoe UI</option>
-        <option value="'Courier New', monospace">Courier New</option>
-        <option value="'Times New Roman', serif">Times</option>
-      </select>
-    </label>
-    <label class="row">Szerokość znaku<input id="kalZnak" type="number" step="0.02" value="0.62"></label>
-    <label class="row">Margines [x]<input id="kalMarg" type="number" step="0.05" value="1.0"></label>
-    <label class="row">Odstęp wierszy<input id="kalLinia" type="number" step="0.05" value="1.15"></label>
-    <label class="row">Przesunięcie X [m]<input id="kalX" type="number" step="1" value="0"></label>
-    <label class="row">Przesunięcie Y [m]<input id="kalY" type="number" step="1" value="0"></label>
-    <label class="row">Punkt bazowy
-      <select id="kalBaza" style="width:112px;background:#0d1117;color:#d7dee8;border:1px solid #39424e;border-radius:7px;padding:7px 10px">
-        <option value="ciezkosc">środek ciężkości</option>
-        <option value="pole">pole niedostępności</option>
-        <option value="bbox">środek bbox</option>
-        <option value="wierzcholki">średnia wierzchołków</option>
-      </select>
-    </label>
-    <label class="row">Zaczepienie<input id="kalKotw" list="kotw" value="srodek" style="width:112px;background:#0d1117;color:#d7dee8;border:1px solid #39424e;border-radius:7px;padding:7px 10px">
-      <datalist id="kotw"><option value="srodek"><option value="lewygorny"></datalist>
-    </label>
     <h2>Edycja tekstu</h2>
     <div id="txtKto" class="uwaga">— kliknij opis lub literę —</div>
     <input id="txtEdit" type="text" disabled placeholder="tekst opisu / litery">
@@ -83,12 +55,8 @@
     <h2>Forestly</h2>
     <button id="zForestlyBtn" style="display:none">Wczytaj mapę z folderu zakładki</button>
     <select id="zForestly" style="display:none;width:100%;margin:6px 0;padding:7px 10px;background:#0d1117;color:#d7dee8;border:1px solid #39424e;border-radius:7px"></select>
-    <h2>Rozmiar opisu</h2>
-    <label class="row">Wysokość pisma [mm]<input id="mm" type="number" step="0.1" value="2.5"></label>
-    <label class="row">Skala mapy (1:N)<input id="skala" type="number" step="500" value="5000"></label>
-    <label class="row">Obrót P3 [grady]<input id="p3" type="number" step="0.05" value="-0.25"></label>
     <h2>Widok mapy</h2>
-    <label class="row">Obrót widoku [°]<input id="obrotW" type="number" step="15" value="0"></label>
+    <label class="row">Obrót mapy [°]<input id="obrotW" type="number" step="15" value="-90"></label>
     <button id="odbijX">Odbij poziomo (lewo↔prawo)</button>
     <button id="odbijY">Odbij pionowo (góra↔dół)</button>
     <button id="resetW">Reset widoku</button>
@@ -98,11 +66,8 @@
     <label class="chk"><input id="obrysy" type="checkbox" checked> Pokaż obrysy wydzieleń</label>
     <button id="fit">Dopasuj widok</button>
     <h2>Układanie</h2>
-    <button id="srodek">Wyśrodkuj i obróć (jak Forestly)</button>
-    <button id="uloz">Ułóż automatycznie</button>
-    <button id="wys">Wysięgnik: dodaj/usuń dla zaznaczonego</button>
-    <button id="wysStr">Wysięgnik: przełącz stronę (L/P)</button>
-    <button id="zapisz" class="pri">Zapisz .MAP (ulozone)</button>
+<button id="uloz">Ułóż automatycznie (algorytm Forestly)</button>
+                    <button id="zapisz" class="pri">Zapisz .MAP (ulozone)</button>
     <h2>Legenda</h2>
     <div class="leg">
       <div><span style="background:#2ec36b"></span>opis w porządku</div>
@@ -437,6 +402,26 @@ function ustawOpis(parsed, o, dx, dy, kat, wys, strona) {
 }
 
 /* --- podmiana atrybutu w bloku obiektu (edycja tekstu opisu/litery) --- */
+/* Usuwa ZDUBLOWANE linie L i atrybuty w bloku obiektu. GEO-MAP rysuje literę
+   dla KAŻDEJ linii L 2 — dwie linie = litera pokazana podwójnie. */
+function posprzatajDuplikaty(parsed, o) {
+  const widzL = {}, widzA = {};
+  const doUsuniecia = [];
+  for (let i = o.start + 1; i < parsed.lines.length; i++) {
+    const l = parsed.lines[i];
+    if (l.startsWith("*")) break;
+    if (l.startsWith("L ")) {
+      const k = (l.split(/\s+/)[1] || "?");
+      if (widzL[k]) doUsuniecia.push(i); else widzL[k] = 1;
+    } else {
+      const m = /^:([A-Za-z0-9]+)\[/.exec(l);
+      if (m) { if (widzA[m[1]]) doUsuniecia.push(i); else widzA[m[1]] = 1; }
+    }
+  }
+  for (let k = doUsuniecia.length - 1; k >= 0; k--) parsed.lines.splice(doUsuniecia[k], 1);
+  return doUsuniecia.length;
+}
+
 function ustawAtrybut(parsed, o, nazwa, tekst) {
   const lat = plNaLatin(tekst || "");
   const pref = ":" + nazwa + "[";
@@ -526,7 +511,7 @@ const ST = {
   parsed: null, nazwa: "", mm: 2.5, skala: 5000, p3: -0.25,
   tylkoNakladki: false, pokazLitery: true, pokazObrysy: true,
   cx: 0, cy: 0, zoom: 1, W: 800, H: 600,
-  flipX: true, flipY: false, rotW: 360,
+  flipX: true, flipY: false, rotW: -90,
   znakSzer: 0.62, liniaWys: 1.15, przesunX: 0, przesunY: 0, zakotwicz: "srodek",
   margines: 1.0, bazaPunkt: "bbox",
   drag: null, pan: null, ostatni: null, ostatniaLit: null,
@@ -892,7 +877,7 @@ function zapiszEdycje() {
 }
 
 /* ---------------- sterowanie ---------------- */
-function podepnij(id, fn) { document.getElementById(id).addEventListener("input", fn); }
+function podepnij(id, fn) { const e = document.getElementById(id); if (e) e.addEventListener("input", fn); }
 podepnij("mm", e => { ST.mm = parseFloat(e.target.value) || 2.5; przelicz(); rysuj(); });
 podepnij("skala", e => { ST.skala = parseFloat(e.target.value) || 5000; przelicz(); rysuj(); });
 podepnij("p3", e => { ST.p3 = parseFloat(e.target.value) || 0; przelicz(); rysuj(); });
@@ -965,14 +950,14 @@ document.getElementById("obrysy").onchange = e => { ST.pokazObrysy = e.target.ch
     }, 30);
   };
 }
-document.getElementById("wys").onclick = () => {
+const _b_wys = document.getElementById("wys"); if (_b_wys) _b_wys.onclick = () => {
   const o = ST.ostatni || ST.ostatniaLit;
   if (!o) { alert("Najpierw kliknij opis albo literę."); return; }
   o.wysiegnik = !o.wysiegnik;
   if (o.wysiegnik) o.wysStr = null;      // auto: od strony litery
   przelicz(); rysuj();
 };
-document.getElementById("wysStr").onclick = () => {
+const _b_wysStr = document.getElementById("wysStr"); if (_b_wysStr) _b_wysStr.onclick = () => {
   const o = ST.ostatni || ST.ostatniaLit;
   if (!o || !o.wysiegnik) { alert("Najpierw dodaj wysięgnik."); return; }
   o.wysStr = (o.wysStr === "L") ? "R" : "L";
@@ -980,7 +965,7 @@ document.getElementById("wysStr").onclick = () => {
 };
 
 /* --- wyśrodkuj i obróć (to, co robi Forestly) --- */
-document.getElementById("srodek").onclick = () => {
+const _b_srodek = document.getElementById("srodek"); if (_b_srodek) _b_srodek.onclick = () => {
   const p = ST.parsed; if (!p) return;
   for (const o of p.objs) if (o.liniaOpisu) { o.liniaOpisu.dx = 0; o.liniaOpisu.dy = 0; }
   przelicz();
@@ -1000,7 +985,7 @@ document.getElementById("srodek").onclick = () => {
    Najpierw pytamy BACKEND (Python) — to ten sam, sprawdzony algorytm co
    „Ułóż opisy automatycznie" w zakładce Forestly. Własny rozkład w JS jest
    tylko awaryjnym zapasem, gdy edytor działa bez Forestly (sam plik HTML). */
-document.getElementById("uloz").onclick = async () => {
+const _b_uloz = document.getElementById("uloz"); if (_b_uloz) _b_uloz.onclick = async () => {
   const p = ST.parsed; if (!p) return;
   const a0 = api();
   if (a0 && a0.edytor_uloz) {
@@ -1080,6 +1065,7 @@ document.getElementById("uloz").onclick = async () => {
 document.getElementById("zapisz").onclick = () => {
   const p = ST.parsed; if (!p) return;
   const obrot = katRad();
+  for (let i = p.objs.length - 1; i >= 0; i--) { posprzatajDuplikaty(p, p.objs[i]); }
   for (const o of p.objs) {
     if (!o.opis || !o.liniaOpisu) continue;
     // wysięgnik, gdy opis wyszedł poza wydzielenie
