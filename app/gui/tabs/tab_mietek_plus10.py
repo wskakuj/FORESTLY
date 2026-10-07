@@ -79,6 +79,25 @@ def przesun_wiek_w_tekscie(tekst, lata):
     return WZORZEC_WIEKU.sub(_zamien, tekst)
 
 
+def _przesun_optax_z_siatka(tekst, lata, dlugosc=245):
+    """Przesuwa wiek w polu OP_TAX komórka po komórce (siatka 7 × 35 znaków).
+
+    W każdej komórce: (1) usuwamy wiodące spacje — opis zaczyna się od
+    początku linii, bez „przerw", (2) przesuwamy wiek /x-y/z o `lata`,
+    (3) wyrównujemy komórkę z powrotem do 35 znaków. Dzięki temu układ
+    opisu (szyk) NIE rozjeżdża się po dodaniu lat do wieku.
+    """
+    if not tekst:
+        return tekst
+    komorki = [tekst[i:i + 35] for i in range(0, len(tekst), 35)]
+    wynik = []
+    for c in komorki:
+        c = c.lstrip(" ")
+        c = przesun_wiek_w_tekscie(c, lata)
+        wynik.append(c.ljust(35))
+    return "".join(wynik)[:dlugosc]
+
+
 def nastepna_klasa_wieku(kl):
     """Przesuwa klasę wieku o pół klasy (10 lat): IIa->IIb, IIb->IIIa, Vb->VI.
 
@@ -243,7 +262,11 @@ def przesun_wiek_w_pliku(path, lata, zapisz=False, backup=True, pola=("OP_TAX", 
             stara = rec.get(p, "")
             if not stara:
                 continue
-            nowa = przesun_wiek_w_tekscie(stara, lata)
+            if p in ("OP_TAX", "OP_TAX1"):
+                # siatka 35-znakowa: bez wiodących spacji, szyk zachowany
+                nowa = _przesun_optax_z_siatka(stara, lata, dlugosci[p])
+            else:
+                nowa = przesun_wiek_w_tekscie(stara, lata)
             if nowa != stara:
                 if len(nowa) > dlugosci[p]:
                     raise Exception(

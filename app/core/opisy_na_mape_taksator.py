@@ -36,6 +36,10 @@ ETYKIETY_TYPOW = {
     "ZRĄB": "zrąb",
     "SUKCESJA": "sukcesja",
     "INNE WYL": "inne wylesienie",
+    # drogi (różne kody dróg w bazie) — na mapie krótko „droga”
+    "DROGI L": "droga",
+    "DROGI P": "droga",
+    "DROGI I": "droga",
 }
 
 
@@ -133,6 +137,14 @@ def czytaj_baze(path):
             "udzial": str(r.get("PART_CD") or "").strip(),
         }
 
+    # słownik typów powierzchni: kod -> nazwa (fallback, gdy nic innego nie ma)
+    nazwy_typow = {}
+    for r in _tabela(path, "F_AREA_TYPE_DIC"):
+        cd = str(r.get("area_type_cd") or "").strip()
+        nm = str(r.get("area_type_name") or "").strip()
+        if cd and nm:
+            nazwy_typow[cd] = nm
+
     baza = {}
     for num, info in arodes.items():
         sa = subarea.get(num) or {}
@@ -143,6 +155,7 @@ def czytaj_baze(path):
             "pododdzial": info["pododdzial"],
             "area": sa.get("area"),
             "typ": sa.get("typ", ""),
+            "typ_nazwa": nazwy_typow.get(sa.get("typ", ""), ""),
             "siedlisko": sa.get("siedlisko", ""),
             "info": sa.get("info", ""),
             "gatunek": ga.get("gatunek", ""),
@@ -199,7 +212,12 @@ def oznaczenie(rec):
     if info:
         return info
     typ = (rec.get("typ") or "").strip()
-    return ETYKIETY_TYPOW.get(typ, "")
+    lab = ETYKIETY_TYPOW.get(typ)
+    if lab:
+        return lab
+    # fallback: nazwa typu powierzchni ze słownika bazy (F_AREA_TYPE_DIC)
+    # — dzięki temu KAŻDY nieleśny typ dostaje jakiś opis, a nie puste pole
+    return (rec.get("typ_nazwa") or "").strip()
 
 
 def a2_dla(rec):
