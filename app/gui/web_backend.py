@@ -1379,6 +1379,7 @@ class WebBackend(
             "start_opisy_na_mape": self.start_opisy_na_mape,
             "start_sprawdz_opisy_na_mape": self.start_sprawdz_opisy_na_mape,
             "start_uloz_opisy": self.start_uloz_opisy,
+            "start_ukladanie_opisow": self.start_ukladanie_opisow,
             "open_edytor_opisow": self.open_edytor_opisow,
             "start_rozbieznosci_bez": lambda: self.start_mietek_rozbieznosci_pipeline(bez_nazwisk=True),
             "start_nazwiska_mietek": self.start_nazwiska_mietek_pipeline,

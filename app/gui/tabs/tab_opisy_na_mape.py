@@ -123,7 +123,7 @@ class TabOpisyNaMapeMixin:
             "font_mm": "2.5",          # stałe — pole usunięte
             "skala": "5000",           # stałe — pole usunięte
             "p3": "-0.25",             # stałe — zgodne z programem ukladania (bylo +0.25)
-            "tylko_srodek": True,      # zawsze: wyśrodkuj i obróć
+            "tylko_srodek": False,     # zgodne z programem ukladania (bylo True)
             "klucz": "TX",          # pole „Uwagi” mapy — stałe, nieedytowalne
             "a2": True,              # oba pola opisu zawsze wpisywane
             "a5": True,
@@ -145,6 +145,98 @@ class TabOpisyNaMapeMixin:
         self.set_progress(0)
         threading.Thread(target=self.run_uloz_opisy_thread, args=(u,),
                          daemon=True).start()
+
+    # ================================================ NOWA KARTA: Układanie opisów
+    def start_ukladanie_opisow(self):
+        """Układanie opisów — 1:1 tak samo, jak w osobnym programie GEO-MAP_uklad.
+
+        Stałe ustawienia (te same, co w programie, który układa dobrze):
+        pismo 2,5 mm, skala 1:5000, obrót -0,25 (P3 = -0.25 grad).
+        """
+        src = ""
+        e = getattr(self, "ukl_src_entry", None)
+        if e is not None:
+            try:
+                src = (e.get() or "").strip()
+            except Exception:
+                src = ""
+        if not src or not Path(src).exists():
+            self.log("[UKLAD] Wskaż folder z mapami (.MAP) albo plik mapy.")
+            self.update_status("Brak map", "#D83B01", animate=False)
+            return
+        if self.running:
+            return
+        self._disable_ui_for_process()
+        self.log("[UKLAD] Rozsuwam opisy (pismo 2,5 mm, skala 1:5000, "
+                 "obrót -0,25) — tak samo jak w programie GEO-MAP_uklad...")
+        self.set_progress(0)
+        threading.Thread(target=self._ukladanie_watek, args=(src,),
+                         daemon=True).start()
+
+    def _ukladanie_watek(self, src):
+        import math as _m
+        from pathlib import Path as _P
+        try:
+            from app.core import uklad_opisow as uk
+            from app.core import opisy_na_mape as onm
+
+            obrot = -0.25 * _m.pi / 200.0
+
+            p = _P(src)
+            if p.is_file() and p.suffix.lower() == ".map":
+                mapy = {p.stem: p}
+            elif p.is_dir():
+                mapy = {}
+                for f in sorted(p.rglob("*")):
+                    if f.is_file() and f.suffix.lower() == ".map":
+                        mapy.setdefault(f.stem, f)
+            else:
+                mapy = {}
+            if not mapy:
+                self.log("[UKLAD] Nie znaleziono plików .MAP.")
+                self.update_status("Brak plików .MAP", "#D83B01", animate=False)
+                return
+
+            total = len(mapy)
+            self.start_progress_tracking(total, "Układanie opisów")
+            gotowe = 0
+            for idx, (klucz, sciezka) in enumerate(sorted(mapy.items()), start=1):
+                self.check_stop()
+                self.progress_current_file = sciezka.name
+                try:
+                    mapa = onm.wczytaj_mape(sciezka)
+                    el = uk.uloz(mapa, wysokosc_mm=2.5, skala=5000,
+                                 obrot=obrot, tylko_srodek=False)
+                    if not el:
+                        self.log("  • %s: brak opisów do ułożenia." % sciezka.name)
+                        self.set_progress(idx / total, current_file=sciezka.name,
+                                          current=idx)
+                        continue
+                    lines, zmiany = uk.ustaw_offsety(mapa, el, obrot_rad=obrot)
+                    out = sciezka.parent / (sciezka.stem + "_ulozone.MAP")
+                    out.write_bytes(onm.przelicz_naglowek(lines))
+                    wew = sum(1 for e in el if e.get("wewnatrz"))
+                    self.log("  • %s: opisów %d, przesunięto %d, w środku %d → %s"
+                             % (sciezka.name, len(el), zmiany, wew, out.name))
+                    gotowe += 1
+                except InterruptedError:
+                    raise
+                except Exception as ex:
+                    self.log("  ⚠️ %s: %s" % (sciezka.name, ex))
+                self.set_progress(idx / total, current_file=sciezka.name,
+                                  current=idx)
+            self.log("[UKLAD] Gotowe. Map: %d, ułożonych: %d." % (total, gotowe))
+            self.update_status("Ułożone opisy gotowe.", "#107C10", animate=False)
+        except InterruptedError:
+            self.log("\n[UKLAD] ZADANIE PRZERWANE PRZEZ UŻYTKOWNIKA.")
+            self.update_status("Przerwano", "#D83B01", animate=False)
+        except Exception as ex:
+            self.log("\n[UKLAD] Błąd: %s" % ex)
+            traceback.print_exc()
+            self.update_status("Błąd układania", "#D83B01", animate=False)
+        finally:
+            self.running = False
+            self.after(0, self.restore_all_buttons)
 
     def run_uloz_opisy_thread(self, u):
         try:

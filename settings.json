@@ -366,6 +366,7 @@
   "web.mapa_mdb": "C:\\Users\\niepy\\Desktop\\Nowy folder (6)\\Nowy folder\\ZŁOCIENIEC\\zaczytane",
   "web.mapa_font_mm": "2.5",
   "web.mapa_skala": "5000",
-  "web.mapa_p3": "0.25",
-  "web.mapa_tylko_srodek": true
+  "web.mapa_p3": "-0.25",
+  "web.mapa_tylko_srodek": false,
+  "web.ukl_src": "C:\\Users\\niepy\\Desktop\\Nowy folder (6)\\Nowy folder\\ZŁOCIENIEC\\zaczytane\\Nowy folder\\CHLEBOWO_z_opisami.MAP"
 }
