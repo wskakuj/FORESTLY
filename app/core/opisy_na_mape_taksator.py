@@ -34,6 +34,8 @@ DRIVER_ACCESS = "Microsoft Access Driver (*.mdb, *.accdb)"
 ETYKIETY_TYPOW = {
     "L ENERG": "L.ENERG",
     "ZRĄB": "zrąb",
+    "SUKCESJA": "sukcesja",
+    "INNE WYL": "inne wylesienie",
 }
 
 
@@ -262,13 +264,22 @@ def wpisz_do_mapy(mapa, wiersze, a1=True, a2=True):
     for w in do_zmiany:
         start = w["o"]["start"]
         o = w["o"]
+        a1_ob = (o.get("A1") or "").strip()
+        a6_ob = (o.get("A6") or "").strip()
+        # A6 puste, a A1 ma identyfikator wydzielenia (np. „2l”) -> skopiuj do A6
+        if not a6_ob and a1_ob:
+            k = onm.blok_koniec(lines, start)
+            onm.ustaw_atrybut(lines, start, k, "A6", a1_ob)
+            zmienione += 1
         if a2 and w.get("noweA2") and w["noweA2"] != (o.get("A2") or "").strip():
             k = onm.blok_koniec(lines, start)
             onm.ustaw_atrybut(lines, start, k, "A2", w["noweA2"])
             zmienione += 1
         if a1:
             lit = (w.get("noweA1") or "").strip()
-            if lit and (o.get("A1") or "").strip() != lit:
+            # A1 uzupełniamy tylko gdy jest PUSTE — nie nadpisujemy istniejącego
+            # (w mapach bez A6 A1 jest identyfikatorem wydzielenia, np. „2l”).
+            if lit and not a1_ob:
                 k = onm.blok_koniec(lines, start)
                 onm.ustaw_atrybut(lines, start, k, "A1", lit, zaraz_po="ID")
                 zmienione += 1
