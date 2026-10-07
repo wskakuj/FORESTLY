@@ -591,9 +591,7 @@ def build_schema():
                       "(TAKSATOR). Wynik zapisuje się obok mapy źródłowej jako "
                       "<NAZWA>_z_opisami.MAP. „Sprawdź braki przed wpisaniem” "
                       "pokazuje tabelę różnic między mapą a regułą i zapisuje je "
-                      "do pliku „Opisy na mapę - braki.csv”. „Ułóż opisy "
-                      "automatycznie” rozsuwa podpisy na mapie tak, aby się nie "
-                      "nakładały (wynik: <NAZWA>_ulozone.MAP)."),
+                      "do pliku „Opisy na mapę - braki.csv”."),
             ],
             "buttons": [
                 _button("run", "Wpisz opisy do map", "start_opisy_na_mape"),
@@ -601,30 +599,6 @@ def build_schema():
                         "start_sprawdz_opisy_na_mape", "secondary"),
                 _button("run_edytor", "Otwórz edytor opisów (okno)",
                         "open_edytor_opisow", "secondary"),
-            ],
-        },
-        {
-            "key": "MIETEK|Układanie opisów",
-            "tooltip": "Rozsuwa opisy na mapach GEO-MAP tak, aby się nie nakładały. "
-                       "Ta karta działa DOKŁADNIE tak samo jak osobny program "
-                       "„GEO-MAP_uklad\" — te same ustawienia: pismo 2,5 mm, "
-                       "skala 1:5000, obrót -0,25. Wynik: <NAZWA>_ulozone.MAP "
-                       "obok każdej mapy.",
-            "controls": [
-                _path("ukl_src", "ukl_src_entry",
-                      "Folder z mapami (.MAP) albo plik mapy:",
-                      "Wskaż folder (ułożę wszystkie mapy z folderu) "
-                      "albo pojedynczy plik .MAP",
-                      kind="both"),
-                _info("Układanie opisów działa na wydzieleniach 5310: opis "
-                      "(A2 z „|”) i litera (A1). Jeśli opis mieści się w obrysie "
-                      "wydzielenia, zostaje w środku — wysięgnik tylko wtedy, "
-                      "gdy naprawdę nie ma miejsca. Ustawienia są stałe "
-                      "(pismo 2,5 mm, skala 1:5000, obrót -0,25), takie same "
-                      "jak w osobnym programie do układania."),
-            ],
-            "buttons": [
-                _button("ukl_run", "Ułóż opisy", "start_ukladanie_opisow"),
             ],
         },
         {
