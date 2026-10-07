@@ -20,7 +20,7 @@ ctk = leniwy_modul("customtkinter")
 np = leniwy_modul("numpy")
 
 # --- WERSJA I AKTUALIZACJA ---
-CURRENT_VERSION = "v2.0.164"
+CURRENT_VERSION = "v2.0.165"
 GITHUB_USER = "wskakuj"
 GITHUB_REPO = "FORESTLY"
 

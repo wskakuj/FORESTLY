@@ -80,21 +80,20 @@ def przesun_wiek_w_tekscie(tekst, lata):
 
 
 def _przesun_optax_z_siatka(tekst, lata, dlugosc=245):
-    """Przesuwa wiek w polu OP_TAX komórka po komórce (siatka 7 × 35 znaków).
+    """Przesuwa wiek w opisie (OP_TAX) i układa go z powrotem w siatkę 7 × 35.
 
-    W każdej komórce: (1) usuwamy wiodące spacje — opis zaczyna się od
-    początku linii, bez „przerw", (2) przesuwamy wiek /x-y/z o `lata`,
-    (3) wyrównujemy komórkę z powrotem do 35 znaków. Dzięki temu układ
-    opisu (szyk) NIE rozjeżdża się po dodaniu lat do wieku.
+    W opisach taksacyjnych segmenty oddzielone są ciągami co najmniej
+    2 spacji. Dzielimy więc opis po tych ciągach, każdy segment przesuwamy
+    (wiek /x-y/z + lata) i kładziemy od początku własnej komórki 35-znakowej.
+    Dzięki temu każdy segment trafia do osobnej linii i opis się nie rozjeżdża.
     """
     if not tekst:
         return tekst
-    komorki = [tekst[i:i + 35] for i in range(0, len(tekst), 35)]
+    segmenty = [s for s in re.split(r"[\r\n]+| {2,}", tekst.strip()) if s.strip()]
     wynik = []
-    for c in komorki:
-        c = c.lstrip(" ")
-        c = przesun_wiek_w_tekscie(c, lata)
-        wynik.append(c.ljust(35))
+    for s in segmenty:
+        s = przesun_wiek_w_tekscie(s.strip(), lata)
+        wynik.append(s.ljust(35))
     return "".join(wynik)[:dlugosc]
 
 
