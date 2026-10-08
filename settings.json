@@ -353,10 +353,10 @@
   "web.split_scalony": false,
   "web.mdb_src": "",
   "web.mdb_dst": "",
-  "web.rozl_xls": "",
-  "web.rozl_val": "",
-  "web.rozl_out": "",
-  "web.rozl_wyrownywanie": false,
+  "web.rozl_xls": "D:\\download\\gówno\\Nowy folder (26)\\xls",
+  "web.rozl_val": "D:\\download\\gówno\\Nowy folder (26)\\val",
+  "web.rozl_out": "D:\\download\\gówno\\Nowy folder (26)",
+  "web.rozl_wyrownywanie": true,
   "web.rozl_puste_jrej": false,
   "web.tm_base": "",
   "web.tm_rozlicz": "",
@@ -372,5 +372,11 @@
   "folder_plus10_entry": "C:\\Users\\niepy\\Desktop\\vDos",
   "plus10_lata": "10",
   "plus10_wys": "1",
-  "plus10_piers": "2"
+  "plus10_piers": "2",
+  "web.genval_src": "D:\\download\\gówno\\Nowy folder (26)\\58_JULIANÓW LESIEWSKI_zaliterowane",
+  "web.genval_rek": false,
+  "folder_genval_source": "D:\\download\\gówno\\Nowy folder (26)\\58_JULIANÓW LESIEWSKI_zaliterowane",
+  "folder_rozl_xls_entry": "D:\\download\\gówno\\Nowy folder (26)\\xls",
+  "folder_rozl_val_entry": "D:\\download\\gówno\\Nowy folder (26)\\val",
+  "folder_rozl_out_entry": "D:\\download\\gówno\\Nowy folder (26)"
 }

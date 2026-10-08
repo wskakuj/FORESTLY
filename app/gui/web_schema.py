@@ -830,6 +830,20 @@ def build_schema():
             "buttons": [_button("run", "Uruchom rozliczanie obrębów", "start_rozliczanie")],
         },
         {
+            "key": "ROZLICZANIE|Generowanie VAL",
+            "tooltip": "Tworzy pliki .VAL (rozliczenie geodezyjne) z map GEO-MAP.",
+            "controls": [
+                _path("genval_src", "genval_source_entry", "Folder z mapami .MAP:",
+                      "Wskaż folder z plikami .MAP (albo jeden plik)"),
+                _info("Dla każdej działki (pole A2 mapy) liczy części wydzieleń "
+                      "(pole A1) na niej leżące — przecięcie poligonów. "
+                      "Pliki .VAL zapisują się obok każdej mapy."),
+                _check("genval_rek", "genval_recursive_var",
+                       "Uwzględnij podfoldery", False),
+            ],
+            "buttons": [_button("run", "Generuj pliki VAL", "start_generowanie_val")],
+        },
+        {
             "key": "ROZLICZANIE|Tworzenie i wpisywanie mietków",
             "tooltip": "Generuje struktury MS-DOS (mietki) z bazą DBF z ewidencji.",
             "controls": [
@@ -1225,6 +1239,14 @@ INSTRUKCJE = {
             "Wskaż plik ewidencji XLS.",
             "Wskaż plik .val (geodezja).",
             "Wskaż folder wynikowy i uruchom.",
+        ],
+    },
+    "ROZLICZANIE|Generowanie VAL": {
+        "co": "Tworzy pliki .VAL (rozliczenie geodezyjne) z map GEO-MAP (.MAP) — "
+              "takie, jakie czyta rozliczanie powierzchni.",
+        "jak": [
+            "Wskaż folder z mapami .MAP.",
+            "Uruchom — pliki .VAL powstaną obok każdej mapy.",
         ],
     },
     "ROZLICZANIE|Tworzenie i wpisywanie mietków": {

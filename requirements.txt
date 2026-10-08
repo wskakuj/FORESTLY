@@ -14,3 +14,4 @@ CTkToolTip>=0.8
 xlrd>=2.0.1
 pywebview>=5.0
 pythonnet>=3.0;platform_system=="Windows"
+shapely>=2.0

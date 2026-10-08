@@ -43,6 +43,72 @@ from app.core.excel_tasks import (
     formatuj_arkusz_raportowy,
 )
 
+_ZNAKI_PL = str.maketrans("ąćęłńóśźżĄĆĘŁŃÓŚŹŻ", "acelnoszzACELNOSZZ")
+
+
+def _klucz_nazwy(nazwa):
+    """Klucz do dopasowania plików XLS <-> VAL po nazwie obrębu (wsi).
+
+    - małe litery, polskie znaki sprowadzone do ASCII (Wieś -> wies),
+    - usuwane spacje, podkreślenia i wszystko poza literami i cyframi,
+    - wiodące zera w liczbach obcinane (0043 -> 43).
+
+    Przykład:
+      "Dzialki_Ls_0043_Stara_Wies" -> "dzialkilis43starawies"
+      "43_STARA WIEŚ"              -> "43starawies"
+    """
+    t = (nazwa or "").lower().translate(_ZNAKI_PL)
+    t = re.sub(r"[^a-z0-9]+", "", t)
+    t = re.sub(r"\d+", lambda m: str(int(m.group())), t)
+    return t
+
+
+def _pasuje_val(nazwa_xls, nazwa_val):
+    """Czy plik .val pasuje do pliku XLS (ten sam obręb)?
+
+    Wystarczy jedna z zasad:
+      1) dawna — nazwa VAL kończy się nazwą XLS,
+      2) nowa  — klucz nazw pokrywa się z jednej strony, co łapie przypadki
+         typu "Dzialki_Ls_0043_Stara_Wies.xlsx" <-> "43_STARA WIEŚ.VAL".
+    """
+    kx = _klucz_nazwy(nazwa_xls)
+    kv = _klucz_nazwy(nazwa_val)
+    if not kx or not kv:
+        return False
+    return kx.endswith(kv) or kv.endswith(kx)
+
+
+def _pary_obrebow(folder_xls, folder_val):
+    """Dopasowuje pliki XLS do .VAL po nazwie obrębu.
+
+    Zwraca (pary, bez_val):
+      pary    — lista (plik_xls, plik_val albo None),
+      bez_val — pliki .val, dla których nie znalazł się żaden XLS.
+    """
+    xls_files = sorted(
+        q for q in Path(folder_xls).iterdir()
+        if q.is_file() and q.suffix.lower() in (".xls", ".xlsx")
+        and not q.name.startswith("~$"))
+    val_files = sorted(
+        q for q in Path(folder_val).iterdir()
+        if q.is_file() and q.suffix.lower() == ".val")
+    pary = []
+    uzyte = set()
+    for x in xls_files:
+        traf = None
+        for v in val_files:
+            if v.name in uzyte:
+                continue
+            if _pasuje_val(x.stem, v.stem):
+                traf = v
+                break
+        if traf is not None:
+            uzyte.add(traf.name)
+        pary.append((x, traf))
+    bez_val = [v for v in val_files if v.name not in uzyte]
+    return pary, bez_val
+
+
 class TabRozliczanieMixin:
     """Mixin dla ModernApp — metody zostały wyciągnięte z oryginalnego guipia.py."""
     pass
@@ -290,7 +356,8 @@ class TabRozliczanieMixin:
             found = False
             for v in val_files:
                 v_czysta = _re.sub(r"[\s_]", "", v.name.lower())
-                if v_czysta.endswith(x_czysta + ".val"):
+                if (v_czysta.endswith(x_czysta + ".val")
+                        or _pasuje_val(x.stem, v.stem)):
                     found = True
                     val_matched.add(v.name)
                     break
@@ -550,6 +617,48 @@ class TabRozliczanieMixin:
             if not messagebox.askyesno("Walidacja — znaleziono problemy", msg):
                 return
 
+        # --- Tabela połączeń XLS <-> VAL: pokaż i pozwól poprawić ---
+        wybrane_pary = None
+        try:
+            pary, bez_val = _pary_obrebow(folder_xls, folder_val)
+        except Exception:
+            pary, bez_val = [], []
+        if pary:
+            domyslne = {x.stem: (v.stem if v else "") for x, v in pary}
+            wszystkie_val = sorted(set(
+                [v.stem for _, v in pary if v] + [v.stem for v in bez_val]))
+            self.log("[ROZLICZANIE] Proponowane połączenia XLS <-> VAL:")
+            for x, v in pary:
+                self.log("  %s  ->  %s" % (x.stem, v.stem if v else "BRAK pliku .val"))
+            pokaz = getattr(self, "pokaz_dialog_par", None)
+            if callable(pokaz):
+                odp = pokaz("Połączenia plików XLS <-> VAL",
+                            [x.stem for x, _ in pary], wszystkie_val, domyslne)
+                if odp is None:
+                    odp = {"anuluj": False, "pary": domyslne}
+                if odp.get("anuluj"):
+                    self.log("[ROZLICZANIE] Przerwano — popraw połączenia i uruchom ponownie.")
+                    return
+                wybrane_pary = odp.get("pary") or {}
+            else:
+                tresc = ("Połączono %d obrębów (XLS -> VAL):\n\n%s\n\n"
+                         "Czy połączenia są poprawne?"
+                         % (len(pary), "\n".join(
+                             "  %s   ->   %s" % (x.stem, v.stem if v else "BRAK pliku .val")
+                             for x, v in pary[:30])))
+                if not messagebox.askyesno("Połączenia plików XLS <-> VAL", tresc):
+                    self.log("[ROZLICZANIE] Przerwano — popraw połączenia i uruchom ponownie.")
+                    return
+            try:
+                (Path(folder_out) / "pary_obrebow.txt").write_text(
+                    "Połączenia XLS -> VAL:\n"
+                    + "\n".join("  %s   ->   %s"
+                                 % (x.stem, (wybrane_pary or domyslne).get(x.stem) or "BRAK")
+                                 for x, _ in pary),
+                    encoding="utf-8")
+            except Exception:
+                pass
+
         # Zapisz foldery w ustawieniach
         self.set_setting("folder_rozl_xls_entry", folder_xls)
         self.set_setting("folder_rozl_val_entry", folder_val)
@@ -561,12 +670,15 @@ class TabRozliczanieMixin:
         self.set_progress(0)
         threading.Thread(
             target=self.run_rozliczanie_thread,
-            args=(folder_xls, folder_val, folder_out, tylko_wyrownywanie, usun_puste_jrej),
+            args=(folder_xls, folder_val, folder_out, tylko_wyrownywanie,
+                  usun_puste_jrej, wybrane_pary),
             daemon=True,
         ).start()
 
 
-    def run_rozliczanie_thread(self, folder_xls_str, folder_val_str, folder_out_str, tylko_wyrownywanie, usun_puste_jrej=False):
+    def run_rozliczanie_thread(self, folder_xls_str, folder_val_str, folder_out_str,
+                               tylko_wyrownywanie, usun_puste_jrej=False,
+                               wybrane_pary=None):
         try:
             folder_xls = Path(folder_xls_str)
             folder_val = Path(folder_val_str)
@@ -600,11 +712,21 @@ class TabRozliczanieMixin:
                 # PRECYZYJNE DOPASOWANIE VAL (zapobiega pomyleniu "LIS" z "LISIE_POLE")
                 nazwa_wsi_czysta = re.sub(r"[\s_]", "", nazwa_wsi.lower())
                 pasujace_val = []
-                for f in folder_val.iterdir():
-                    if f.is_file() and f.suffix.lower() == ".val":
-                        f_czysta = re.sub(r"[\s_]", "", f.name.lower())
-                        if f_czysta.endswith(nazwa_wsi_czysta + ".val"):
-                            pasujace_val.append(f)
+                if wybrane_pary is not None:
+                    # połączenia zatwierdzone/poprawione w tabeli — bierzemy dokładnie to
+                    cel = wybrane_pary.get(nazwa_wsi)
+                    if cel:
+                        for f in folder_val.iterdir():
+                            if (f.is_file() and f.suffix.lower() == ".val"
+                                    and f.stem == cel):
+                                pasujace_val.append(f)
+                else:
+                    for f in folder_val.iterdir():
+                        if f.is_file() and f.suffix.lower() == ".val":
+                            f_czysta = re.sub(r"[\s_]", "", f.name.lower())
+                            if (f_czysta.endswith(nazwa_wsi_czysta + ".val")
+                                    or _pasuje_val(nazwa_wsi, f.stem)):
+                                pasujace_val.append(f)
 
                 if not pasujace_val:
                     self.log(f"  ⚠️ Pominięto '{nazwa_wsi}' — brak pasującego pliku .val")

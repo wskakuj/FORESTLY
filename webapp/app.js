@@ -3025,6 +3025,58 @@ function showChangelog(ev) {
   $("#modal-root").appendChild(wrap);
 }
 
+/* ---------------- tabela połączeń plików XLS <-> VAL (rozliczanie) */
+/* Backend wysyła: {type:"dialog", kind:"pary", id, xls:[...], val:[...], pary:{xls:val}} */
+function showPary(ev) {
+  const backdrop = el("div", "modal-backdrop");
+  const modal = el("div", "modal");
+  modal.style.width = "780px";
+  if (ev.title) modal.appendChild(el("h3", null, escapeHtml(ev.title)));
+  modal.appendChild(el("div", "modal-msg",
+    "W każdej kolumnie możesz zmienić, który plik VAL ma trafić do danego arkusza XLS. "
+    + "Gdy wszystko się zgadza — kliknij OK."));
+
+  const box = el("div", "pary-box");
+  const tabela = el("table", "braki-tabela pary-tabela");
+  const thead = el("thead"); const trh = el("tr");
+  ["Arkusz XLS (obręb)", "Plik VAL"].forEach(t => trh.appendChild(el("th", null, t)));
+  thead.appendChild(trh); tabela.appendChild(thead);
+  const tbody = el("tbody");
+  const selekty = {};
+  const wszystkie = ev.val || [];
+  (ev.xls || []).forEach(x => {
+    const tr = el("tr");
+    tr.appendChild(el("td", "braki-mono", escapeHtml(x)));
+    const td = el("td");
+    const sel = el("select", "pary-select");
+    const op0 = el("option", null, "(brak — pomiń ten obręb)"); op0.value = ""; sel.appendChild(op0);
+    wszystkie.forEach(v => { const o = el("option", null, escapeHtml(v)); o.value = v; sel.appendChild(o); });
+    sel.value = (ev.pary || {})[x] || "";
+    selekty[x] = sel;
+    td.appendChild(sel); tr.appendChild(td);
+    tbody.appendChild(tr);
+  });
+  tabela.appendChild(tbody);
+  box.appendChild(tabela);
+  modal.appendChild(box);
+
+  const row = el("div", "modal-row");
+  const anuluj = el("button", "btn secondary", "Anuluj rozliczanie");
+  const ok = el("button", "btn primary", "OK — połącz tak");
+  anuluj.onclick = () => { backdrop.remove(); api().dialog_reply(ev.id, {anuluj: true}); };
+  ok.onclick = () => {
+    const pary = {};
+    Object.keys(selekty).forEach(x => { if (selekty[x].value) pary[x] = selekty[x].value; });
+    backdrop.remove();
+    api().dialog_reply(ev.id, {anuluj: false, pary: pary});
+  };
+  row.appendChild(anuluj); row.appendChild(ok);
+  modal.appendChild(row);
+  backdrop.appendChild(modal);
+  backdrop.onclick = e => { if (e.target === backdrop) { backdrop.remove(); api().dialog_reply(ev.id, {anuluj: true}); } };
+  document.body.appendChild(backdrop);
+}
+
 function showDialog(ev) {
   if (ev.kind === "confirm") {
     const backdrop = el("div", "modal-backdrop");
@@ -3047,6 +3099,8 @@ function showDialog(ev) {
     };
     document.body.appendChild(backdrop);
     setTimeout(() => tak.focus(), 50);
+  } else if (ev.kind === "pary") {
+    showPary(ev);
   } else {
     const t = toast(ev.title ? (ev.title + ": " + ev.message) : ev.message,
                     ev.kind === "error" ? "error" : ev.kind === "warn" ? "warn" : "ok");

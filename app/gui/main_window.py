@@ -53,6 +53,7 @@ from app.gui.tabs.tab_layout_excel import TabLayoutExcelMixin
 from app.gui.tabs.tab_split_pdf import TabSplitPdfMixin
 from app.gui.tabs.tab_mdb_update import TabMdbUpdateMixin
 from app.gui.tabs.tab_pdf_converter import TabPdfConverterMixin
+from app.gui.tabs.tab_generowanie_val import TabGenerowanieValMixin
 from app.gui.tabs.tab_rozliczanie import TabRozliczanieMixin
 from app.gui.tabs.tab_halizny import TabHaliznyMixin
 from app.gui.tabs.tab_wydruki import TabWydrukiMixin
@@ -76,6 +77,7 @@ class ModernApp(
     TabSplitPdfMixin,
     TabMdbUpdateMixin,
     TabPdfConverterMixin,
+    TabGenerowanieValMixin,
     TabRozliczanieMixin,
     TabHaliznyMixin,
     TabWydrukiMixin,
@@ -693,6 +695,10 @@ class ModernApp(
             "sumy per wieś + rozpiska działek przybyło/ubyło z właścicielami."
         )
         tab_excel_z_mdb = _nowa_zakladka("ROZLICZANIE", "Excel z MDB")
+        tab_gen_val = _nowa_zakladka(
+            "ROZLICZANIE", "Generowanie VAL",
+            "Tworzy pliki .VAL (rozliczenie geodezyjne) z map GEO-MAP: "
+            "dla każdej działki (A2) liczy części wydzieleń (A1) na niej leżące.")
 
         # ---- KONWERTER PDF ----
         _naglowek("KONWERTER PDF")
@@ -745,6 +751,7 @@ class ModernApp(
         self.setup_mietek_plus10_tab(tab_mietek_plus10)
         self.setup_halizny_tab(tab_halizny)
         self.setup_excel_z_mdb_tab(tab_excel_z_mdb)
+        self.setup_generowanie_val_tab(tab_gen_val)
         self.setup_pdf_converter_tab(tab_pdfconv)
 
         self.options_frame = ctk.CTkFrame(self.top_panel, fg_color="transparent")

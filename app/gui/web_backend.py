@@ -50,6 +50,7 @@ from app.gui.tabs.tab_split_pdf import TabSplitPdfMixin
 from app.gui.tabs.tab_mdb_update import TabMdbUpdateMixin
 from app.gui.tabs.tab_pdf_converter import TabPdfConverterMixin
 from app.gui.tabs.tab_rozliczanie import TabRozliczanieMixin
+from app.gui.tabs.tab_generowanie_val import TabGenerowanieValMixin
 from app.gui.tabs.tab_halizny import TabHaliznyMixin
 from app.gui.tabs.tab_wydruki import TabWydrukiMixin
 from app.gui.tabs.tab_excel_z_mdb import TabExcelZMdbMixin
@@ -496,7 +497,8 @@ class WebBackend(
     TabAllMixin, TabWordMixin, TabPdfMixin, TabManualMergeMixin,
     TabTemplateGeneratorMixin, TabTitlePagesMixin, TabExcelMixin,
     TabLayoutExcelMixin, TabSplitPdfMixin, TabMdbUpdateMixin,
-    TabPdfConverterMixin, TabRozliczanieMixin, TabHaliznyMixin,
+    TabPdfConverterMixin, TabRozliczanieMixin, TabGenerowanieValMixin,
+    TabHaliznyMixin,
     TabWydrukiMixin, TabExcelZMdbMixin, TabTworzenieMietkowMixin,
     TabNazwiskaMietekMixin, TabMietekRozbieznosciMixin, TabMietekPlus10Mixin,
     TabStareOpisyMixin, TabMietekV2Mixin, TabRozliczenieMietkaMixin,
@@ -634,9 +636,28 @@ class WebBackend(
     def dialog_reply(self, dialog_id, answer):
         wait = self._dialog_waits.get(dialog_id)
         if wait:
-            wait[1][0] = bool(answer)
+            wait[1][0] = answer if isinstance(answer, dict) else bool(answer)
             wait[0].set()
         return {"ok": True}
+
+    def pokaz_dialog_par(self, tytul, xls_nazwy, val_nazwy, pary):
+        """Pokazuje w interfejsie tabelę połączeń XLS <-> VAL i czeka na decyzję.
+
+        Zwraca:
+          {"anuluj": True}            — użytkownik przerwał,
+          {"anuluj": False, "pary": {xls: val}} — zatwierdzone połączenia,
+          None                        — interfejs nie obsługuje takiego okna.
+        """
+        import uuid
+        import threading
+        did = uuid.uuid4().hex[:12]
+        ev = threading.Event()
+        self._dialog_waits[did] = (ev, [None])
+        self._emit({"type": "dialog", "kind": "pary", "id": did,
+                    "title": str(tytul), "xls": list(xls_nazwy),
+                    "val": list(val_nazwy), "pary": dict(pary)})
+        ev.wait()
+        return self._dialog_waits.pop(did, (None, [None]))[1][0]
 
     # ------------------------------------------------- sztuczne widgety
 
@@ -1393,6 +1414,7 @@ class WebBackend(
             "start_excel_z_mdb": self.start_excel_z_mdb_pipeline,
             "start_pdf_converter": self.start_pdf_converter_pipeline,
             "start_rozliczanie": self.start_rozliczanie_pipeline,
+            "start_generowanie_val": self.start_generowanie_val,
             "start_zestawienie": self.start_zestawienie_zbiorcze,
             "start_zestawienie_mietki": self.start_zestawienie_mietki,
             "start_tworzenie_mietkow": self.start_tworzenie_mietkow_pipeline,
