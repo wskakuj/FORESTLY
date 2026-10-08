@@ -1304,6 +1304,10 @@ INSTRUKCJE = {
 # Na Starcie widać 3 pierwsze wpisy, których zakładka faktycznie istnieje.
 # "wersja" to tylko etykietka (plakietka) — możesz ją dowolnie ustawić.
 NOWOSCI = [
+    {"key": "ROZLICZANIE|Generowanie VAL", "wersja": "v2.0.166",
+     "label": "Generowanie VAL z map GEO-MAP",
+     "opis": "Nowa zakładka: tworzy pliki .VAL z map GEO-MAP (.MAP) — "
+             "z podziałem na działki, gotowe do rozliczania powierzchni."},
     {"key": "MIETEK|Opisy na mapę", "wersja": "v2.0.143",
      "label": "Opisy na mapę — trzy bazy",
      "opis": "Jedna zakładka dla baz Forestly GO, MIETKA i TAKSATORA. "
@@ -1322,6 +1326,11 @@ NOWOSCI = [
 
 # Usprawnienia w zakładkach, które już istniały (niebieskie kafelki).
 USPRAWNIONE = [
+    {"key": "ROZLICZANIE|Rozliczanie powierzchni", "wersja": "v2.0.166",
+     "label": "Rozliczanie — łączenie XLS z VAL",
+     "opis": "Program sam łączy arkusze XLS z plikami .VAL po nazwie "
+             "(np. „Dzialki_Ls_0043_Stara_Wies” z „43_STARA WIEŚ”), a przed "
+             "startem pokazuje tabelę par z możliwością ręcznej poprawy."},
     {"key": "MIETEK|Nowe Szablony", "wersja": "v2.0.140",
      "label": "Nowe Szablony — jedno okno",
      "opis": "Scalone z „Stare → nowe szablony” + 3 miniatury strony tytułowej."},

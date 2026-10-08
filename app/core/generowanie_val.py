@@ -1,20 +1,16 @@
-# -*- coding: utf-8 -*-
 """Generowanie plików .VAL (rozliczenie geodezyjne) z map GEO-MAP (.MAP).
 
-Plik .VAL zawiera, dla każdej DZIAŁKI, wydzielenia na niej leżące wraz z ich
-powierzchniami. Powierzchnia to CZĘŚĆ WSPÓLNA (przecięcie) poligonu wydzielenia
-i poligonu działki — tak liczy to GEO-MAP.
-
-W mapie GEO-MAP:
+Zasada (ustalona na parze TURZE.MAP + TURZE.VAL):
   * obiekty z polem A2 = DZIAŁKI (parcele),
-  * obiekty z polem A1 = WYDZIELENIA (np. "3a", "12a").
+  * obiekty z polem A1 = WYDZIELENIA (np. "3a", "12a"),
+  * dla każdej działki wpisujemy części wydzieleń leżące na niej — pole liczone
+    jako PRZECIĘCIE dwóch poligonów.
 
-Format pliku .VAL czytany przez rozliczanie (excel_tasks.wczytaj_i_przetworz_val):
-  ^<litera wydzielenia> <pole m2> ...   <- wydzielenie na tej działce
-  ^XXXX... <pole m2> ...                <- nagłówek sumy działki (ignorowany)
-  ;----...
-  *<numer działki> <pole m2> ...        <- działka
+Pola przecięć liczy biblioteka „shapely" (dokładnie i szybko). Gdy jej nie ma
+(np. w .exe zbudowanym bez niej), zakładka NIE zgaduje wyników — tylko mówi
+wprost, że brakuje biblioteki. Błędny plik .VAL byłby gorszy niż brak pliku.
 """
+
 import pathlib
 import re
 
@@ -23,6 +19,20 @@ from app.core.leniwe_importy import leniwy_modul
 shapely_geometry = leniwy_modul("shapely.geometry")
 
 _KRESKA = ";" + "-" * 64
+
+# shapely sprawdzamy raz, leniwie
+_SHAPELY = None
+
+
+def _shapely_ok():
+    global _SHAPELY
+    if _SHAPELY is None:
+        try:
+            _SHAPELY = shapely_geometry.Polygon(
+                [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)]).area > 0
+        except Exception:                                   # noqa: BLE001
+            _SHAPELY = False
+    return _SHAPELY
 
 
 def _pisz(log, tekst):
@@ -39,6 +49,21 @@ def _pisz(log, tekst):
     elif callable(log):
         log(tekst)
 
+
+def _brak_shapely(log):
+    """Czytelny komunikat, gdy brakuje biblioteki liczącej pola."""
+    _pisz(log, "  BŁĄD: brak biblioteki shapely — bez niej nie da się "
+               "policzyć przecięć działek i wydzieleń.")
+    _pisz(log, "  Co zrobić: zaktualizować program do najnowszej wersji "
+               "(EXE zawiera już tę bibliotekę), a przy uruchamianiu "
+               "ze źródeł — doinstalować ją:  pip install shapely")
+    return {"ok": False, "error": "brak biblioteki shapely",
+            "dzialek": 0, "wydzielen": 0}
+
+
+# --------------------------------------------------------------------------
+# czytanie mapy
+# --------------------------------------------------------------------------
 
 def _czytaj(plik):
     """Zwraca listę obiektów mapy: {a1, a2, pts}."""
@@ -95,6 +120,10 @@ def _czy_dzialka(a2):
     return re.match(r"^\d+(/\d+)?[a-z]?$", a2, re.IGNORECASE) is not None
 
 
+# --------------------------------------------------------------------------
+# generowanie
+# --------------------------------------------------------------------------
+
 def generuj_val(plik_map, plik_val=None, log=None):
     """Tworzy plik .VAL z mapy .MAP. Zwraca słownik z wynikiem."""
     def _log(s):
@@ -104,6 +133,9 @@ def generuj_val(plik_map, plik_val=None, log=None):
     if plik_val is None:
         plik_val = plik_map.with_suffix(".VAL")
     plik_val = pathlib.Path(plik_val)
+
+    if not _shapely_ok():
+        return _brak_shapely(log)
 
     obiekty = _czytaj(plik_map)
     dzialki, wydzielenia = [], []
@@ -115,11 +147,17 @@ def generuj_val(plik_map, plik_val=None, log=None):
             dzialki.append((o["a2"], p))
         if _czy_wydzielenie(o["a1"]):
             wydzielenia.append((o["a1"], p))
-    _log("%s: działek %d, wydzieleń %d" % (plik_map.name, len(dzialki), len(wydzielenia)))
+
+    _log("%s: działek %d, wydzieleń %d"
+         % (plik_map.name, len(dzialki), len(wydzielenia)))
+
+    if obiekty and not dzialki and not wydzielenia:
+        _log("  UWAGA: mapa ma %d obiektów, ale żaden nie ma poprawnych pól "
+             "A1/A2 — sprawdź, czy to na pewno mapa GEO-MAP." % len(obiekty))
     if not dzialki or not wydzielenia:
         _log("  pominięto — brak działek (A2) albo wydzieleń (A1) w mapie.")
-        return {"ok": False, "error": "brak działek lub wydzieleń", "dzialek": len(dzialki),
-                "wydzielen": len(wydzielenia)}
+        return {"ok": False, "error": "brak działek lub wydzieleń",
+                "dzialek": len(dzialki), "wydzielen": len(wydzielenia)}
 
     linie = ["Rozliczenie użytków w działkach z obliczeniem wartości",
              "Jednostka pola -> metry kwadratowe",
@@ -151,7 +189,8 @@ def generuj_val(plik_map, plik_val=None, log=None):
         linie.append(";")
         linie.append(_KRESKA)
     linie.append(";")
-    plik_val.write_bytes(("\r\n".join(linie) + "\r\n").encode("cp1250", errors="replace"))
+    plik_val.write_bytes(("\r\n".join(linie) + "\r\n").encode("cp1250",
+                                                             errors="replace"))
     _log("  zapisano: %s  (pozycji: %d)" % (plik_val, pozycji))
     return {"ok": True, "wynik": str(plik_val), "pozycji": pozycji,
             "dzialek": len(dzialki), "wydzielen": len(wydzielenia)}
@@ -163,6 +202,8 @@ def generuj_val_folder(folder, log=None):
     pliki = [p for p in sorted(folder.rglob("*"))
              if p.is_file() and p.suffix.lower() == ".map"]
     _pisz(log, "Znaleziono map .MAP: %d" % len(pliki))
+    if not _shapely_ok():
+        return [_brak_shapely(log)]
     wyniki = []
     for p in pliki:
         try:
