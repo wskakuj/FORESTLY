@@ -3077,6 +3077,87 @@ function showPary(ev) {
   document.body.appendChild(backdrop);
 }
 
+/* ------- okno: co zrobić z typami właścicieli występującymi w danych ------- */
+function showOpTypy(ev) {
+  const backdrop = el("div", "modal-backdrop");
+  const modal = el("div", "modal");
+  modal.style.width = "900px";
+  if (ev.title) modal.appendChild(el("h3", null, escapeHtml(ev.title)));
+  modal.appendChild(el("div", "modal-msg",
+    "Te typy właścicieli występują w danych do rozliczenia. "
+    + "Kliknij przycisk w kolumnie, żeby wybrać, co zrobić z danym typem."));
+
+  const wybory = {};
+  const ustawiacze = {};      /* klucz -> funkcja wybierająca akcję w wierszu */
+
+  const szybkie = el("div", "modal-row");
+  szybkie.appendChild(el("span", null, "Ustaw wszystkie na:"));
+  (ev.akcje || []).forEach(par => {
+    const b = el("button", "btn secondary", escapeHtml(par[1]));
+    b.style.marginLeft = "6px";
+    b.style.padding = "4px 12px";
+    b.onclick = () => Object.keys(ustawiacze).forEach(k => ustawiacze[k](par[0]));
+    szybkie.appendChild(b);
+  });
+  modal.appendChild(szybkie);
+
+  const box = el("div", "pary-box");
+  const tabela = el("table", "braki-tabela pary-tabela");
+  const thead = el("thead"); const trh = el("tr");
+  const thTyp = el("th", null, "Typ właściciela");
+  const thPrz = el("th", null, "Przykład z danych");
+  trh.appendChild(thTyp); trh.appendChild(thPrz);
+  thead.appendChild(trh); tabela.appendChild(thead);
+
+  const tbody = el("tbody");
+  (ev.typy || []).forEach(t => {
+    const tr = el("tr");
+    tr.appendChild(el("td", "braki-mono", escapeHtml(t.label)));
+    tr.appendChild(el("td", "braki-mono", escapeHtml((t.przyklady || []).join(" / "))));
+
+    const przyciski = [];
+    const wybierz = (a) => {
+      przyciski.forEach(([x, b]) => {
+        const on = (x === a);
+        b.style.background = on ? "#0e639c" : "#3a3a3a";
+        b.style.color = "#ffffff";
+        b.style.fontWeight = on ? "700" : "400";
+      });
+      wybory[t.klucz] = a;
+    };
+    (ev.akcje || []).forEach(par => {
+      const td = el("td", "op-kol");
+      const b = el("button", "btn secondary", escapeHtml(par[1]));
+      b.style.minWidth = "62px";
+      b.style.padding = "4px 10px";
+      b.style.fontSize = "12px";
+      b.onclick = () => wybierz(par[0]);
+      td.appendChild(b);
+      tr.appendChild(td);
+      przyciski.push([par[0], b]);
+    });
+    ustawiacze[t.klucz] = wybierz;
+    tbody.appendChild(tr);
+    wybierz((ev.domyslne || {})[t.klucz] || ((ev.akcje || [])[0] || [])[0]);
+  });
+  tabela.appendChild(tbody);
+  box.appendChild(tabela);
+  modal.appendChild(box);
+
+  const row = el("div", "modal-row");
+  const anuluj = el("button", "btn secondary", "Anuluj");
+  const ok = el("button", "btn primary", "wpisz mietki");
+  anuluj.onclick = () => { backdrop.remove(); api().dialog_reply(ev.id, {anuluj: true}); };
+  ok.onclick = () => { backdrop.remove(); api().dialog_reply(ev.id, {anuluj: false, wybory: wybory}); };
+  row.appendChild(anuluj); row.appendChild(ok);
+  modal.appendChild(row);
+  backdrop.appendChild(modal);
+  backdrop.onclick = e => {
+    if (e.target === backdrop) { backdrop.remove(); api().dialog_reply(ev.id, {anuluj: true}); }
+  };
+  document.body.appendChild(backdrop);
+}
+
 function showDialog(ev) {
   if (ev.kind === "confirm") {
     const backdrop = el("div", "modal-backdrop");
@@ -3101,6 +3182,8 @@ function showDialog(ev) {
     setTimeout(() => tak.focus(), 50);
   } else if (ev.kind === "pary") {
     showPary(ev);
+  } else if (ev.kind === "optypy") {
+    showOpTypy(ev);
   } else {
     const t = toast(ev.title ? (ev.title + ": " + ev.message) : ev.message,
                     ev.kind === "error" ? "error" : ev.kind === "warn" ? "warn" : "ok");

@@ -16,6 +16,27 @@ warnings.filterwarnings("ignore", message=".*file size.*not.*sector size.*")
 warnings.filterwarnings("ignore", message=".*SSCS size.*")
 import traceback
 
+def _czy_osoba_prawna(tekst):
+    """Czy właściciel to osoba prawna (Skarb Państwa, gmina, spółka itd.)?
+
+    Rozpoznajemy po znaczniku [OP], a gdy go nie ma — po nazwie, bo bywa
+    wpisywana bez znacznika (np. SKARB PAŃSTWA, GMINA, NADLEŚNICTWO).
+    """
+    t = str(tekst or "").upper()
+    if not t.strip():
+        return False
+    # Parafia i kościół: mimo znacznika [OP] traktujemy jak zwykłego
+    # właściciela — litery zostają z cyfrą (np. "1d"), bez zamiany na "X".
+    if "PARAFIA" in t or "KOŚCI" in t or "KOSCI" in t:
+        return False
+    if "[OP]" in t:
+        return True
+    if re.search(r"SPÓŁK|SP\.|\bSP\b|Z\s*O\.?\s*O|\bS\.?\s*A\.?\b|SPÓŁDZ|ZAKŁAD|AGENCJ|PRZEDSIĘB", t):
+        return True
+    return any(w in t for w in ("SKARB PAŃSTWA", "GMINA", "WOJEWÓDZTWO",
+                                "NADLEŚNICTWO", "LASY PAŃSTWOWE"))
+
+
 class TabKrzyzowkiMixin:
     """Mixin dla ModernApp — metody zostały wyciągnięte z oryginalnego guipia.py."""
     pass
@@ -148,17 +169,35 @@ class TabKrzyzowkiMixin:
                 self.progress_current_file = xls_path.name
 
                 # Nazwa obrębu = nazwa pliku bez przyrostka "_Rozliczone" (i wszystkiego po nim)
-                v_name = re.sub(r'(?i)_?rozliczone.*$', '', xls_path.stem).strip()
+                # Nazwa obrębu liczona tak samo jak przy tworzeniu mietków:
+                # z nazwy pliku XLS, z odciętym numerem obrębu
+                # (Dzialki_Ls_0052_Wolka_Lesiewska -> Wolka_Lesiewska).
+                try:
+                    from app.gui.tabs.tab_tworzenie_mietkow import _nazwa_obrebu_z_xls
+                except Exception:
+                    def _nazwa_obrebu_z_xls(s):
+                        s = re.sub(r'(?i)\.(xlsx?|xlsm|csv)$', '', str(s).strip()).strip()
+                        s = re.sub(r'(?i)_?rozliczone$', '', s).strip()
+                        _m = list(re.finditer(r'\d+', s))
+                        if _m:
+                            _r = re.sub(r'^[\s_\-\.]+', '', s[_m[-1].end():])
+                            if _r.strip():
+                                return _r.strip()
+                        return s
+                v_name = _nazwa_obrebu_z_xls(xls_path.stem)
                 if not v_name:
                     v_name = xls_path.stem
                 v_norm = re.sub(r'[\s_\-]', '', v_name.lower())
+                # zapasowo: dawna nazwa (bez odcinania numeru obrębu)
+                _stare = re.sub(r'(?i)_?rozliczone.*$', '', xls_path.stem).strip()
+                _stare_norm = re.sub(r'[\s_\-]', '', _stare.lower())
 
                 # Szukamy pasującego folderu obrębu wśród Mietków (ściśle, bez fałszywych "LIS"/"LISIE POLE")
                 target_mietek = None
                 for folder in mietki_dir.iterdir():
                     if folder.is_dir():
                         f_norm = re.sub(r'[\s_\-]', '', folder.name.lower())
-                        if f_norm and f_norm == v_norm:
+                        if f_norm and (f_norm == v_norm or f_norm == _stare_norm):
                             target_mietek = folder
                             break
                 if not target_mietek:
@@ -201,13 +240,27 @@ class TabKrzyzowkiMixin:
 
                         nr_dz = str(row.get('nr_dz', '')).strip()
                         litery = str(row.get('litery', ''))
-                        # "X" w litery → ODDZIAL (kolumna H), nie PODODDZ (kolumna I)
-                        if litery.strip().upper() == 'X':
+                        # Właściciel (kolumna K) — osoba prawna? Wtedy zamiast
+                        # numeru oddziału wpisujemy "X" (np. litery "1d" -> "Xd").
+                        _wl = ""
+                        try:
+                            _wl = row.get('Właściciel', "")
+                            if not str(_wl).strip() and len(row) > 10:
+                                _wl = row.iloc[10]
+                        except Exception:
+                            _wl = ""
+                        # Co zrobić z właścicielem — wg checkboxów przy typach
+                        _akcja = (self.akcja_dla_wlasciciela(_wl)
+                                  if hasattr(self, "akcja_dla_wlasciciela") else
+                                  ("x" if _czy_osoba_prawna(_wl) else "rozlicz"))
+                        if _akcja == "pomin":
+                            continue      # nie wpisujemy tego właściciela do mietka
+                        if litery.strip().upper() == 'X' or _akcja == "x":
                             oddzial = 'X'
                             pododdz = ''
                         else:
-                            oddzial = "".join(ch for ch in litery if ch.isdigit())[:7]  # cyfry  -> ODDZIAL
-                            pododdz = "".join(ch for ch in litery if ch.isalpha())[:3]  # litery -> PODODDZ
+                            oddzial = "".join(ch for ch in litery if ch.isdigit())[:7]
+                            pododdz = "".join(ch for ch in litery if ch.isalpha())[:3]
                         pow_val = row['__POW']
                         records.append({
                             'NRREJ': nrrej_val,  # <-- KONIECZNIE, jako pierwsze

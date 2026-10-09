@@ -50,6 +50,22 @@ def _checks(cid, base, label, choices, tooltip=""):
             "choices": choices, "tooltip": tooltip, "save": True}
 
 
+def _op_kontrole():
+    """Checkboxy: co zrobić z każdym typem właściciela przy rozliczaniu."""
+    try:
+        from app.gui.tabs.tab_tworzenie_mietkow import OP_TYPY, OP_AKCJE, OP_DOMYSLNE
+    except Exception:
+        return []
+    out = [_info("Właściciele — co zrobić z każdym typem (zaznacz jedną opcję):")]
+    for klucz, etyk, _slowa in OP_TYPY:
+        dom = OP_DOMYSLNE.get(klucz, "rozlicz")
+        for akcja, opis in OP_AKCJE:
+            out.append(_check("op_%s_%s" % (klucz, akcja),
+                              "op_%s_%s" % (klucz, akcja),
+                              "%s — %s" % (etyk, opis), dom == akcja))
+    return out
+
+
 def _group(label, controls, tooltip="", collapsed=True):
     return {"kind": "group", "label": label, "controls": controls,
             "tooltip": tooltip, "collapsed": collapsed}
@@ -1326,6 +1342,27 @@ NOWOSCI = [
 
 # Usprawnienia w zakładkach, które już istniały (niebieskie kafelki).
 USPRAWNIONE = [
+    {"key": "ROZLICZANIE|Tworzenie i wpisywanie mietków", "wersja": "v2.0.167",
+     "label": "Mietki — typy właścicieli",
+     "opis": "Przy tworzeniu mietków program rozpoznaje typy właścicieli "
+             "(Skarb Państwa, gmina, województwo, nadleśnictwo, spółka, "
+             "parafia…) i pokazuje okno, w którym dla każdego wybierasz: "
+             "rozlicz, x albo usuń."},
+    {"key": "ROZLICZANIE|Tworzenie i wpisywanie mietków", "wersja": "v2.0.167",
+     "label": "Mietki — nazwa wsi i adresy",
+     "opis": "Nazwa obrębu (folder mietka i WSIE.DBF) brana z nazwy pliku XLS "
+             "Ewidencji — „Dzialki_Ls_0052_Wolka_Lesiewska” daje „Wolka_Lesiewska”. "
+             "Adresy zapisywane od miejscowości: „PIASECZNO, NIECAŁA 9/1”."},
+    {"key": "ROZLICZANIE|Tworzenie i wpisywanie mietków", "wersja": "v2.0.167",
+     "label": "Mietki — litery działek",
+     "opis": "Dla osób prawnych (Skarb Państwa, gmina, spółka itd.) w oddziale "
+             "wpisywany jest „X” zamiast numeru, a pododdział zostaje pusty. "
+             "Parafia i kościół rozliczają się normalnie."},
+    {"key": "ROZLICZANIE|Tworzenie i wpisywanie mietków", "wersja": "v2.0.167",
+     "label": "Mietki — litery i udziały",
+     "opis": "Poprawione rozpoznawanie liter i udziałów: numer domu z ukośnikiem "
+             "(„6/1”), udziały „1/1” i „1/2” nie trafiają do nazwiska ani adresu, "
+             "a powtórzone wpisy tego samego właściciela są scalane."},
     {"key": "ROZLICZANIE|Rozliczanie powierzchni", "wersja": "v2.0.166",
      "label": "Rozliczanie — łączenie XLS z VAL",
      "opis": "Program sam łączy arkusze XLS z plikami .VAL po nazwie "

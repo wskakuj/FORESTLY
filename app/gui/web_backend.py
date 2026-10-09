@@ -640,6 +640,29 @@ class WebBackend(
             wait[0].set()
         return {"ok": True}
 
+    def pokaz_dialog_typy_op(self, tytul, typy, akcje, domyslne):
+        """Okno: co zrobić z typami właścicieli występującymi w danych.
+
+        `typy`     — lista (klucz, etykieta, [przykłady]),
+        `akcje`    — lista etykiet akcji (np. rozliczyć / wpisać X / nie wpisywać),
+        `domyslne` — {klucz: akcja} do wstępnego zaznaczenia.
+
+        Zwraca {"anuluj": bool, "wybory": {klucz: akcja}} albo None.
+        """
+        import uuid
+        import threading
+        did = uuid.uuid4().hex[:12]
+        ev = threading.Event()
+        self._dialog_waits[did] = (ev, [None])
+        self._emit({"type": "dialog", "kind": "optypy", "id": did,
+                    "title": str(tytul),
+                    "typy": [{"klucz": k, "label": l, "przyklady": list(p or [])}
+                             for (k, l, p) in typy],
+                    "akcje": list(akcje),
+                    "domyslne": dict(domyslne)})
+        ev.wait()
+        return self._dialog_waits.pop(did, (None, [None]))[1][0]
+
     def pokaz_dialog_par(self, tytul, xls_nazwy, val_nazwy, pary):
         """Pokazuje w interfejsie tabelę połączeń XLS <-> VAL i czeka na decyzję.
 

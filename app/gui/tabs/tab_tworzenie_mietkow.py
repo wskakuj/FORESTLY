@@ -26,6 +26,142 @@ from app.core.excel_tasks import (
     wczytaj_i_przetworz_wlascicieli, WSIE_FIELDS,
 )
 
+# --- typy właścicieli do ustawień rozliczania (klucz, etykieta, słowa) ---
+OP_TYPY = [
+    ("skarb",  "SKARB PAŃSTWA",     ("SKARB PAŃSTWA",)),
+    ("gmina",  "GMINA",             ("GMINA",)),
+    ("wojew",  "WOJEWÓDZTWO",       ("WOJEWÓDZTWO",)),
+    ("nadles", "NADLEŚNICTWO",      ("NADLEŚNICTWO",)),
+    ("lasy",   "LASY PAŃSTWOWE",    ("LASY PAŃSTWOWE",)),
+    ("spolka", "SPÓŁKA / SP. / SP", ("SPÓŁKA", "SP.", "SP")),
+    ("zoo",    "Z O.O.",            ("Z O.O.", "ZOO")),
+    ("sa",     "S.A.",              ("S.A.", "SA")),
+    ("spoldz", "SPÓŁDZIELNIA",      ("SPÓŁDZIELNIA", "SPÓŁDZ")),
+    ("zaklad", "ZAKŁAD",            ("ZAKŁAD",)),
+    ("agencj", "AGENCJA",           ("AGENCJA",)),
+    ("paraf",  "PARAFIA / KOŚCIÓŁ", ("PARAFIA", "KOŚCIÓŁ", "KOSCIOL", "KOSCI")),
+]
+
+# akcje do wyboru przy każdym typie
+OP_AKCJE = [("rozlicz", "rozlicz"), ("x", "x"), ("pomin", "usuń")]
+
+# domyślna akcja dla typu (odpowiada temu, jak działało do tej pory)
+OP_DOMYSLNE = {k: ("rozlicz" if k == "paraf" else "x") for k, _e, _s in OP_TYPY}
+
+
+def _typ_wlasciciela(tekst):
+    """Zwraca klucz typu właściciela (z OP_TYPY) albo None."""
+    t = str(tekst or "").upper()
+    if not t.strip():
+        return None
+    for klucz, _etyk, slowa in OP_TYPY:
+        for slowo in slowa:
+            if slowo in ("SP", "SA", "ZOO"):
+                if re.search(r"\b" + re.escape(slowo) + r"\b", t):
+                    return klucz
+            elif slowo in t:
+                return klucz
+    return None
+
+
+def zbierz_typy_wlascicieli(folder_xls):
+    """Skanuje pliki XLS Ewidencji i zwraca {klucz_typu: [przykładowe nazwy]}.
+
+    Bierzemy tylko te typy, które faktycznie występują w danych do rozliczenia.
+    """
+    znalezione = {}
+    try:
+        import pandas as _pd
+    except Exception:
+        return znalezione
+    try:
+        pliki = sorted(q for q in Path(folder_xls).iterdir()
+                       if q.is_file() and q.suffix.lower() in (".xls", ".xlsx")
+                       and not q.name.startswith("~$"))
+    except Exception:
+        return znalezione
+    for plik in pliki:
+        try:
+            df = _pd.read_excel(str(plik), header=None, dtype=str)
+        except Exception:
+            continue
+        for _kol in df.columns:
+            for wartosc in df[_kol].dropna().tolist():
+                for linia in str(wartosc).split("\n"):
+                    linia = linia.strip()
+                    if not linia:
+                        continue
+                    klucz = _typ_wlasciciela(linia)
+                    if not klucz:
+                        continue
+                    lista = znalezione.setdefault(klucz, [])
+                    if linia not in lista and len(lista) < 5:
+                        lista.append(linia[:70])
+    return znalezione
+
+
+def _uloz_adres(parts):
+    """Układa adres: miejscowość/kod pocztowy najpierw, ulica i numer na końcu.
+
+        ['NIECAŁA 9/1', 'PIASECZNO']               -> 'PIASECZNO, NIECAŁA 9/1'
+        ['KACZEŃCOWA 5', '96-200 RAWA MAZOWIECKA'] -> '96-200 RAWA MAZOWIECKA, KACZEŃCOWA 5'
+    """
+    parts = [str(p).strip() for p in parts if p and str(p).strip()]
+    if len(parts) < 2:
+        return ", ".join(parts)
+    # Odwracamy tylko wtedy, gdy pierwszy człon to ULICA Z NUMEREM
+    # (ma cyfrę, ale nie jest kodem pocztowym), a dalsze to miejscowość/kod.
+    pierwszy = parts[0]
+    ulica_pierwsza = bool(re.search(r"\d", pierwszy)) and not re.search(r"\d{2}-\d{3}", pierwszy)
+    dalej_miejsce = any(not re.search(r"^\D*\d+[A-Za-z]?$", q) for q in parts[1:])
+    if ulica_pierwsza and dalej_miejsce:
+        return ", ".join(parts[1:] + [parts[0]])
+    return ", ".join(parts)
+
+
+def _nazwa_obrebu_z_xls(stem):
+    """Nazwa wsi wyciągnięta z nazwy pliku XLS Ewidencji.
+
+        Dzialki_Ls_0052_Wolka_Lesiewska -> Wolka_Lesiewska
+        58_JULIANÓW LESIEWSKI           -> JULIANÓW LESIEWSKI
+        Dzialki_Ls_0043_Stara_Wies      -> Stara_Wies
+
+    Odcinamy początek aż do ostatniej liczby (numeru obrębu) razem z separatorem
+    po niej. Gdy po odcięciu nic nie zostaje — zwracamy nazwę bez zmian.
+    """
+    s = str(stem).strip()
+    s = re.sub(r"(?i)\.(xlsx?|xlsm|csv)$", "", s).strip()   # ewentualne rozszerzenie
+    s = re.sub(r"(?i)_?rozliczone$", "", s).strip()          # ewentualny sufiks
+    m = list(re.finditer(r"\d+", s))
+    if m:
+        reszta = s[m[-1].end():]
+        reszta = re.sub(r"^[\s_\-\.]+", "", reszta)
+        if reszta.strip():
+            return reszta.strip()
+    return s
+
+
+def _czy_osoba_prawna(tekst):
+    """Czy właściciel to osoba prawna (Skarb Państwa, gmina, spółka itd.)?
+
+    Rozpoznajemy po znaczniku [OP], a gdy go nie ma — po nazwie, bo bywa
+    wpisywana bez znacznika (np. SKARB PAŃSTWA, GMINA, NADLEŚNICTWO).
+    """
+    t = str(tekst or "").upper()
+    if not t.strip():
+        return False
+    # Parafia i kościół: mimo znacznika [OP] traktujemy jak zwykłego
+    # właściciela — litery zostają z cyfrą (np. "1d"), bez zamiany na "X".
+    if "PARAFIA" in t or "KOŚCI" in t or "KOSCI" in t:
+        return False
+    if "[OP]" in t:
+        return True
+    if re.search(r"SPÓŁK|SP\.|\bSP\b|Z\s*O\.?\s*O|\bS\.?\s*A\.?\b|SPÓŁDZ|ZAKŁAD|AGENCJ|PRZEDSIĘB", t):
+        return True
+    return any(w in t for w in ("SKARB PAŃSTWA", "GMINA", "WOJEWÓDZTWO",
+                                "NADLEŚNICTWO", "LASY PAŃSTWOWE"))
+
+
 class TabTworzenieMietkowMixin:
     """Mixin dla ModernApp — łączy tworzenie mietków i wpisywanie krzyżówek."""
     pass
@@ -114,6 +250,38 @@ class TabTworzenieMietkowMixin:
             fg_color="#8B0000", hover_color="#A52A2A"
         ).grid(row=5, column=0, columnspan=3, padx=15, pady=(0, 10), sticky="w")
 
+        # --- CHECKBOXY: CO ZROBIĆ Z TYPAMI WŁAŚCICIELI ---
+        op_frame = ctk.CTkFrame(card, fg_color="#1E1E1E", border_width=1, border_color="#333333")
+        op_frame.grid(row=6, column=0, columnspan=3, padx=15, pady=(0, 15), sticky="ew")
+        ctk.CTkLabel(op_frame, text="Właściciele — co zrobić z każdym typem (zaznacz jedną opcję):",
+                     font=font_label, text_color="#A0A0A0").grid(
+            row=0, column=0, columnspan=4, padx=10, pady=(8, 6), sticky="w")
+        _pasek_wsz = ctk.CTkFrame(op_frame, fg_color="transparent")
+        _pasek_wsz.grid(row=0, column=1, columnspan=3, sticky="e", padx=6, pady=(4, 0))
+        ctk.CTkLabel(_pasek_wsz, text="Ustaw wszystkie na:",
+                     font=ctk.CTkFont(family="Segoe UI", size=12)).grid(row=0, column=0, padx=(0, 8))
+        for _k, (_akcja, _opis) in enumerate(OP_AKCJE):
+            ctk.CTkButton(_pasek_wsz, text=_opis, width=90, height=26,
+                          fg_color="#444444", hover_color="#555555",
+                          command=lambda a=_akcja: self._ustaw_wszystkie_op(a)
+                          ).grid(row=0, column=1 + _k, padx=3)
+        for _i, (_klucz, _etyk, _slowa) in enumerate(OP_TYPY, start=1):
+            ctk.CTkLabel(op_frame, text=_etyk, font=font_btn, text_color="#E0E0E0").grid(
+                row=_i, column=0, padx=(10, 10), pady=3, sticky="w")
+            for _j, (_akcja, _opis) in enumerate(OP_AKCJE):
+                _attr = "op_%s_%s" % (_klucz, _akcja)
+                _dom = (OP_DOMYSLNE.get(_klucz, "rozlicz") == _akcja)
+                _zap = self.get_setting(_attr, _dom)
+                if isinstance(_zap, str):
+                    _zap = _zap.strip().lower() in ("1", "true", "tak", "yes")
+                _var = ctk.BooleanVar(value=bool(_zap))
+                setattr(self, _attr, _var)
+                ctk.CTkCheckBox(
+                    op_frame, text=_opis, variable=_var,
+                    font=ctk.CTkFont(family="Segoe UI", size=12),
+                    command=lambda a=_attr: self.set_setting(a, self._cb(a)),
+                ).grid(row=_i, column=1 + _j, padx=6, pady=3, sticky="w")
+
         # --- DWA PRZYCISKI ---
         btn_frame = ctk.CTkFrame(scroll_frame, fg_color="transparent")
         btn_frame.grid(row=1, column=0, padx=20, pady=(5, 20), sticky="ew")
@@ -139,6 +307,130 @@ class TabTworzenieMietkowMixin:
     # ==========================================
     # PIPELINE 1: SAME MIETKI
     # ==========================================
+    def pokaz_dialog_typy_op(self, tytul, typy, akcje, domyslne):
+        """Okno w trybie okienkowym: co zrobić z typami właścicieli.
+
+        W interfejsie webowym tę metodę przesłania wersja z web_backend.
+        """
+        try:
+            import tkinter as _tk
+            import customtkinter as _ctk
+        except Exception:
+            return None
+        try:
+            win = _ctk.CTkToplevel(self)
+        except Exception:
+            return None
+        wynik = {"anuluj": True, "wybory": {}}
+        win.title(str(tytul))
+        win.geometry("780x540")
+        _ctk.CTkLabel(win, text="Te typy właścicieli występują w danych — zaznacz, co zrobić z każdym:",
+                      font=_ctk.CTkFont(size=13, weight="bold"),
+                      wraplength=740, justify="left").pack(padx=12, pady=(12, 6), anchor="w")
+        ramka = _ctk.CTkScrollableFrame(win, fg_color="transparent")
+        ramka.pack(fill="both", expand=True, padx=12, pady=6)
+        zmienne = {}
+        for klucz, etyk, przyklady in typy:
+            wiersz = _ctk.CTkFrame(ramka, fg_color="#1E1E1E")
+            wiersz.pack(fill="x", pady=3)
+            wiersz.grid_columnconfigure(1, weight=1)
+            _ctk.CTkLabel(wiersz, text=etyk, width=190, anchor="w").grid(
+                row=0, column=0, padx=6, pady=6, sticky="w")
+            _ctk.CTkLabel(wiersz, text=(przyklady[0] if przyklady else ""),
+                          text_color="#888888", anchor="w").grid(
+                row=0, column=1, padx=6, sticky="w")
+            var = _tk.StringVar(value=domyslne.get(klucz, akcje[0]))
+            zmienne[klucz] = var
+            przyciski = []
+
+            def _wybierz(akcja, _k=klucz, _v=var, _p=przyciski):
+                _v.set(akcja)
+                for _a, _b in _p:
+                    _b.configure(fg_color=("#0e639c" if _a == akcja else "#3a3a3a"),
+                                 hover_color=("#1177bb" if _a == akcja else "#4a4a4a"))
+
+            for _j, (_akcja, _opis) in enumerate(akcje):
+                _b = _ctk.CTkButton(wiersz, text=_opis, width=64, height=24,
+                                    font=_ctk.CTkFont(size=12),
+                                    fg_color="#3a3a3a", hover_color="#4a4a4a",
+                                    command=lambda a=_akcja, f=_wybierz: f(a))
+                _b.grid(row=0, column=2 + _j, padx=4)
+                przyciski.append((_akcja, _b))
+            _wybierz(domyslne.get(klucz, akcje[0][0]))
+
+        def _ok():
+            wynik["anuluj"] = False
+            wynik["wybory"] = {k: v.get() for k, v in zmienne.items()}
+            win.destroy()
+
+        pasek_wsz = _ctk.CTkFrame(win, fg_color="transparent")
+        pasek_wsz.pack(fill="x", padx=12, pady=(0, 4))
+        _ctk.CTkLabel(pasek_wsz, text="Ustaw wszystkie na:",
+                      font=_ctk.CTkFont(size=12)).pack(side="left", padx=(0, 8))
+        for _akcja, _opis in akcje:
+            _ctk.CTkButton(
+                pasek_wsz, text=_opis, width=90, fg_color="#444444", hover_color="#555555",
+                command=lambda a=_akcja: [v.set(a) for v in zmienne.values()]
+            ).pack(side="left", padx=4)
+
+        pasek = _ctk.CTkFrame(win, fg_color="transparent")
+        pasek.pack(fill="x", padx=12, pady=(0, 12))
+        _ctk.CTkButton(pasek, text="Anuluj", fg_color="#555555", hover_color="#666666",
+                       command=win.destroy).pack(side="right", padx=6)
+        _ctk.CTkButton(pasek, text="wpisz mietki", command=_ok).pack(side="right", padx=6)
+        try:
+            win.grab_set()
+            win.wait_window()
+        except Exception:
+            pass
+        return wynik
+
+    def _pokaz_wybory_op(self, folder_xls):
+        """Zbiera typy właścicieli z Ewidencji i pyta, co z nimi zrobić.
+
+        Zwraca dict {klucz: akcja} albo None, gdy użytkownik przerwał.
+        """
+        znalezione = zbierz_typy_wlascicieli(folder_xls)
+        self._op_wybory = {}
+        if not znalezione:
+            return {}
+        # kolejność jak w OP_TYPY
+        kolejnosc = [k for k, _e, _s in OP_TYPY if k in znalezione]
+        opis_typow = {k: e for k, e, _s in OP_TYPY}
+        # domyślne: to, co ustawione w checkboxach
+        domyslne = {}
+        for k in kolejnosc:
+            dom = None
+            for akcja, _opis in OP_AKCJE:
+                if self._cb("op_%s_%s" % (k, akcja)):
+                    dom = akcja
+                    break
+            domyslne[k] = dom or OP_DOMYSLNE.get(k, "rozlicz")
+
+        pokaz = getattr(self, "pokaz_dialog_typy_op", None)
+        if callable(pokaz):
+            odp = pokaz("Właściciele w danych do rozliczenia",
+                        [(k, opis_typow.get(k, k), znalezione[k][:1]) for k in kolejnosc],
+                        [[a, o] for a, o in OP_AKCJE], domyslne)
+            if odp is None:
+                self._op_wybory = dict(domyslne)
+            elif odp.get("anuluj"):
+                return None
+            else:
+                self._op_wybory = odp.get("wybory") or dict(domyslne)
+        else:
+            # brak okna (tryb okienkowy) — zostają ustawienia z zakładki
+            self._op_wybory = dict(domyslne)
+
+        _etykiet_akcji = {a: o for a, o in OP_AKCJE}
+        self.log("[MIETKI] Właściciele w danych — co z nimi zrobić:")
+        for k in kolejnosc:
+            przyklad = znalezione[k][0] if znalezione[k] else ""
+            _ak = self._op_wybory.get(k, "?")
+            self.log("    %-22s -> %-8s  (%s)" % (opis_typow.get(k, k),
+                                                  _etykiet_akcji.get(_ak, _ak), przyklad))
+        return self._op_wybory
+
     def start_tworzenie_mietkow_pipeline(self, with_krzyzowki=False):
         baz_dir = self.mietki_bazowy_entry.get().strip() if hasattr(self, 'mietki_bazowy_entry') and self.mietki_bazowy_entry else ""
         rozl_dir = self.mietki_rozlicz_entry.get().strip() if hasattr(self, 'mietki_rozlicz_entry') and self.mietki_rozlicz_entry else ""
@@ -229,6 +521,11 @@ class TabTworzenieMietkowMixin:
             return
 
         names_list = sorted(list(set(xls_files)))
+
+        # Okno: co zrobić z typami właścicieli występującymi w danych do rozliczenia
+        if self._pokaz_wybory_op(baz_dir) is None:
+            self.log("[MIETKI] Przerwano na życzenie użytkownika.")
+            return
 
         base_dir = get_resource_path("pusty")
         if not Path(base_dir).exists() or not Path(base_dir).is_dir():
@@ -364,6 +661,51 @@ class TabTworzenieMietkowMixin:
                         f.write(val_bytes)
             f.write(struct.pack('<B', 0x1A))
 
+    def _ustaw_wszystkie_op(self, akcja):
+        """Ustawia wszystkie checkboxy typów właścicieli na jedną akcję."""
+        for klucz, _etyk, _slowa in OP_TYPY:
+            for a, _opis in OP_AKCJE:
+                attr = "op_%s_%s" % (klucz, a)
+                w = getattr(self, attr, None)
+                if w is not None and hasattr(w, "set"):
+                    try:
+                        w.set(a == akcja)
+                        self.set_setting(attr, a == akcja)
+                    except Exception:
+                        pass
+
+    def _cb(self, attr, domyslna=False):
+        """Odczyt checkboxa — działa i w okienkach, i w interfejsie webowym."""
+        w = getattr(self, attr, None)
+        if w is None:
+            return bool(domyslna)
+        if hasattr(w, "get"):
+            try:
+                return bool(w.get())
+            except Exception:
+                return bool(domyslna)
+        return bool(getattr(w, "checked", domyslna))
+
+    def akcja_dla_wlasciciela(self, wl):
+        """Co zrobić z właścicielem: 'rozlicz', 'x' albo 'pomin'."""
+        klucz = _typ_wlasciciela(wl)
+        if klucz:
+            # najpierw wybór z okna pokazanego przy starcie (dotyczy tego uruchomienia)
+            _w = (getattr(self, "_op_wybory", None) or {}).get(klucz)
+            if _w:
+                return _w
+            if self._cb("op_%s_pomin" % klucz):
+                return "pomin"
+            if self._cb("op_%s_x" % klucz):
+                return "x"
+            if self._cb("op_%s_rozlicz" % klucz):
+                return "rozlicz"
+            return OP_DOMYSLNE.get(klucz, "rozlicz")
+        # brak rozpoznanego typu, ale jest znacznik osoby prawnej
+        if "[OP]" in str(wl or "").upper():
+            return "x"
+        return "rozlicz"
+
     def parse_wlasciciel(self, text, j_rej):
         if pd.isna(text): return []
         text = str(text).strip()
@@ -393,6 +735,13 @@ class TabTworzenieMietkowMixin:
                     parts = [p for p in parts if p]
                     if parts:
                         first = parts[0]
+                        # Udział (np. 1/1, 1/2) to nie nazwisko i nie adres.
+                        # Gdy linia zaczyna się od udziału, bierzemy z niej
+                        # tylko to, co po nim (zwykle miejscowość).
+                        if re.fullmatch(r'\d+/\d+', first):
+                            if len(parts) > 1:
+                                addr_pool.append(_uloz_adres(parts[1:]))
+                            continue
                         has_marker = bool(re.search(r'\[(OF|OP|PG)\]', first))
                         # Jeśli pierwsza część nie ma markera i wygląda na adres
                         # (ma cyfry, pasuje do wzorca ulicy) → cała linia to adres
@@ -401,7 +750,7 @@ class TabTworzenieMietkowMixin:
                                 re.search(r'\d{2}-\d{3}', first) or
                                 re.search(r'\d+\s*m\.?\s*\d+', first, re.IGNORECASE) or
                                 re.search(r'\bm\.\s*\d+', first, re.IGNORECASE) or
-                                re.search(r'^\D+\s+\d+[A-Za-z]?(?:\s+m\.?\s*\d+)?\s*$', first) is not None or
+                                re.search(r'^\D+\s+\d+[A-Za-z]?(?:/\d+)?(?:\s+m\.?\s*\d+)?\s*$', first) is not None or
                                 'ul.' in first.lower() or
                                 'ulica' in first.lower()
                             )
@@ -416,15 +765,19 @@ class TabTworzenieMietkowMixin:
                             )
                         )
                         if looks_like_address or looks_like_place:
-                            addr_pool.append(", ".join(parts))
+                            addr_pool.append(_uloz_adres(parts))
                         else:
                             if has_marker:
                                 clean = re.sub(r'\s*\[(OF|OP|PG)\]', '', first).strip()
                             else:
                                 clean = first
-                            entries.append([clean, ", ".join(parts[1:])])
+                            # Nazwisko poprzedzone udziałem — zostaw samo nazwisko
+                            clean = re.sub(r'^\d+/\d+\s+', '', clean).strip()
+                            entries.append([clean, _uloz_adres(parts[1:])])
                 else:
                     # Bez średnika — klasyfikuj heurystycznie
+                    if re.fullmatch(r'\d+/\d+', line.strip()):
+                        continue          # sama liczba udziału — nie jest adresem
                     has_marker = bool(re.search(r'\[(OF|OP|PG)\]', line))
                     is_address = bool(
                         re.search(r'\d{2}-\d{3}', line) or
@@ -433,10 +786,11 @@ class TabTworzenieMietkowMixin:
                         re.search(r'\d+\s*m\.\s*\d+', line, re.IGNORECASE) or
                         re.search(r'\d+\s*m\s*\d+', line, re.IGNORECASE) or
                         re.search(r'\bm\.\s*\d+', line, re.IGNORECASE) or
-                        re.search(r'^\D+\s+\d+[A-Za-z]?(?:\s+m\.?\s*\d+)?\s*$', line) is not None
+                        re.search(r'^\D+\s+\d+[A-Za-z]?(?:/\d+)?(?:\s+m\.?\s*\d+)?\s*$', line) is not None
                     )
                     if has_marker:
                         clean_name = re.sub(r'\s*\[(OF|OP|PG)\]', '', line).strip()
+                        clean_name = re.sub(r'^\d+/\d+\s+', '', clean_name).strip()
                         entries.append([clean_name, ""])
                     elif is_address:
                         addr_pool.append(line)
@@ -445,7 +799,8 @@ class TabTworzenieMietkowMixin:
                         # ale mamy już nazwiska → to nazwa miejscowości (kontynuacja adresu)
                         addr_pool.append(line)
                     else:
-                        entries.append([line, ""])
+                        # Nazwisko ewentualnie poprzedzone liczbą udziału
+                        entries.append([re.sub(r'^\d+/\d+\s+', '', line).strip(), ""])
 
             # Wypełnij brakujące adresy:
             # 1) nazwisko bez własnego adresu dziedziczy ostatni widziany adres
@@ -461,6 +816,18 @@ class TabTworzenieMietkowMixin:
             for e in entries:
                 if not e[1]:
                     e[1] = first_avail
+
+            # Ta sama osoba bywa wpisana dwa razy — raz krótko, raz z adresem.
+            # Po uzupełnieniu adresów takie wpisy są identyczne, więc je scalmy.
+            widziane = set()
+            unikaty = []
+            for e in entries:
+                klucz = (e[0].strip().upper(), e[1].strip().upper())
+                if klucz in widziane:
+                    continue
+                widziane.add(klucz)
+                unikaty.append(e)
+            entries = unikaty
 
             for j, (name, addr) in enumerate(entries):
                 addr = self.napraw_powtorzenia_adresu(addr)
@@ -582,7 +949,7 @@ class TabTworzenieMietkowMixin:
             return []
 
     def run_tworzenie_mietkow_thread(self, base_dir_str, out_dir_str, names_list, baz_dir_str, rozl_dir_str=None,
-                                     wsie_meta=None, with_krzyzowki=False):
+                                     wsie_meta=None, with_krzyzowki=False, nazwy_obrebow=None):
         try:
             self.update_status("Generowanie struktury MIETEK...", "#0078D7")
             base_dir = Path(base_dir_str)
@@ -591,6 +958,14 @@ class TabTworzenieMietkowMixin:
 
             baz_dir = Path(baz_dir_str) if baz_dir_str else None
             rozl_dir = Path(rozl_dir_str) if rozl_dir_str else None
+
+            # Nazwa wsi do folderu mietka i WSIE.DBF — z nazwy pliku XLS Ewidencji
+            # (np. Dzialki_Ls_0052_Wolka_Lesiewska -> Wolka_Lesiewska).
+            if nazwy_obrebow is None:
+                nazwy_obrebow = {x: _nazwa_obrebu_z_xls(x) for x in names_list}
+            self.log("[MIETKI] Nazwy obrębów z plików XLS Ewidencji:")
+            for _x in list(names_list)[:20]:
+                self.log(f"    {_x}  ->  {nazwy_obrebow.get(_x, _x)}")
 
             total = len(names_list)
             self.start_progress_tracking(total, "Kopiowanie folderów bazowych")
@@ -606,14 +981,17 @@ class TabTworzenieMietkowMixin:
 
             for idx, name in enumerate(names_list, start=1):
                 self.check_stop()
-                self.progress_current_file = name
-                self.log(f"[MIETKI] Tworzenie folderu dla: {name}")
+                # Nazwa obrębu do folderu i WSIE.DBF (z pliku XLS Ewidencji)
+                obreb = nazwy_obrebow.get(name, name)
+                self.progress_current_file = obreb
+                self.log(f"[MIETKI] Tworzenie folderu dla: {obreb}"
+                         + (f"  (XLS: {name})" if obreb != name else ""))
 
-                target_dir = out_dir / name
+                target_dir = out_dir / obreb
                 try:
                     # Jeśli folder istnieje — pomiń, nie nadpisuj
                     if target_dir.exists():
-                        self.log(f"  -> Folder '{name}' już istnieje — pominięto (nie nadpisano).")
+                        self.log(f"  -> Folder '{obreb}' już istnieje — pominięto (nie nadpisano).")
                         self.set_progress(idx / total)
                         continue
                     shutil.copytree(base_dir, target_dir)
@@ -625,6 +1003,10 @@ class TabTworzenieMietkowMixin:
 
                         if path_baz:
                             dbf_records = self.process_mietek_dbf(path_baz, path_rozl)
+                            # pomiń właścicieli oznaczonych jako "nie wpisywać do mietka"
+                            if dbf_records:
+                                dbf_records = [r for r in dbf_records
+                                               if self.akcja_dla_wlasciciela(r.get('NAZWISKO', '')) != "pomin"]
                             if dbf_records:
                                 w_dbfs = []
                                 seen = set()
@@ -663,10 +1045,10 @@ class TabTworzenieMietkowMixin:
                         wol_dir_wsie.mkdir(parents=True, exist_ok=True)
 
                         wsie_dbf = wol_dir_wsie / "WSIE.DBF"
-                        wsie_record = self.build_wsie_record(name, wsie_meta or {})
+                        wsie_record = self.build_wsie_record(obreb, wsie_meta or {})
                         self.write_dbf(str(wsie_dbf), WSIE_FIELDS, [wsie_record])
                         self.log(
-                            f"  -> Zapisano WSIE.DBF (NAZWA={name}, GMINA={name}, POWIAT={(wsie_meta or {}).get('POWIAT', '')})")
+                            f"  -> Zapisano WSIE.DBF (NAZWA={obreb}, GMINA={obreb}, POWIAT={(wsie_meta or {}).get('POWIAT', '')})")
 
                         # --- WALIDACJA DBF PO ZAPISIE ---
                         try:
@@ -768,16 +1150,33 @@ class TabTworzenieMietkowMixin:
                 self.check_stop()
                 self.progress_current_file = xls_path.name
 
-                v_name = re.sub(r'(?i)_?rozliczone.*$', '', xls_path.stem).strip()
+                # Nazwa obrębu liczona tak samo jak przy tworzeniu mietków:
+                # z nazwy pliku XLS, z odciętym numerem obrębu
+                # (Dzialki_Ls_0052_Wolka_Lesiewska -> Wolka_Lesiewska).
+                try:
+                    from app.gui.tabs.tab_tworzenie_mietkow import _nazwa_obrebu_z_xls
+                except Exception:
+                    def _nazwa_obrebu_z_xls(s):
+                        s = re.sub(r'(?i)_?rozliczone$', '', str(s).strip()).strip()
+                        _m = list(re.finditer(r'\d+', s))
+                        if _m:
+                            _r = re.sub(r'^[\s_\-\.]+', '', s[_m[-1].end():])
+                            if _r.strip():
+                                return _r.strip()
+                        return s
+                v_name = _nazwa_obrebu_z_xls(xls_path.stem)
                 if not v_name:
                     v_name = xls_path.stem
                 v_norm = re.sub(r'[\s_\-]', '', v_name.lower())
+                # zapasowo: dawna nazwa (bez odcinania numeru obrębu)
+                _stare = re.sub(r'(?i)_?rozliczone.*$', '', xls_path.stem).strip()
+                _stare_norm = re.sub(r'[\s_\-]', '', _stare.lower())
 
                 target_mietek = None
                 for folder in mietki_dir.iterdir():
                     if folder.is_dir():
                         f_norm = re.sub(r'[\s_\-]', '', folder.name.lower())
-                        if f_norm and f_norm == v_norm:
+                        if f_norm and (f_norm == v_norm or f_norm == _stare_norm):
                             target_mietek = folder
                             break
                 if not target_mietek:
@@ -818,8 +1217,21 @@ class TabTworzenieMietkowMixin:
 
                         nr_dz = str(row.get('nr_dz', '')).strip()
                         litery = str(row.get('litery', ''))
+                        # Właściciel (kolumna K) — osoba prawna? Wtedy zamiast
+                        # numeru oddziału wpisujemy "X" (np. litery "1d" -> "Xd").
+                        _wl = ""
+                        try:
+                            _wl = row.get('Właściciel', "")
+                            if not str(_wl).strip() and len(row) > 10:
+                                _wl = row.iloc[10]
+                        except Exception:
+                            _wl = ""
+                        # Co zrobić z właścicielem — wg checkboxów przy typach
+                        _akcja = self.akcja_dla_wlasciciela(_wl)
+                        if _akcja == "pomin":
+                            continue      # nie wpisujemy tego właściciela do mietka
                         # "X" w litery → ODDZIAL (kolumna H), nie PODODDZ (kolumna I)
-                        if litery.strip().upper() == 'X':
+                        if litery.strip().upper() == 'X' or _akcja == "x":
                             oddzial = 'X'
                             pododdz = ''
                         else:
