@@ -12,7 +12,7 @@
   "web.zestaw_mietki": "",
   "web.pc_src": "",
   "web.pc_dst": "",
-  "last_output_dir": "D:\\download\\gówno\\Nowy folder (26)\\Nowy folder (2)\\ROZLICZANIE_MIETEK_20261010_021255",
+  "last_output_dir": "D:\\download\\gówno\\Nowy folder (27)\\DO ROZLICZANIA\\Nowy folder\\ROZLICZANIE_MIETEK_20261011_004417",
   "web.all_src": "",
   "web.all_dst": "",
   "web.all_tpl_szablon": "Wersja 1",
@@ -402,9 +402,9 @@
   "web.pa_lit_overwrite": true,
   "web.pa_lit_tol": "1.0",
   "web.pa_rozsuwaj": true,
-  "web.rm_mapy": "D:\\download\\gówno\\Nowy folder (26)\\geomap",
-  "web.rm_ewid": "D:\\download\\gówno\\Nowy folder (26)\\xls",
-  "web.rm_out": "D:\\download\\gówno\\Nowy folder (26)\\Nowy folder (2)",
+  "web.rm_mapy": "D:\\download\\gówno\\Nowy folder (27)\\DO ROZLICZANIA\\MAPY",
+  "web.rm_ewid": "D:\\download\\gówno\\Nowy folder (27)\\DO ROZLICZANIA\\REJESTRY",
+  "web.rm_out": "D:\\download\\gówno\\Nowy folder (27)\\DO ROZLICZANIA\\Nowy folder",
   "web.rm_wojew": "10",
   "web.rm_powiat": "wysz",
   "web.rm_stan": "01.01.2023",
@@ -414,5 +414,6 @@
   "web.rm_rokz": "19",
   "web.rm_halizny": true,
   "web.rm_zestaw": true,
-  "web.nowe_szablony": true
+  "web.nowe_szablony": true,
+  "web.rm_lit": true
 }

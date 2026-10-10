@@ -148,6 +148,7 @@ class TabRozliczanieMietekMixin:
             "nrws": _txt("rm_nrws_entry", "1"),
             "rokz": _txt("rm_rokz_entry", "19"),
             "zestaw": _bool("rm_zestaw_var", True),
+            "literuj": _bool("rm_lit_var", True),
         }
 
     def _rm_ustaw_stan(self, zakonczone=False, blad=False, komunikat=""):
@@ -335,20 +336,92 @@ class TabRozliczanieMietekMixin:
                     self.log("[R+M] Nie skopiowano %s: %s" % (e.name, exc))
             self.log("[R+M] Plików ewidencji: %d" % len(ewid))
 
-            # ================= KROK 1: VAL ==================================
-            self._rm_krok(0, "running", "Generowanie VAL...")
-            self.update_status("Krok 1/4 — generowanie VAL...", "#0078D7")
-            self.log("[R+M] KROK 1/4 — generowanie plików VAL z map.")
+            # ============ KROK 1: LITEROWANIE (tylko gdy trzeba) ============
+            try:
+                _tol = float(str(u.get("lit_tol", "1.0")).replace(",", "."))
+            except (TypeError, ValueError):
+                _tol = 1.0
+            self._rm_krok(0, "running", "Literowanie...")
+            self.update_status("Krok 1/5 — literowanie map...", "#0078D7")
+            if not u.get("literuj", True):
+                self.log("[R+M] KROK 1/5 — literowanie WYŁĄCZONE przełącznikiem "
+                         "„Literuj mapy…”. Idę dalej do plików .VAL.")
+                self._rm_krok(0, "done", "wyłączone")
+            else:
+                self.log("[R+M] KROK 1/5 — literowanie map, które nie mają "
+                         "jeszcze oznaczeń wydzieleń (w polu A1 jest sam numer "
+                         "oddziału). Mapy z literami są pomijane i idą od razu "
+                         "do .VAL.")
+                zalit = 0
+                juz_mialy = []
+                czesciowe = []
+                blad_lit = []
+                for m in sorted(p for p in mapy_dir.iterdir() if p.is_file()):
+                    if self.stop_event.is_set():
+                        self._rm_krok(0, "error", "przerwano")
+                        self.log("[R+M] Przerwano w kroku 1.")
+                        return
+                    _stan = lit.stan_liter(m, lit.DEFAULT_LAYER)
+                    if _stan == "pelne":
+                        juz_mialy.append(m.name)
+                        continue
+                    if _stan == "czesciowe":
+                        czesciowe.append(m.name)
+                    try:
+                        lit.literate_plik(m, m, lit.DEFAULT_LAYER, True, _tol,
+                                          lambda t: self.log("[R+M][LIT] %s" % t))
+                        zalit += 1
+                    except Exception as e:                  # noqa: BLE001
+                        blad_lit.append("%s (%s)" % (m.name, e))
+                        self.log("[R+M][LIT] %s: nie udało się zaliterować — %s"
+                                 % (m.name, e))
+                if juz_mialy:
+                    self.log("[R+M] Mapy, które JUŻ MIAŁY litery (pominięte, "
+                             "idą od razu do .VAL): %d — %s"
+                             % (len(juz_mialy), ", ".join(juz_mialy)))
+                if czesciowe:
+                    self.log("[R+M] UWAGA: mapy częściowo zaliterowane (litery "
+                             "miała tylko część wydzieleń) — zrobiono pełną "
+                             "literację, żeby oznaczenia były spójne: %s"
+                             % ", ".join(czesciowe))
+                self.log("[R+M] Krok 1 gotowy: zaliterowano %d map, %d już miało "
+                         "litery%s." % (zalit, len(juz_mialy),
+                                        (", błędów: %d" % len(blad_lit))
+                                        if blad_lit else ""))
+                self._rm_krok(0, "done",
+                              ("%d zaliterowanych" % zalit) if zalit
+                              else "wszystkie miały litery")
+            self._rm_trzymaj()
+
+            # ================= KROK 2: VAL ==================================
+            self._rm_krok(1, "running", "Generowanie VAL...")
+            self.update_status("Krok 2/5 — generowanie VAL...", "#0078D7")
+            self.log("[R+M] KROK 2/5 — generowanie plików VAL z map.")
             ok_val = 0
+            bez_a1 = []          # mapa ma działki, ale nie ma wydzieleń (A1)
+            nie_mapa = []        # nie ma ani działek, ani wydzieleń
+            brak_shapely = 0     # brak biblioteki do liczenia przecięć
             for m in sorted(p for p in mapy_dir.iterdir() if p.is_file()):
                 if self.stop_event.is_set():
-                    self._rm_krok(0, "error", "przerwano")
-                    self.log("[R+M] Przerwano w kroku 1.")
+                    self._rm_krok(1, "error", "przerwano")
+                    self.log("[R+M] Przerwano w kroku 2.")
                     return
                 try:
                     r = gv.generuj_val(m, log=lambda s: self.log("[R+M][VAL] %s" % s))
                     if isinstance(r, dict) and r.get("ok"):
                         ok_val += 1
+                    elif isinstance(r, dict):
+                        if "shapely" in str(r.get("error") or ""):
+                            brak_shapely += 1
+                            continue
+                        _dz = int(r.get("dzialek") or 0)
+                        _wy = int(r.get("wydzielen") or 0)
+                        _a1 = r.get("przyklady_a1") or []
+                        _a2 = r.get("przyklady_a2") or []
+                        if _dz and not _wy:
+                            bez_a1.append((m.name, _a1, _a2))
+                        elif not _dz and not _wy:
+                            nie_mapa.append((m.name, _a1, _a2))
                 except Exception as e:                          # noqa: BLE001
                     self.log("[R+M][VAL] Błąd przy %s: %s" % (m.name, e))
             for v in list(mapy_dir.glob("*.VAL")) + list(mapy_dir.glob("*.val")):
@@ -356,49 +429,99 @@ class TabRozliczanieMietekMixin:
                     shutil.move(str(v), str(val_dir / v.name))
                 except OSError:
                     pass
-            self.log("[R+M] Krok 1 gotowy: plików .VAL = %d" % ok_val)
+            self.log("[R+M] Krok 2 gotowy: plików .VAL = %d" % ok_val)
             if ok_val == 0:
-                self._rm_krok(0, "error", "0 plików VAL")
-                messagebox.showerror(
-                    "Rozliczanie + MIETEK",
-                    "Nie udało się utworzyć żadnego pliku .VAL.\n\n"
-                    "Sprawdź, czy mapy mają działki (pole A2) i wydzielenia "
-                    "(pole A1) oraz czy jest zainstalowana biblioteka shapely.")
+                self._rm_krok(1, "error", "0 plików VAL")
+                _info = ("Nie udało się utworzyć żadnego pliku .VAL.\n\n"
+                         "Plik .VAL powstaje z DZIAŁEK (pole A2) i WYDZIELEŃ "
+                         "(pole A1) na mapie — potrzebne są jedne i drugie.\n")
+                if bez_a1:
+                    _info += ("\nMapy, które mają działki, ale NIE MAJĄ wydzieleń "
+                              "(pole A1 nie zawiera oznaczeń typu 1a, 2b): %d\n"
+                              % len(bez_a1))
+                    for _nm, _e1, _e2 in bez_a1[:6]:
+                        _info += ("   • %s\n      pole A1: %s\n      pole A2: %s\n"
+                                  % (_nm,
+                                     ", ".join(_e1) if _e1 else "(puste we wszystkich obiektach)",
+                                     ", ".join(_e2[:4]) if _e2 else "(puste)"))
+                    if len(bez_a1) > 6:
+                        _info += "   … i %d więcej\n" % (len(bez_a1) - 6)
+                    _info += ("\nJeśli w polu A1 są puste wartości — te mapy trzeba "
+                              "NAJPIERW ZALITEROWAĆ (zakładka „GEO-MAP | Literowanie”).\n"
+                              "Jeśli widać tam inne wartości (np. same liczby, „Hal.”, "
+                              "zakresy typu „1-20”) — to nie są wydzielenia tej mapy "
+                              "i trzeba je poprawić w GEO-MAPIE.")
+                if nie_mapa:
+                    _info += ("\nMapy bez działek i bez wydzieleń: %d\n" % len(nie_mapa))
+                    for _nm, _e1, _e2 in nie_mapa[:4]:
+                        _info += ("   • %s\n      pole A1: %s\n      pole A2: %s\n"
+                                  % (_nm,
+                                     ", ".join(_e1) if _e1 else "(puste)",
+                                     ", ".join(_e2[:4]) if _e2 else "(puste)"))
+                    _info += ("\nTo prawdopodobnie nie są mapy GEO-MAP — sprawdź, "
+                              "czy w folderze leżą właściwe pliki.")
+                if brak_shapely:
+                    _info += ("\nMapy pominięte z powodu BRAKU BIBLIOTEKI do "
+                              "liczenia przecięć (shapely): %d\n" % brak_shapely)
+                    _info += ("Zaktualizuj program do najnowszej wersji (EXE ma "
+                              "ją w środku) albo — przy uruchamianiu ze źródeł — "
+                              "doinstaluj:  pip install shapely")
+                if not bez_a1 and not nie_mapa and not brak_shapely:
+                    _info += ("\nNie udało się ustalić powodu — zajrzyj do "
+                              "dziennika zdarzeń.")
+                self.log("[R+M] " + _info.replace("\n", " "))
+                messagebox.showerror("Rozliczanie + MIETEK — krok 1", _info)
                 return
-            self._rm_krok(0, "done", "%d plików VAL" % ok_val)
+            self._rm_krok(1, "done", "%d plików VAL" % ok_val)
             self._rm_trzymaj()
 
             # ================= KROK 2: ROZLICZANIE ==========================
-            self._rm_krok(1, "running", "Rozliczanie...")
+            self._rm_krok(2, "running", "Rozliczanie...")
             if _pary_obrebow is not None:
                 pary, _bez_val = _pary_obrebow(ewid_dir, val_dir)
                 wybrane = {x.stem: (v.stem if v else "") for x, v in pary}
             else:
                 pary, wybrane = [], None
-            self.update_status("Krok 2/4 — rozliczanie powierzchni...", "#0078D7")
-            self.log("[R+M] KROK 2/4 — rozliczanie powierzchni "
+            self.update_status("Krok 3/5 — rozliczanie powierzchni...", "#0078D7")
+            self.log("[R+M] KROK 3/5 — rozliczanie powierzchni "
                      "(połączonych obrębów: %d)." % len(pary))
             self.run_rozliczanie_thread(str(ewid_dir), str(val_dir), str(rozl_dir),
                                         False, False, wybrane)
             self._rm_trzymaj()
             rozl_ile = len(list(rozl_dir.glob("*_Rozliczone.xlsx")))
-            self.log("[R+M] Krok 2 gotowy: rozliczonych obrębów = %d" % rozl_ile)
+            self.log("[R+M] Krok 3 gotowy: rozliczonych obrębów = %d" % rozl_ile)
             if rozl_ile == 0:
-                self._rm_krok(1, "error", "0 rozliczeń")
+                self._rm_krok(2, "error", "0 rozliczeń")
                 messagebox.showerror(
                     "Rozliczanie + MIETEK",
                     "Nie powstał żaden plik rozliczenia.\n\n"
                     "Sprawdź, czy nazwy plików ewidencji i .VAL do siebie pasują.")
                 return
-            self._rm_krok(1, "done", "%d obrębów" % rozl_ile)
+            self._rm_krok(2, "done", "%d obrębów" % rozl_ile)
 
             # ================= KROK 3: MIETKI + KRZYŻÓWKI ===================
-            self._rm_krok(2, "running", "Tworzenie mietków...")
+            self._rm_krok(3, "running", "Tworzenie mietków...")
             _pominiete_typy = []
             try:
                 if self._pokaz_wybory_op(str(ewid_dir)) is None:
-                    self._rm_krok(2, "error", "przerwano")
-                    self.log("[R+M] Przerwano na wyborze typów właścicieli.")
+                    self._rm_krok(3, "error", "przerwano")
+                    _rozl = len(list(rozl_dir.glob("*_Rozliczone.xlsx")))
+                    self.log("[R+M] Anulowano na oknie typów właścicieli — kroki "
+                             "1 i 2 są JUŻ ZROBIONE i zapisane:")
+                    self.log("[R+M]   • pliki .VAL: %d (podfolder VAL)" % ok_val)
+                    self.log("[R+M]   • rozliczenia: %d (podfolder ROZLICZONE)"
+                             % _rozl)
+                    self.log("[R+M]   • NIE powstały mietki ani zestawienie.")
+                    self.log("[R+M] Aby dokończyć, uruchom zakładkę "
+                             "„ROZLICZANIE | Tworzenie i wpisywanie mietków”, "
+                             "wskazując jako folder rozliczeń podfolder "
+                             "ROZLICZONE z tego uruchomienia.")
+                    self._rm_ustaw_stan(
+                        zakonczone=True, blad=True,
+                        komunikat="Anulowano na oknie typów właścicieli — "
+                                  "kroki 1 i 2 zapisane, mietki nie powstały")
+                    self.update_status("Anulowano na typach właścicieli",
+                                       "#D83B01", animate=False)
                     return
                 _w = getattr(self, "_op_wybory", None) or {}
                 _pominiete_typy = sorted(k for k, v in _w.items() if v == "pomin")
@@ -411,11 +534,11 @@ class TabRozliczanieMietekMixin:
                          "większe niż powierzchnia w mietku."
                          % ", ".join(_pominiete_typy))
 
-            self.update_status("Krok 3/4 — tworzenie mietków...", "#0078D7")
-            self.log("[R+M] KROK 3/4 — tworzenie mietków z krzyżówkami.")
+            self.update_status("Krok 4/5 — tworzenie mietków...", "#0078D7")
+            self.log("[R+M] KROK 4/5 — tworzenie mietków z krzyżówkami.")
             base_dir = _rm_resource_path("pusty")
             if not Path(base_dir).exists():
-                self._rm_krok(2, "error", "brak zasobu „pusty”")
+                self._rm_krok(3, "error", "brak zasobu „pusty”")
                 messagebox.showerror("Rozliczanie + MIETEK",
                                      "Nie znaleziono wbudowanego folderu „pusty” "
                                      "w plikach programu:\n%s" % base_dir)
@@ -434,27 +557,27 @@ class TabRozliczanieMietekMixin:
                                               wsie_meta, True)
             self._rm_trzymaj()
             obreby = [d for d in mietki_dir.iterdir() if d.is_dir()]
-            self.log("[R+M] Krok 3 gotowy: utworzonych obrębów = %d" % len(obreby))
+            self.log("[R+M] Krok 4 gotowy: utworzonych obrębów = %d" % len(obreby))
             if not obreby:
-                self._rm_krok(2, "error", "brak obrębów")
+                self._rm_krok(3, "error", "brak obrębów")
                 messagebox.showerror("Rozliczanie + MIETEK",
                                      "Nie powstał żaden folder obrębu.")
                 return
-            self._rm_krok(2, "done", "%d obrębów" % len(obreby))
+            self._rm_krok(3, "done", "%d obrębów" % len(obreby))
 
             # ================= KROK 4: ZESTAWIENIE ==========================
             if u.get("zestaw"):
-                self._rm_krok(3, "running", "Zestawienie...")
-                self.update_status("Krok 4/4 — zestawienie zbiorcze...", "#0078D7")
-                self.log("[R+M] KROK 4/4 — zestawienie zbiorcze "
+                self._rm_krok(4, "running", "Zestawienie...")
+                self.update_status("Krok 5/5 — zestawienie zbiorcze...", "#0078D7")
+                self.log("[R+M] KROK 5/5 — zestawienie zbiorcze "
                          "(zapis w folderze głównym, obok podfolderu ROZLICZONE).")
                 # plik zestawienia ma leżeć o poziom WYŻEJ — w folderze
                 # głównym procesu, a nie w podfolderze ROZLICZONE
                 self.run_zestawienie_thread(str(rozl_dir), out_folder=praca)
                 self._rm_trzymaj()
-                self._rm_krok(3, "done", "gotowe")
+                self._rm_krok(4, "done", "gotowe")
             else:
-                self._rm_krok(3, "done", "pominięto")
+                self._rm_krok(4, "done", "pominięto")
 
             # ---------------- podsumowanie ----------------------------------
             self._rm_ustaw_stan(zakonczone=True, blad=False,

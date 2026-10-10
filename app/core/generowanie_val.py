@@ -108,13 +108,27 @@ def _czy_wydzielenie(a1):
     return bool(a1) and "X" not in a1 and re.match(r"^\d+[a-z]", a1) is not None
 
 
+def _norm_dzialka(a2):
+    """Ujednolica numer działki z mapy.
+
+    Część map ma w polu A2 numer z wiodącą kropką („.203", „.68/2") —
+    a ewidencja zapisuje tę samą działkę jako „203", „68/2". Bez tego
+    numer w pliku .VAL nie zgadzałby się z ewidencją.
+    """
+    a2 = (a2 or "").strip()
+    while a2.startswith("."):
+        a2 = a2[1:].strip()
+    return a2
+
+
 def _czy_dzialka(a2):
     """Czy pole A2 to naprawdę NUMER DZIAŁKI (np. 80, 24/2, 123a)?
 
     W mapach GEO-MAP w polu A2 bywają też nazwy i etykiety (nazwa wsi,
     „Ls", „dr", „R") — te NIE są działkami i nie mogą trafić do .VAL.
+    Numer z wiodącą kropką („.203") to ta sama działka co „203".
     """
-    a2 = (a2 or "").strip()
+    a2 = _norm_dzialka(a2)
     if not a2:
         return False
     return re.match(r"^\d+(/\d+)?[a-z]?$", a2, re.IGNORECASE) is not None
@@ -144,7 +158,7 @@ def generuj_val(plik_map, plik_val=None, log=None):
         if p is None:
             continue
         if _czy_dzialka(o["a2"]):
-            dzialki.append((o["a2"], p))
+            dzialki.append((_norm_dzialka(o["a2"]), p))
         if _czy_wydzielenie(o["a1"]):
             wydzielenia.append((o["a1"], p))
 
@@ -156,8 +170,23 @@ def generuj_val(plik_map, plik_val=None, log=None):
              "A1/A2 — sprawdź, czy to na pewno mapa GEO-MAP." % len(obiekty))
     if not dzialki or not wydzielenia:
         _log("  pominięto — brak działek (A2) albo wydzieleń (A1) w mapie.")
+
+        def _przyklady(pole, ile=5):
+            """Kilka niepustych wartości danego pola — do komunikatu."""
+            widziane = []
+            for o in obiekty:
+                v = (o.get(pole) or "").strip()
+                if v and v not in widziane:
+                    widziane.append(v)
+                if len(widziane) >= ile:
+                    break
+            return widziane
+
         return {"ok": False, "error": "brak działek lub wydzieleń",
-                "dzialek": len(dzialki), "wydzielen": len(wydzielenia)}
+                "dzialek": len(dzialki), "wydzielen": len(wydzielenia),
+                "obiektow": len(obiekty),
+                "przyklady_a1": _przyklady("a1"),
+                "przyklady_a2": _przyklady("a2")}
 
     linie = ["Rozliczenie użytków w działkach z obliczeniem wartości",
              "Jednostka pola -> metry kwadratowe",

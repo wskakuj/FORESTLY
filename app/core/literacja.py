@@ -562,6 +562,37 @@ def create_svg(objects: list[GeoObject], output_path: Path) -> None:
 
 
 
+def stan_liter(path, layer: str = DEFAULT_LAYER) -> str:
+    """W jakim stanie są litery wydzieleń na mapie.
+
+    Zwraca:
+      "brak_obiektow" — na tej warstwie nie ma nic (nie nasza mapa),
+      "pelne"         — każde wydzielenie ma już literę (np. „1a"),
+      "brak"          — żadne nie ma litery (A1 to sam numer oddziału),
+      "czesciowe"     — część ma litery, część nie.
+    """
+    try:
+        raw = Path(path).read_bytes()
+        text = decode_map(raw).replace("\r\n", "\n").replace("\r", "\n")
+        objs = [o for o in parse_objects(text.split("\n")) if o.layer == layer]
+    except Exception:                                       # noqa: BLE001
+        return "brak_obiektow"
+    if not objs:
+        return "brak_obiektow"
+    z_litera = sum(1 for o in objs
+                   if re.search(r"[A-Za-z]", (o.attrs.get("A1", "") or "")))
+    if z_litera == 0:
+        return "brak"
+    if z_litera == len(objs):
+        return "pelne"
+    return "czesciowe"
+
+
+def mapa_wymaga_literacji(path, layer: str = DEFAULT_LAYER) -> bool:
+    """Czy mapę trzeba zaliterować? (brak liter albo tylko część ich ma)."""
+    return stan_liter(path, layer) in ("brak", "czesciowe")
+
+
 def literate_plik(
     src: Path,
     dst: Path,
@@ -720,6 +751,18 @@ def zbierz_pliki_wejsciowe(wpis, katalog_roboczy=None, log=None) -> tuple[list[P
             _dodaj(p)
         else:
             ostrzezenia.append(f"Pomijam „{c}” — nie istnieje albo to nie jest .MAP/.ZIP/folder.")
+
+    # GEO-MAP trzyma obok mapy jej kopię z rozszerzeniem .~AP. Gdy obie leżą
+    # w tym samym folderze, to JEDNA mapa — przetwarzanie obu dawałoby
+    # podwójny wynik (dwa razy ten sam .VAL, dwa razy ta sama literacja).
+    def _klucz(q):
+        # „ZABŁOCIE.MAP" i „ZABŁOCIE_.~AP" to ta sama mapa — ujednolicamy
+        # nazwę (bez rozszerzenia, bez podkreśleń/spacji na końcu, małe litery)
+        return str(q.with_suffix("")).strip().rstrip("_ ").lower()
+
+    stemy_map = {_klucz(q) for q in pliki if q.suffix.lower() == ".map"}
+    pliki = [q for q in pliki
+             if not (q.suffix.lower() == ".~ap" and _klucz(q) in stemy_map)]
 
     return pliki, ostrzezenia
 

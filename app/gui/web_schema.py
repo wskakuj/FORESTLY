@@ -157,8 +157,9 @@ WORD_CHOICES = ["Wszystkie", "REJESTR1", "OPTAX", "TAB_KLW3", "WSKAZ1",
 
 DASHBOARD_STEPS = ["Halizny + TXT", "Czyszczenie", "Word", "PDF", "Scalanie"]
 # kroki dla zakładki „ROZLICZANIE | Rozliczanie + MIETEK"
-DASHBOARD_STEPS_RM = ["VAL z map", "Rozliczanie powierzchni",
-                      "Mietki + krzyżówki", "Zestawienie zbiorcze"]
+DASHBOARD_STEPS_RM = ["Literowanie map", "VAL z map",
+                      "Rozliczanie powierzchni", "Mietki + krzyżówki",
+                      "Zestawienie zbiorcze"]
 
 
 # ------------------------------------------------------------------- budowa
@@ -811,6 +812,13 @@ def build_schema():
                             "(NAZWA i GMINA = nazwa obrębu, uzupełniane "
                             "automatycznie).",
                     collapsed=False),
+                _check("rm_lit", "rm_lit_var",
+                       "Literuj mapy, które nie mają jeszcze oznaczeń wydzieleń", True,
+                       "Włączone: program sam nada litery wydzieleniom, których "
+                       "pole A1 to sam numer oddziału (np. „1” → „1a”, „1b”…), "
+                       "a potem zrobi pliki .VAL. Mapy, które litery JUŻ MAJĄ, "
+                       "są pomijane i idą od razu do .VAL. Wyłączone: literacja "
+                       "w ogóle się nie uruchamia."),
                 _check("rm_zestaw", "rm_zestaw_var",
                        "Zrób na końcu zestawienie zbiorcze", True,
                        "Po rozliczeniu program złoży zestawienie ze wszystkich "
