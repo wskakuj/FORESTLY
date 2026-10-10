@@ -156,6 +156,9 @@ WORD_CHOICES = ["Wszystkie", "REJESTR1", "OPTAX", "TAB_KLW3", "WSKAZ1",
                 "HALIZNY", "WYK_NEG", "OPIS", "ZEST1", "WK_ZM1"]
 
 DASHBOARD_STEPS = ["Halizny + TXT", "Czyszczenie", "Word", "PDF", "Scalanie"]
+# kroki dla zakładki „ROZLICZANIE | Rozliczanie + MIETEK"
+DASHBOARD_STEPS_RM = ["VAL z map", "Rozliczanie powierzchni",
+                      "Mietki + krzyżówki", "Zestawienie zbiorcze"]
 
 
 # ------------------------------------------------------------------- budowa
@@ -561,63 +564,6 @@ def build_schema():
             ],
         },
         {
-            "key": "MIETEK|Opisy na mapę",
-            "tooltip": "Wpisywanie opisów do poligonów mapy GEO-MAP z trzech "
-                       "baz: Forestly GO (arkusz .xlsx), MIETKA (pliki DBF) "
-                       "albo TAKSATORA (.mdb). Oryginał zostaje bez zmian — "
-                       "powstaje <NAZWA>_z_opisami.MAP obok mapy źródłowej.",
-            "controls": [
-                _segment("mapa_zrodlo", "Baza (źródło opisów):",
-                         ["Baza Forestly GO", "Baza MIETEK", "Baza TAKSATOR"],
-                         "Baza MIETEK",
-                         attr="mapa_zrodlo_var",
-                         tooltip="Z arkusza Forestly GO, z mietka (DBF) "
-                                 "albo z bazy taksatora (.mdb).",
-                         groups={"Baza Forestly GO": "mapa_zrodlo:go",
-                                 "Baza MIETEK": "mapa_zrodlo:mietek",
-                                 "Baza TAKSATOR": "mapa_zrodlo:taksator"}),
-                # ---------- Forestly GO ----------
-                _grp(_path("mapa_excel", "mapa_excel_entry",
-                           "Folder z arkuszami .xlsx (Forestly GO):",
-                           "Eksport „Taksacja” — jeden arkusz na wieś/obręb"),
-                     "mapa_zrodlo:go"),
-                _grp(_text("mapa_kol_nr", "mapa_kol_nr_entry",
-                           "Kolumna z numerem porządkowym (Forestly GO):",
-                           "N"), "mapa_zrodlo:go"),
-                # ---------- MIETEK ----------
-                _grp(_path("mapa_mietki", "mapa_mietki_entry",
-                           "Folder z Mietkiem (pliki DBF w podfolderach):",
-                           "np. folder z podfolderami obrębów (O*.DBF, R*.DBF)"),
-                     "mapa_zrodlo:mietek"),
-                # ---------- TAKSATOR ----------
-                _grp(_path("mapa_mdb", "mapa_mdb_entry",
-                           "Baza taksatora (.mdb) — plik albo folder:",
-                           "np. BYSŁAW.mdb — albo folder z bazami .mdb "
-                           "(dopasuję po nazwie mapy)", kind="both"),
-                     "mapa_zrodlo:taksator"),
-                # ---------- wspólne ----------
-                _path("mapa_src", "mapa_src_entry",
-                      "Folder z mapami (.MAP) albo plik mapy:",
-                      "Wskaż folder z mapami (wszystkie mapy naraz) — "
-                      "albo pojedynczy plik .MAP",
-                      kind="both"),
-                _info("Program wpisuje do mapy opisy z wybranej bazy — "
-                      "zależnie od źródła: A2 „Oznaczenie” i A5 „Opis taks.” "
-                      "(Forestly GO / MIETEK) albo A1 i A2 „Oznaczenie” "
-                      "(TAKSATOR). Wynik zapisuje się obok mapy źródłowej jako "
-                      "<NAZWA>_z_opisami.MAP. „Sprawdź braki przed wpisaniem” "
-                      "pokazuje tabelę różnic między mapą a regułą i zapisuje je "
-                      "do pliku „Opisy na mapę - braki.csv”."),
-            ],
-            "buttons": [
-                _button("run", "Wpisz opisy do map", "start_opisy_na_mape"),
-                _button("run_braki", "Sprawdź braki przed wpisaniem",
-                        "start_sprawdz_opisy_na_mape", "secondary"),
-                _button("run_edytor", "Otwórz edytor opisów (okno)",
-                        "open_edytor_opisow", "secondary"),
-            ],
-        },
-        {
             "key": "MIETEK|Mietki +10 lat",
             "tooltip": "Przesuwa wiek w opisach taksacyjnych (zastępuje makro VBA).",
             "controls": [
@@ -827,10 +773,67 @@ def build_schema():
         },
         # ============================================================ ROZLICZANIE
         {
+            "key": "ROZLICZANIE|Rozliczanie + MIETEK",
+            "tooltip": "Cała droga jednym kliknięciem: VAL z map → rozliczenie "
+                       "powierzchni → mietki z krzyżówkami → zestawienie "
+                       "zbiorcze. Postęp widać na liście kroków.",
+            "controls": [
+                _path("rm_mapy", "rm_mapy_entry",
+                      "1. Mapy GEO-MAP (.MAP) — folder, kilka plików albo ZIP:",
+                      "Wybierz FOLDER z mapami, albo PLIKI (zaznacz kilka z Ctrl), "
+                      "albo wskaż ZIP — program sam zrobi z nich pliki .VAL",
+                      kind="multi_both"),
+                _path("rm_ewid", "rm_ewid_entry",
+                      "2. Ewidencja (pliki XLS/XLSX) — folder albo kilka plików:",
+                      "Wybierz FOLDER z ewidencją albo PLIKI (zaznacz kilka z Ctrl) "
+                      "— z nich program rozliczy powierzchnie i utworzy mietki",
+                      kind="multi_both"),
+                _path("rm_out", "rm_out_entry", "3. Folder wynikowy:",
+                      "Tu program utworzy NOWY folder ROZLICZANIE_MIETEK_<data> "
+                      "z całym wynikiem"),
+                _group(
+                    "Dane do mietka (nagłówek WSIE.DBF)",
+                    [
+                        _text("rm_wojew", "rm_wojew_entry",
+                              "Województwo (kod):", "10", "np. 10"),
+                        _text("rm_powiat", "rm_powiat_entry",
+                              "Powiat:", "", "np. WYSZKOWSKI"),
+                        _text("rm_stan", "rm_stan_entry",
+                              "Stan na:", "01.01.2023", "DD.MM.RRRR"),
+                        _text("rm_obod", "rm_obod_entry",
+                              "Obowiązuje od:", "01.01.2023", "DD.MM.RRRR"),
+                        _text("rm_obdo", "rm_obdo_entry",
+                              "Obowiązuje do:", "31.12.2032", "DD.MM.RRRR"),
+                        _text("rm_nrws", "rm_nrws_entry", "Nr wsi:", "1", "np. 1"),
+                        _text("rm_rokz", "rm_rokz_entry", "Rok zal.:", "19", "np. 19"),
+                    ],
+                    tooltip="Stałe dane wpisywane do WSIE.DBF nowych mietków "
+                            "(NAZWA i GMINA = nazwa obrębu, uzupełniane "
+                            "automatycznie).",
+                    collapsed=False),
+                _check("rm_zestaw", "rm_zestaw_var",
+                       "Zrób na końcu zestawienie zbiorcze", True,
+                       "Po rozliczeniu program złoży zestawienie ze wszystkich "
+                       "plików <WIEŚ>_Rozliczone.xlsx. Odznacz, jeśli nie chcesz."),
+                _info("Program przechodzi kroki po kolei i sam pilnuje kolejności: "
+                      "(1) generowanie VAL z map, (2) rozliczanie powierzchni, "
+                      "(3) tworzenie mietków z wpisanymi krzyżówkami, "
+                      "(4) zestawienie zbiorcze. Wynik zapisuje się w jednym "
+                      "nowym folderze ROZLICZANIE_MIETEK_<data_godzina> "
+                      "(podfoldery MAPY, VAL, EWIDENCJA, ROZLICZONE, MIETKI). "
+                      "Halizny robi się osobno, w zakładce ROZLICZANIE | Halizny."),
+                {"kind": "dashboard", "id": "dashboard",
+                 "steps": DASHBOARD_STEPS_RM},
+            ],
+            "buttons": [
+                _button("run_rm", "▶  Rozpocznij proces", "start_rozliczanie_mietki"),
+            ],
+        },
+        {
             "key": "ROZLICZANIE|Rozliczanie powierzchni",
             "tooltip": "Rozlicza powierzchnie ewidencji względem geodezji (.val).",
             "controls": [
-                _path("rozl_xls", "rozl_xls_entry", "Folder z plikami XLS:",
+                _path("rozl_xls", "rozl_xls_entry", "Folder z plikami ewidencji:",
                       "Wskaż folder z ewidencją (.xls/.xlsx)"),
                 _path("rozl_val", "rozl_val_entry", "Folder z plikami VAL:",
                       "Wskaż folder z plikami z geodezji (.val)"),
@@ -844,6 +847,73 @@ def build_schema():
                        "Usuń wiersze jeśli brakuje wartości w J. rej. (usuwanie wydzieleń bez właścicieli)", False),
             ],
             "buttons": [_button("run", "Uruchom rozliczanie obrębów", "start_rozliczanie")],
+        },
+        # ============================================================ GEO-MAP
+        {
+            "key": "GEO-MAP|Literowanie",
+            "tooltip": "Nadawanie liter wydzieleniom (warstwa 5310) na mapach "
+                       "GEO-MAP — pojedyncza mapa, kilka map, folder albo ZIP.",
+            "controls": [
+                _info("═══ LITEROWANIE WYDZIELEŃ (warstwa 5310) ═══"),
+                _path("lit_src", "lit_source_entry",
+                      "Pliki wejściowe (folder, kilka map, mapa albo ZIP):",
+                      "Kliknij „przeglądaj” i wybierz FOLDER z mapami albo PLIKI "
+                      "(zaznacz kilka z Ctrl). Możesz też wpisać kilka ścieżek "
+                      "rozdzielonych średnikiem lub wskazać plik ZIP",
+                      kind="multi_both"),
+                _path("lit_out", "lit_output_entry", "Folder wynikowy:",
+                      "W tym folderze program utworzy NOWY podfolder "
+                      "(ZALITEROWANE_<data_godzina>) z gotowymi mapami"),
+                _text("lit_tol", "lit_tolerance_entry",
+                      "Tolerancja łączenia kompleksów [m]:", "1.0", "np. 1.0"),
+            ],
+            "buttons": [
+                _button("run_lit", "Zaliteruj", "start_literacja"),
+            ],
+        },
+        {
+            "key": "GEO-MAP|Zaczytywanie Opisów",
+            "tooltip": "Wpisywanie opisów taksacyjnych z bazy (Forestly GO / "
+                       "MIETEK / TAKSATOR) do map GEO-MAP.",
+            "controls": [
+                _info("═══ OPISY NA MAPĘ ═══"),
+                _segment("mapa_zrodlo", "Baza (źródło opisów):",
+                         ["Baza Forestly GO", "Baza MIETEK", "Baza TAKSATOR"],
+                         "Baza MIETEK",
+                         attr="mapa_zrodlo_var",
+                         tooltip="Z arkusza Forestly GO, z mietka (DBF) "
+                                 "albo z bazy taksatora (.mdb).",
+                         groups={"Baza Forestly GO": "mapa_zrodlo:go",
+                                 "Baza MIETEK": "mapa_zrodlo:mietek",
+                                 "Baza TAKSATOR": "mapa_zrodlo:taksator"}),
+                _grp(_path("mapa_excel", "mapa_excel_entry",
+                           "Folder z arkuszami .xlsx (Forestly GO):",
+                           "Eksport „Taksacja” — jeden arkusz na wieś/obręb"),
+                     "mapa_zrodlo:go"),
+                _grp(_text("mapa_kol_nr", "mapa_kol_nr_entry",
+                           "Kolumna z numerem porządkowym (Forestly GO):",
+                           "N"), "mapa_zrodlo:go"),
+                _grp(_path("mapa_mietki", "mapa_mietki_entry",
+                           "Folder z Mietkiem (pliki DBF w podfolderach):",
+                           "np. folder z podfolderami obrębów (O*.DBF, R*.DBF)"),
+                     "mapa_zrodlo:mietek"),
+                _grp(_path("mapa_mdb", "mapa_mdb_entry",
+                           "Baza taksatora (.mdb) — plik albo folder:",
+                           "np. BYSŁAW.mdb — albo folder z bazami .mdb "
+                           "(dopasuję po nazwie mapy)", kind="both"),
+                     "mapa_zrodlo:taksator"),
+                _path("mapa_src", "mapa_src_entry",
+                      "Folder z mapami (.MAP) albo plik mapy:",
+                      "Wskaż folder z mapami (wszystkie mapy naraz) — "
+                      "albo pojedynczy plik .MAP", kind="both"),
+            ],
+            "buttons": [
+                _button("run", "Wpisz opisy do map", "start_opisy_na_mape"),
+                _button("run_braki", "Sprawdź braki przed wpisaniem",
+                        "start_sprawdz_opisy_na_mape", "secondary"),
+                _button("run_edytor", "Otwórz edytor opisów (okno)",
+                        "open_edytor_opisow", "secondary"),
+            ],
         },
         {
             "key": "ROZLICZANIE|Generowanie VAL",
@@ -1005,6 +1075,43 @@ def _tpl_controls(mode):
 # wpis w tym słowniku.
 
 INSTRUKCJE = {
+    # ============================================================ GEO-MAP
+    "GEO-MAP|Literowanie": {
+        "co": "Nadaje litery wydzieleniom (warstwa 5310) na mapach GEO-MAP — "
+              "numeruje je po kolei w obrębie kompleksów leśnych.",
+        "jak": [
+            "W polu „Pliki wejściowe” wybierz JEDEN plik .MAP, albo zaznacz KILKA "
+            "(Ctrl w oknie), albo wskaż cały folder, albo plik ZIP.",
+            "Wskaż folder wynikowy — program utworzy w nim NOWY podfolder "
+            "„ZALITEROWANE_<data_godzina>”.",
+            "Ewentualnie zmień tolerancję łączenia kompleksów (domyślnie 1.0 m).",
+            "Kliknij „Zaliteruj”.",
+        ],
+        "wskazowka": "Numer oddziału program bierze z A1, a gdy go tam nie ma — "
+                     "z A6. Istniejące litery w A1 są ZAWSZE nadpisywane. "
+                     "W nowym folderze znajdziesz: dla każdej mapy plik "
+                     "„<NAZWA>_zaliterowane.MAP”, podfolder „KOPIA_ORYGINALNA” "
+                     "z nietkniętymi oryginałami, raport CSV/TXT i podgląd SVG. "
+                     "Mapa, której nie da się zaliterować (np. brak numeru "
+                     "oddziału), jest POMIJANA, a powód trafia do raportu — "
+                     "pozostałe mapy idą dalej.",
+    },
+    "GEO-MAP|Zaczytywanie Opisów": {
+        "co": "Wpisuje opisy taksacyjne z wybranej bazy do map GEO-MAP.",
+        "jak": [
+            "Wybierz źródło opisów: Forestly GO (arkusz), MIETEK (DBF) albo "
+            "TAKSATOR (baza .mdb).",
+            "Wskaż folder/plik z wybranym źródłem.",
+            "Wskaż folder z mapami (.MAP) albo pojedynczą mapę.",
+            "Kliknij „Wpisz opisy do map”. Przed wpisaniem możesz sprawdzić braki.",
+        ],
+        "wskazowka": "Zależnie od źródła program wpisuje: A2 „Oznaczenie” i A5 "
+                     "„Opis taks.” (Forestly GO / MIETEK) albo A1 i A2 "
+                     "„Oznaczenie” (TAKSATOR). Wynik zapisuje się obok mapy "
+                     "źródłowej jako <NAZWA>_z_opisami.MAP. „Sprawdź braki przed "
+                     "wpisaniem” pokazuje tabelę różnic między mapą a regułą i "
+                     "zapisuje je do pliku „Opisy na mapę - braki.csv”.",
+    },
     # ============================================================ MIETEK
     "MIETEK|Mietek v2.0 — edytor danych": {
         "co": "Przeglądanie i ręczna poprawa danych mietka (pliki DBF) w wygodnej "
@@ -1248,6 +1355,28 @@ INSTRUKCJE = {
     },
 
     # ======================================================= ROZLICZANIE
+    "ROZLICZANIE|Rozliczanie + MIETEK": {
+        "co": "Cała droga od map do gotowych mietków — jednym kliknięciem. "
+              "Wszystko ustawiasz w tej zakładce, a postęp widzisz na liście "
+              "kroków.",
+        "jak": [
+            "W polu 1 wskaż mapy GEO-MAP (.MAP): folder, kilka plików albo ZIP.",
+            "W polu 2 wskaż ewidencję (pliki XLS/XLSX): folder albo kilka plików.",
+            "W polu 3 wskaż folder wynikowy.",
+            "Rozwiń „Dane do mietka” i uzupełnij województwo, powiat, daty, "
+            "nr wsi i rok zal.",
+            "Zdecyduj, czy zaznaczyć „Zrób na końcu zestawienie zbiorcze”.",
+            "Kliknij „▶ Rozpocznij proces” i patrz na listę kroków.",
+        ],
+        "wskazowka": "To dokładnie to samo, co zrobić ręcznie zakładkami: "
+                     "Generowanie VAL → Rozliczanie powierzchni → Tworzenie "
+                     "i wpisywanie mietków → (opcjonalnie) Zestawienie zbiorcze. "
+                     "Halizny robi się osobno, w zakładce ROZLICZANIE | Halizny. "
+                     "Wynik zapisuje się w JEDNYM nowym folderze "
+                     "ROZLICZANIE_MIETEK_<data_godzina> (podfoldery MAPY, VAL, "
+                     "EWIDENCJA, ROZLICZONE, MIETKI). Mapy i ewidencja są "
+                     "kopiowane — oryginały zostają nietknięte.",
+    },
     "ROZLICZANIE|Rozliczanie powierzchni": {
         "co": "Rozliczenie powierzchni z ewidencji względem geodezji "
               "(plik .val).",
@@ -1320,15 +1449,27 @@ INSTRUKCJE = {
 # Na Starcie widać 3 pierwsze wpisy, których zakładka faktycznie istnieje.
 # "wersja" to tylko etykietka (plakietka) — możesz ją dowolnie ustawić.
 NOWOSCI = [
+    {"key": "ROZLICZANIE|Rozliczanie + MIETEK", "wersja": "v2.0.170",
+     "label": "Rozliczanie + MIETEK (1-Click)",
+     "opis": "Nowa zakładka: jedno uruchomienie prowadzi przez cały proces — "
+             "VAL z map, rozliczenie powierzchni, mietki z krzyżówkami "
+             "i zestawienie zbiorcze. Postęp widać na liście kroków, "
+             "a wynik trafia do jednego nowego folderu."},
+    {"key": "GEO-MAP|Literowanie", "wersja": "v2.0.170",
+     "label": "Literowanie wydzieleń",
+     "opis": "Nowa zakładka: nadaje litery wydzieleniom (warstwa 5310). "
+             "Wybierasz folder z mapami, kilka plików albo ZIP — wynik "
+             "zapisuje się w nowym folderze ZALITEROWANE_<data>, razem "
+             "z kopią oryginałów i raportem."},
+    {"key": "GEO-MAP|Zaczytywanie Opisów", "wersja": "v2.0.170",
+     "label": "Zaczytywanie opisów na mapę",
+     "opis": "Opisy z bazy Forestly GO, MIETKA albo TAKSATORA wpisywane "
+             "wprost do map GEO-MAP — pola A2 i A5, z ułożeniem opisów "
+             "w wydzieleniach."},
     {"key": "ROZLICZANIE|Generowanie VAL", "wersja": "v2.0.166",
      "label": "Generowanie VAL z map GEO-MAP",
-     "opis": "Nowa zakładka: tworzy pliki .VAL z map GEO-MAP (.MAP) — "
-             "z podziałem na działki, gotowe do rozliczania powierzchni."},
-    {"key": "MIETEK|Opisy na mapę", "wersja": "v2.0.143",
-     "label": "Opisy na mapę — trzy bazy",
-     "opis": "Jedna zakładka dla baz Forestly GO, MIETKA i TAKSATORA. "
-             "Tabela braków ma edytowalną kolumnę reguły i znacznik "
-             "„Zapamiętać?” — zapamiętane zamiany stosują się same."},
+     "opis": "Tworzy pliki .VAL z map GEO-MAP (.MAP) — z podziałem na "
+             "działki, gotowe do rozliczania powierzchni."},
     {"key": "MIETEK|Czyszczenie rejestru", "wersja": "v2.0.140",
      "label": "Czyszczenie rejestru",
      "opis": "Usuwa działki bez litery i właścicieli bez rozliczonej działki."},
@@ -1342,6 +1483,20 @@ NOWOSCI = [
 
 # Usprawnienia w zakładkach, które już istniały (niebieskie kafelki).
 USPRAWNIONE = [
+    {"key": "ROZLICZANIE|Rozliczanie powierzchni", "wersja": "v2.0.170",
+     "label": "Rozliczanie — wydzielenia do 0,004 ha",
+     "opis": "Takie wydzielenia trafiają do osobnego arkusza „Ponizej 0,004 ha” "
+             "(z właścicielem w kolumnie G) i znikają z Tabeli_Glownej, "
+             "a ich powierzchnia jest doliczana innemu wydzieleniu tej samej "
+             "działki — dzięki temu suma rozliczenia się zgadza."},
+    {"key": "ROZLICZANIE|Rozliczanie powierzchni", "wersja": "v2.0.170",
+     "label": "Rozliczanie — właściciele w raportach",
+     "opis": "Arkusze PRZYBYLO i UBYLO mają na końcu kolumnę z właścicielem "
+             "działki."},
+    {"key": "ROZLICZANIE|Rozliczanie + MIETEK", "wersja": "v2.0.170",
+     "label": "Zestawienie zbiorcze luzem",
+     "opis": "Plik ZESTAWIENIE_ZBIORCZE.xlsx zapisuje się w folderze głównym "
+             "procesu, a nie w podfolderze ROZLICZONE."},
     {"key": "ROZLICZANIE|Tworzenie i wpisywanie mietków", "wersja": "v2.0.167",
      "label": "Mietki — typy właścicieli",
      "opis": "Przy tworzeniu mietków program rozpoznaje typy właścicieli "

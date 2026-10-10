@@ -6,12 +6,14 @@
   <component name="ChangeListManager">
     <list default="true" id="5553df60-78eb-40cf-b78a-3e24e8981b9c" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/gui/tabs/tab_krzyzowki.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/gui/tabs/tab_krzyzowki.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/gui/tabs/tab_tworzenie_mietkow.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/gui/tabs/tab_tworzenie_mietkow.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/core/excel_tasks.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/excel_tasks.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/gui/tabs/tab_opisy_na_mape.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/gui/tabs/tab_opisy_na_mape.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/gui/tabs/tab_rozliczanie.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/gui/tabs/tab_rozliczanie.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/gui/web_backend.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/gui/web_backend.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/gui/web_schema.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/gui/web_schema.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/settings.json" beforeDir="false" afterPath="$PROJECT_DIR$/settings.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/webapp/app.js" beforeDir="false" afterPath="$PROJECT_DIR$/webapp/app.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/webapp/style.css" beforeDir="false" afterPath="$PROJECT_DIR$/webapp/style.css" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -19,7 +21,7 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="145" />
+    <option name="cachedIndexableFilesCount" value="148" />
     <option name="fileBasedEmbeddingIndicesEnabled" value="true" />
   </component>
   <component name="Git.Settings">

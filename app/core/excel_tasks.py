@@ -314,16 +314,60 @@ def wykonaj_makro_vba(df_out, df_braki, tylko_wyrownywanie=False):
             df.at[ostatni_wiersz, 'ROZLICZONE'] = round(
                 df.at[ostatni_wiersz, 'ROZLICZONE'] + roznica, 4)
 
-    # 3. SZUM -> RÓŻOWY
+    # 3. POWIERZCHNIE <= 0.004 ha — NIE ROZLICZAMY
+    #    Takie wydzielenia zerujemy, wypisujemy w osobnym arkuszu i USUWAMY
+    #    z Tabeli_Glownej. Żeby suma rozliczenia na działce się zgadzała,
+    #    zdjętą powierzchnię DODAJEMY do innego wydzielenia tej samej działki.
     rows_to_drop = []
+    ponizej_data = []
+    zdjete_w_grupie = {}          # (nr_dz, J. rej.) -> suma zdjętej powierzchni
     for idx in df.index:
         val = df.at[idx, 'ROZLICZONE']
         pow_ewid = df.at[idx, 'pow ls']
-        if pd.notna(val) and val <= 0.004:
-            if pd.isna(pow_ewid) or str(pow_ewid).strip() == "":
-                rows_to_drop.append(idx)
-            else:
-                df.at[idx, 'bg_color'] = 'FFB6C1'
+        # Tylko faktycznie małe, DODATNIE powierzchnie. Wiersze wyzerowane
+        # wcześniej przez nadmiar (val == 0) zostają w Tabeli_Glownej.
+        if pd.notna(val) and 0 < float(val) <= 0.004:
+            def _col(nazwa):
+                return df.at[idx, nazwa] if nazwa in df.columns else ""
+            ponizej_data.append({
+                'J. rej.': _col('J. rej.'),
+                'nr działki': _col('nr_dz'),
+                'litera': _col('litery'),
+                'pow geo': _col('pow geo'),
+                'ROZLICZONE (było)': round(float(val), 4),
+                'pow ls': pow_ewid if pd.notna(pow_ewid) else "",
+                'właściciel': _col('właściciel'),
+            })
+            # nie rozliczamy — zerujemy powierzchnię rozliczoną...
+            df.at[idx, 'ROZLICZONE'] = 0.0000
+            # ...i zapamiętujemy, ile zdjęliśmy z tej działki
+            _klucz = (df.at[idx, 'nr_dz'],
+                      df.at[idx, 'J. rej.'] if 'J. rej.' in df.columns else "")
+            zdjete_w_grupie[_klucz] = (zdjete_w_grupie.get(_klucz, 0.0)
+                                       + float(val))
+            rows_to_drop.append(idx)
+
+    # 3a. WYRÓWNANIE: zdjętą powierzchnię przenosimy na inne wydzielenie
+    #     tej samej działki (o największej powierzchni rozliczonej), żeby
+    #     suma ROZLICZONE dla działki nie zmieniła się.
+    for (_dz, _jrej), do_dodania in zdjete_w_grupie.items():
+        if do_dodania <= 0:
+            continue
+        grupa = df[df['nr_dz'] == _dz]
+        if 'J. rej.' in df.columns:
+            grupa = grupa[grupa['J. rej.'] == _jrej]
+        grupa = grupa[~grupa.index.isin(rows_to_drop)]
+        grupa = grupa[grupa['ROZLICZONE'].notna()]
+        if grupa.empty:
+            # cała działka była poniżej progu — nie ma na co przenosić
+            continue
+        try:
+            cel = grupa['ROZLICZONE'].astype(float).idxmax()
+        except (TypeError, ValueError):
+            cel = grupa.index[-1]
+        df.at[cel, 'ROZLICZONE'] = round(
+            float(df.at[cel, 'ROZLICZONE']) + float(do_dodania), 4)
+
     if rows_to_drop:
         df = df.drop(index=rows_to_drop)
 
@@ -348,18 +392,26 @@ def wykonaj_makro_vba(df_out, df_braki, tylko_wyrownywanie=False):
                 for idx in group.index:
                     if df.at[idx, 'bg_color'] != 'FFB6C1' and pd.notna(df.at[idx, 'ROZLICZONE']):
                         df.at[idx, 'bg_color'] = '00FF00'
+                _wl = ""
+                if 'właściciel' in group.columns and len(group):
+                    _wl = group['właściciel'].iloc[0]
                 przybylo_data.append({
                     'J. rej.': j_rej, 'nr działki': dz,
                     'aktualna pow ls': round(suma_f, 4), 'ls ewidenca': startowy_las,
                     'ile przybyło': roznica,
-                    'pow dz': pow_docelowa if pd.notna(pow_docelowa) else ""
+                    'pow dz': pow_docelowa if pd.notna(pow_docelowa) else "",
+                    'właściciel': _wl if pd.notna(_wl) else ""
                 })
             elif roznica < 0:
+                _wl = ""
+                if 'właściciel' in group.columns and len(group):
+                    _wl = group['właściciel'].iloc[0]
                 ubylo_data.append({
                     'J. rej.': j_rej, 'nr działki': dz,
                     'aktualna pow ls': round(suma_f, 4), 'ls ewidenca': startowy_las,
                     'ile ubyło': roznica,
-                    'pow dz': pow_docelowa if pd.notna(pow_docelowa) else ""
+                    'pow dz': pow_docelowa if pd.notna(pow_docelowa) else "",
+                    'właściciel': _wl if pd.notna(_wl) else ""
                 })
 
         if not df_braki.empty:
@@ -369,20 +421,26 @@ def wykonaj_makro_vba(df_out, df_braki, tylko_wyrownywanie=False):
                     pow_doc = row.get('pow dz', np.nan)
                     j_rej = row.get('J. rej.', "")
                     if pd.notna(pow_ewid) and float(pow_ewid) > 0:
+                        _wl = row.get('właściciel', "")
                         ubylo_data.append({
                             'J. rej.': j_rej, 'nr działki': row.get('nr_dz', ''),
                             'aktualna pow ls': 0.0, 'ls ewidenca': pow_ewid,
                             'ile ubyło': -float(pow_ewid),
-                            'pow dz': pow_doc if pd.notna(pow_doc) else ""
+                            'pow dz': pow_doc if pd.notna(pow_doc) else "",
+                            'właściciel': _wl if pd.notna(_wl) else ""
                         })
 
-    return df, pd.DataFrame(przybylo_data), pd.DataFrame(ubylo_data)
+    return (df, pd.DataFrame(przybylo_data), pd.DataFrame(ubylo_data),
+            pd.DataFrame(ponizej_data))
 
 
 
 def formatuj_arkusz_raportowy(worksheet, tytul, hex_kolor_tytulu):
     worksheet['A1'] = tytul
-    worksheet.merge_cells('A1:F1')
+    # Liczba kolumn brana z arkusza (arkusz „Ponizej 0,004 ha" ma ich 7,
+    # pozostałe 6) — żeby scalony tytuł obejmował całą szerokość tabeli.
+    _kol = max(6, worksheet.max_column or 6)
+    worksheet.merge_cells(start_row=1, start_column=1, end_row=1, end_column=_kol)
     worksheet['A1'].font = Font(size=18, bold=True, color=hex_kolor_tytulu)
     worksheet['A1'].alignment = Alignment(horizontal='center', vertical='center')
 
@@ -393,7 +451,7 @@ def formatuj_arkusz_raportowy(worksheet, tytul, hex_kolor_tytulu):
                          bottom=Side(style='thin', color='000000'))
 
     max_row = worksheet.max_row
-    max_col = 6
+    max_col = max(6, worksheet.max_column or 6)
 
     for col in range(1, max_col + 1):
         cell = worksheet.cell(row=2, column=col)
@@ -440,7 +498,7 @@ WSIE_FIELDS = [
     ('POWIAT', 'C', 30, 0),
 ]
 
-def zrob_zestawienie_zbiorcze(folder):
+def zrob_zestawienie_zbiorcze(folder, out_folder=None):
     """Zestawienie zbiorcze rozliczeń całego obrębu.
 
     Skanuje folder z plikami <WIEŚ>_Rozliczone.xlsx i tworzy jeden plik
@@ -556,7 +614,11 @@ def zrob_zestawienie_zbiorcze(folder):
     razem["Ubyło działek"] = int(df["Ubyło działek"].sum())
     df = pd.concat([df, pd.DataFrame([razem])], ignore_index=True)
 
-    sciezka_out = folder / "ZESTAWIENIE_ZBIORCZE.xlsx"
+    # Plik zestawienia można zapisać w INNYM folderze niż ten, który
+    # przeszukujemy (np. o poziom wyżej, obok podfolderu z rozliczeniami).
+    _out = Path(out_folder) if out_folder else folder
+    _out.mkdir(parents=True, exist_ok=True)
+    sciezka_out = _out / "ZESTAWIENIE_ZBIORCZE.xlsx"
     with pd.ExcelWriter(str(sciezka_out), engine="openpyxl") as writer:
         # ---------- arkusz zbiorczy ----------
         df.to_excel(writer, sheet_name="Zestawienie", index=False)

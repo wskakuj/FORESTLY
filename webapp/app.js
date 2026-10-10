@@ -3,7 +3,7 @@
 
 /* wersja tego pliku — widoczna w sidebarze obok wersji programu;
    jeśli się różni, app.js nie podmienił się przy rozpakowaniu paczki */
-const APP_JS_VER = "2.0.143";
+const APP_JS_VER = "2.0.172";
 
 const $ = (sel, root) => (root || document).querySelector(sel);
 const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
@@ -34,6 +34,7 @@ const SECTION_ICONS = {
   "MIETEK": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>',
   "TAKSATOR": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h8M8 9h2"/></svg>',
   "ROZLICZANIE": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 10h3M13 10h3M8 14h3M13 14h3M8 18h3"/></svg>',
+  "GEO-MAP": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
   "KONWERTER PDF": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>',
 };
 
@@ -174,6 +175,7 @@ const SECTION_DESC = {
   "MIETEK": "Wydruki TXT z DBF, konwersje Word / PDF, scalanie i wykazy",
   "TAKSATOR": "Szablony STR_TYT, układanie Exceli i PDF dla wsi",
   "ROZLICZANIE": "Powierzchnie, mietki, halizny i Excel z MDB",
+  "GEO-MAP": "Opisy na mapę oraz literacja wydzieleń w plikach GEO-MAP",
   "KONWERTER PDF": "Dowolne dokumenty i obrazy na PDF",
 };
 
@@ -181,6 +183,7 @@ const SECTION_COLORS = {
   "MIETEK": { "fg": "#2dd4a7", "bg": "rgba(45, 212, 167, 0.14)" },
   "TAKSATOR": { "fg": "#38bdf8", "bg": "rgba(56, 163, 248, 0.14)" },
   "ROZLICZANIE": { "fg": "#f5b942", "bg": "rgba(245, 185, 66, 0.14)" },
+  "GEO-MAP": { "fg": "#7dd3a0", "bg": "rgba(125, 211, 160, 0.14)" },
   "KONWERTER PDF": { "fg": "#a78bfa", "bg": "rgba(167, 139, 250, 0.14)" },
 };
 function secColor(sec) { return SECTION_COLORS[sec] || { "fg": "var(--accent)", "bg": "rgba(45, 212, 167, 0.12)" }; }
@@ -241,6 +244,7 @@ function buildStartView(nav, content) {
     if (!firstOf[sec]) firstOf[sec] = t.key;
   }
   const autoTab = (SCHEMA.tabs.find(t => t.key.indexOf("Pełny Automat") >= 0) || {}).key || "";
+  const rmTab = (SCHEMA.tabs.find(t => t.key.indexOf("Rozliczanie + MIETEK") >= 0) || {}).key || "";
 
   const cards = Object.keys(firstOf).map(sec => {
     const col = secColor(sec);
@@ -264,6 +268,15 @@ function buildStartView(nav, content) {
       '<div class="sh-sub">Halizny → TXT → Word → PDF → scalanie. Cały proces jednym kliknięciem.</div></div>' +
       '<div class="sh-go">Otwórz →</div>' +
     "</div>" +
+    (rmTab ?
+      '<div class="start-hero hero-rm" data-target="' + escapeHtml(rmTab) + '">' +
+        '<div class="sh-ic">' + (SECTION_ICONS["ROZLICZANIE"] || "") + "</div>" +
+        '<div class="sh-txt"><div class="sh-title">Rozliczanie + MIETEK (1-Click)</div>' +
+        '<div class="sh-sub">Mapy GEO-MAP → pliki VAL → rozliczenie powierzchni → ' +
+        'mietki z krzyżówkami. Cały proces jednym kliknięciem.</div></div>' +
+        '<div class="sh-go">Otwórz →</div>' +
+      "</div>"
+      : "") +
     '<div class="start-grid">' + cards + "</div>" +
     nowosciSection();
   $$(".start-hero,.start-card,.nowosci-card", view).forEach(c => {
@@ -319,7 +332,8 @@ function showTab(key) {
   const g = document.querySelector('.tab-view:not(.hidden) .gdos-wrap[data-lazy="1"]');
   if (g) gdosLoad();
   /* wejście w Pełny Automat (także z ekranu Start) otwiera kreatora */
-  if (key === allTabKey()) openWizard();
+  if (key === allTabKey()) openWizard("ALL");
+  else if (key === rmTabKey()) openWizard("RM");
   const active = $$(".nav-item").find(i => i.dataset.key === key);
   if (active) {
     const g = active.closest(".nav-group");
@@ -449,8 +463,10 @@ function renderControls(view, tab) {
   /* Pełny Automat (1-Click): klasyczny formularz chowam — zakładka
      otwiera kreatora krok po kroku (wizard), który korzysta z tych pól */
   const isAll = tab.key.indexOf("Pełny Automat") >= 0;
+  const isRM = tab.key.indexOf("Rozliczanie + MIETEK") >= 0;
+  const isWiz = isAll || isRM;
   let target = view;
-  if (isAll) {
+  if (isWiz) {
     const hide = document.createElement("div");
     hide.style.display = "none";
     view.appendChild(hide);
@@ -474,9 +490,10 @@ function renderControls(view, tab) {
       target.appendChild(node);
     }
   }
-  if (isAll) {
-    WIZ.home = target;
-    WIZ.children = [...target.childNodes];
+  if (isWiz) {
+    const kind = isRM ? "RM" : "ALL";
+    WIZ.homes[kind] = target;
+    WIZ.kidz[kind] = [...target.childNodes];
     return;  /* przyciski akcji ma kreator */
   }
   const actions = document.createElement("div");
@@ -502,12 +519,17 @@ function renderControls(view, tab) {
    strona tytułowa i daty → marginesy → nazwiska → uruchomienie → postęp.
    Kreator korzysta z PRAWDZIWYCH pól formularza (przenosi je do okna),
    więc zapisywanie i odczyt ustawień działa bez zmian. */
-const WIZ = { open: false, step: 0, home: null, children: [] };
+const WIZ = { open: false, step: 0, kind: "ALL", home: null, children: [],
+              homes: {}, kidz: {} };
 const WIZ_NAV = ["Lokalizacje", "Strona tytułowa i daty", "Opis ogólny",
                  "Marginesy", "Nazwiska", "Uruchomienie"];
 
 function allTabKey() {
   return (SCHEMA.tabs.find(t => t.key.indexOf("Pełny Automat") >= 0) || {}).key || "";
+}
+
+function rmTabKey() {
+  return (SCHEMA.tabs.find(t => t.key.indexOf("Rozliczanie + MIETEK") >= 0) || {}).key || "";
 }
 
 function wizField(cid) {
@@ -668,16 +690,23 @@ function wizVal(cid) {
   return String(n.value || "").trim();
 }
 
-function openWizard() {
-  if (WIZ.open || !allTabKey() || !WIZ.home) return;
+function openWizard(kind) {
+  kind = kind || "ALL";
+  if (WIZ.open) return;
+  WIZ.home = WIZ.homes[kind] || null;
+  WIZ.children = WIZ.kidz[kind] || [];
+  if (!WIZ.home) return;
+  WIZ.kind = kind;
   WIZ.open = true;
   WIZ.step = 0;
+  const _tytul = (kind === "RM") ? "Rozliczanie + MIETEK (1-Click)"
+                                 : "Pełny Automat (1-Click)";
   const wz = document.createElement("div");
   wz.id = "wizard";
   wz.innerHTML =
     '<div class="wiz-box">' +
       '<div class="wiz-head">' +
-        '<div class="wiz-title">Pełny Automat (1-Click)</div>' +
+        '<div class="wiz-title">' + _tytul + '</div>' +
         '<div class="wiz-dots" id="wiz-dots"></div>' +
         '<button class="wiz-close" id="wiz-close" title="Zamknij kreatora">×</button>' +
       '</div>' +
@@ -730,8 +759,175 @@ function wizTiles(f, opcje) {
   return kafle;
 }
 
+/* ============ Kreator zakładki „Rozliczanie + MIETEK" (1-Click) ============
+   Bliźniak kreatora Pełnego Automatu: krótkie wprowadzenie → lokalizacje →
+   dane do mietka → uruchomienie i postęp. Korzysta z PRAWDZIWYCH pól
+   formularza zakładki (przenosi je do okna), więc zapis ustawień działa
+   bez zmian. */
+const WIZ_NAV_RM = ["Lokalizacje", "Dane do mietka", "Uruchomienie"];
+
+function renderWizStepRM() {
+  if (!WIZ.open) return;
+  const body = document.getElementById("wiz-body");
+  const dots = document.getElementById("wiz-dots");
+  if (!body) return;
+  /* pola wracają do ukrytego formularza — przechodzenie krokami ich nie gubi */
+  if (WIZ.home) WIZ.children.forEach(n => WIZ.home.appendChild(n));
+  dots.innerHTML = "";
+  WIZ_NAV_RM.forEach((n, i) => {
+    const d = document.createElement("div");
+    d.className = "wiz-dot" + (i === WIZ.step ? " on" : (i < WIZ.step ? " done" : ""));
+    d.title = n;
+    dots.appendChild(d);
+  });
+  dots.classList.toggle("hidden", WIZ.step === 3);
+  body.innerHTML = "";
+  const st = document.createElement("div");
+  st.className = "wiz-step";
+  body.appendChild(st);
+
+  const back = el("button", "btn secondary", "‹ Wstecz");
+  back.onclick = () => { if (WIZ.step > 0 && WIZ.step < 3) { WIZ.step--; renderWizStep(); } };
+  const next = el("button", "btn primary wiz-big", "Dalej ›");
+  const nav = document.createElement("div");
+  nav.className = "wiz-nav";
+  const moveTo = (f) => { if (f) st.appendChild(f); };
+
+  if (WIZ.step === 0) {
+    st.innerHTML =
+      '<div class="wiz-hero">' +
+        '<div class="wh-ic">' + (SECTION_ICONS["ROZLICZANIE"] || "") + '</div>' +
+        '<h2>Rozliczenie i mietki jednym kliknięciem</h2>' +
+        '<div class="wiz-sub">Mapy GEO-MAP → pliki VAL → rozliczenie powierzchni' +
+        ' → mietki z wpisanymi krzyżówkami → zestawienie zbiorcze.<br>' +
+        'Przeprowadzę Cię przez trzy krótkie kroki — potem zrobię wszystko sama.</div>' +
+      '</div>';
+    scheduleSetValues();
+    /* od razu sprawdzamy, czy zainstalowana wersja PROGRAMU zna tę funkcję —
+       gdy podmieniony był tylko interfejs, lepiej ostrzec zawczasu */
+    (async () => {
+      try {
+        const a = (typeof api === "function") ? api() : null;
+        if (a && typeof a.rm_diag !== "function") {
+          const hero = st.querySelector(".wiz-hero");
+          if (hero) {
+            const ostrz = el("div", "wiz-brak",
+              "Uwaga: zainstalowana wersja PROGRAMU nie zna jeszcze tej " +
+              "funkcji. Wgraj także pliki z folderu app/ (nie tylko webapp/) " +
+              "albo zbuduj nowy .exe.");
+            hero.appendChild(ostrz);
+          }
+        }
+      } catch (e) { /* pywebview jeszcze niegotowy */ }
+    })();
+    back.classList.add("hidden");
+    next.innerHTML = "<span>Zaczynamy ›</span>";
+    next.onclick = () => { WIZ.step = 1; renderWizStep(); };
+  } else if (WIZ.step === 1) {
+    st.innerHTML = '<h2>Gdzie są mapy, ewidencja i gdzie zapisać wyniki?</h2>' +
+      '<div class="wiz-sub">Wskaż mapy GEO-MAP (.MAP), ewidencję (pliki XLS/XLSX) ' +
+      'oraz folder, w którym powstanie cały wynik. Mapy i ewidencja są kopiowane ' +
+      '— oryginały zostają nietknięte.</div>';
+    moveTo(wizField("rm_mapy"));
+    moveTo(wizField("rm_ewid"));
+    moveTo(wizField("rm_out"));
+    next.onclick = () => { WIZ.step = 2; renderWizStep(); };
+  } else if (WIZ.step === 2) {
+    st.innerHTML = '<h2>Co wpisać do mietka?</h2>' +
+      '<div class="wiz-sub">Te dane trafią do nagłówka WSIE.DBF nowych mietków. ' +
+      'Zdecyduj też, czy na końcu ma powstać zestawienie zbiorcze.</div>' +
+      '<div class="wiz-brak" id="wiz-brak"></div>';
+    const grp = WIZ.home.querySelector("details.group-details");
+    if (grp) {
+      grp.open = true;
+      moveTo(grp.parentElement);
+    }
+    moveTo(wizField("rm_zestaw"));
+    next.innerHTML = ICON("play") + "<span>Rozpocznij proces</span>";
+    next.classList.add("wiz-run");
+    next.onclick = async () => {
+      /* zanim ruszymy — sprawdzamy, czy są wskazane wszystkie trzy ścieżki;
+         bez tego backend nie ma czego przetwarzać i kończy się ogólnym
+         „błąd", co nic nie mówi */
+      const brak = [];
+      if (!wizVal("rm_mapy")) brak.push("mapy GEO-MAP (.MAP)");
+      if (!wizVal("rm_ewid")) brak.push("ewidencja (pliki XLS/XLSX)");
+      if (!wizVal("rm_out")) brak.push("folder wynikowy");
+      if (brak.length) {
+        const info = "Brakuje: " + brak.join(", ") +
+                     ". Wróć krokiem „‹ Wstecz” i uzupełnij.";
+        const w = document.getElementById("wiz-brak");
+        if (w) w.textContent = info;
+        toast(info, "warn");
+        return;
+      }
+      WIZ.step = 3;
+      renderWizStep();
+      await runTask("start_rozliczanie_mietki");
+      /* Program ODMAWIA startu wprost (np. trwa inne zadanie)? */
+      if (LAST_RUN_ERROR) { wizDone(false); return; }
+      /* Czekamy na potwierdzenie startu. UWAGA: nie nadpisujemy tekstu
+         statusu — tam program podaje powód odmowy. Gdy zgłosi odmowę
+         (czerwony status) albo nie potwierdzi w rozsądnym czasie,
+         pokazujemy ekran z diagnozą (co widzi program). */
+      /* Nie polegamy wyłącznie na zdarzeniach — okno samo pyta program
+         o stan procesu. Dzięki temu nie zawiesi się nawet wtedy, gdy
+         odbiór zdarzeń szwankuje. */
+      const _t0 = Date.now();
+      const _czekaj = setInterval(async () => {
+        if (document.getElementById("wiz-done")) { clearInterval(_czekaj); return; }
+        let d = null;
+        try { if (api() && api().rm_diag) d = await api().rm_diag(); } catch (e) {}
+        if (d && d.stan) {
+          if (d.stan.zakonczone) {
+            clearInterval(_czekaj);
+            wizDone(!d.stan.blad);
+            return;
+          }
+          return;   /* proces trwa — czekamy dalej */
+        }
+        if (RUNNING) return;
+        if (LAST_STATUS_ERR || (Date.now() - _t0) > 15000) {
+          clearInterval(_czekaj);
+          wizDone(false);
+        }
+      }, 1200);
+    };
+  } else if (WIZ.step === 3) {
+    st.innerHTML =
+      '<div class="wiz-prog">' +
+        '<div class="wiz-branch" id="wiz-spin"></div>' +
+        '<div class="wiz-op" id="wiz-op">Rozpoczynam…</div>' +
+        '<div class="wiz-bar"><div class="wiz-fill" id="wiz-fill"></div></div>' +
+        '<div class="wiz-file" id="wiz-file"></div>' +
+      '</div>';
+    const br = document.getElementById("wiz-spin");
+    if (br) br.innerHTML = BRANCH_HTML;
+    const stopBtn = el("button", "btn secondary wiz-stop", "Przerwij zadanie");
+    stopBtn.id = "wiz-stop";
+    stopBtn.onclick = async () => {
+      try { await api().stop(); } catch (e) {}
+      STOP_REQUESTED = true;
+      stopBtn.disabled = true;
+      stopBtn.textContent = "Przerywanie…";
+      toast("Zatrzymywanie — program zakończy po bieżącym kroku…", "warn");
+    };
+    nav.appendChild(stopBtn);
+    const dash = WIZ.home.querySelector("#dashboard");
+    if (dash) st.appendChild(dash.closest(".card"));
+    back.classList.add("hidden");
+    next.classList.add("hidden");
+  }
+
+  nav.appendChild(back);
+  nav.appendChild(next);
+  st.appendChild(nav);
+  mpMaybeClose();
+}
+
 function renderWizStep() {
   if (!WIZ.open) return;
+  if (WIZ.kind === "RM") { renderWizStepRM(); return; }
   /* opuszczamy krok marginesów/czcionek (3) — okno podglądu ma się zamknąć,
      żeby nie wisiało nad kolejnymi krokami kreatora */
   if (WIZ.lastStep != null && WIZ.lastStep === 4 && WIZ.step !== 4) {
@@ -1111,7 +1307,8 @@ function renderWizStep() {
 
 /* koniec zadania w kroku postępu — ekran "Ukończono" */
 function wizDone(ok) {
-  if (!WIZ.open || WIZ.step !== 7) return;
+  const _last = (WIZ.kind === "RM") ? 3 : 7;
+  if (!WIZ.open || WIZ.step !== _last) return;
   const stopBtn = document.getElementById("wiz-stop");
   if (stopBtn) stopBtn.remove();
   const przerwano = (LAST_STATUS_TEXT || "").indexOf("Przerwano") === 0;
@@ -1125,7 +1322,56 @@ function wizDone(ok) {
   if (op) op.textContent = przerwano
     ? "Przerwano przez użytkownika"
     : (ok ? "Ukończono!"
-         : "Zadanie zakończone z błędem — szczegóły w dzienniku zdarzeń");
+         : ("Zadanie zakończone z błędem — " +
+            (LAST_RUN_ERROR || LAST_STATUS_TEXT ||
+             "szczegóły w dzienniku zdarzeń")));
+  /* przy błędzie doklejamy ostatnie wpisy z Dziennika zdarzeń —
+     od razu widać, co się stało, bez szukania panelu na dole okna */
+  if (!ok && !przerwano) {
+    const krok = document.querySelector("#wiz-body .wiz-step");
+    if (krok && !krok.querySelector(".wiz-log-err")) {
+      const pre = el("pre", "wiz-log-err", "Sprawdzam, co widzi program…");
+      krok.appendChild(pre);
+      (async () => {
+        let d = null;
+        try {
+          if (typeof api === "function" && api()
+              && typeof api().rm_diag === "function") {
+            d = await api().rm_diag();
+          }
+        } catch (e) { d = null; }
+        let tekst;
+        if (!d) {
+          tekst =
+            "UWAGA: zainstalowana wersja PROGRAMU nie zna jeszcze tej funkcji.\n\n" +
+            "To znaczy, że podmieniony został tylko interfejs (webapp/), a nie " +
+            "pliki programu (folder app/).\n\n" +
+            "Wgraj pliki z folderu app/ z paczki (albo zbuduj nowy .exe) i " +
+            "spróbuj ponownie.\n\n" +
+            "Wersja interfejsu (app.js): " + APP_JS_VER;
+        } else {
+          const p = d.pola || {};
+          tekst =
+            "Wersja programu: " + (d.wersja || "?") + "\n" +
+            "Interfejs (app.js): " + APP_JS_VER + "\n" +
+            "Ta wersja programu zna zadanie: " + (d.zadanie_jest ? "TAK" : "NIE") + "\n" +
+            "Inne zadanie jest w toku: " + (d.trwa ? "TAK" : "nie") + "\n" +
+            "Odbiór zdarzeń z programu: " +
+              ((d.odpytanie_s < 0) ? "NIGDY — to jest problem!"
+               : (d.odpytanie_s + " s temu" +
+                  (d.odpytanie_s > 3 ? " (za dawno — to jest problem!)" : " (dobrze)"))) +
+            "\n\n" +
+            "Program widzi wskazane ścieżki:\n" +
+            "  mapy:      " + (p.mapy || "(puste)") + "\n" +
+            "  ewidencja: " + (p.ewid || "(puste)") + "\n" +
+            "  wynik:     " + (p.out || "(puste)") + "\n\n" +
+            "Ostatnie wpisy programu:\n" +
+            ((d.logi || []).slice(-15).join("\n") || "(brak)");
+        }
+        pre.textContent = tekst;
+      })();
+    }
+  }
   const fill = document.getElementById("wiz-fill");
   if (fill && ok) fill.style.width = "100%";
   const nav = document.querySelector("#wiz-body .wiz-nav");
@@ -2558,18 +2804,48 @@ async function runTask(task) {
 
   const r = await api().run(task);
   if (!r.ok) {
-    toast(r.error || "Nie udało się uruchomić zadania.", "error");
+    LAST_RUN_ERROR = r.error || "Nie udało się uruchomić zadania.";
+    toast(LAST_RUN_ERROR, "error");
+  } else {
+    LAST_RUN_ERROR = "";
   }
 }
 
+/* ostatnie wpisy z „Dziennika zdarzeń" — pokazujemy je w oknie kreatora,
+   gdy zadanie skończy się błędem, żeby nie trzeba było ich szukać */
+function ostatnieLogi(ile) {
+  const log = document.getElementById("log");
+  if (!log) return "";
+  const linie = Array.from(log.children)
+    .map(c => (c.textContent || "").trim())
+    .filter(t => t.length);
+  return linie.slice(-(ile || 8)).join("\n");
+}
+
 /* --------------------------------------------------------------------- polling */
-async function pollLoop() {
+let POLL_LAST = 0;     /* kiedy ostatnio udało się odebrać zdarzenia */
+let POLL_TOKEN = 0;    /* która pętla jest aktualna (stare się kończą) */
+async function pollLoop(token) {
+  if (token === undefined) token = ++POLL_TOKEN;
+  if (token !== POLL_TOKEN) return;         /* zastąpiona nowszą pętlą */
   try {
     const events = await api().poll();
+    POLL_LAST = Date.now();
     for (const ev of events) handleEvent(ev);
   } catch (e) { /* pywebview jeszcze niegotowy */ }
-  setTimeout(pollLoop, 220);
+  if (token !== POLL_TOKEN) return;
+  setTimeout(() => pollLoop(token), 220);
 }
+
+/* STRAŻNIK ODPYTYWANIA.
+   Bez działającej pętli okno nie widzi NICZEGO: dziennika zdarzeń, postępu,
+   stanu zadania ani listy kroków — a wygląda, jakby program nic nie robił.
+   Gdyby pętla padła albo nigdy nie wystartowała, wznawiamy ją. */
+setInterval(() => {
+  if (POLL_LAST === 0 || (Date.now() - POLL_LAST) > 5000) {
+    try { pollLoop(++POLL_TOKEN); } catch (e) { /* jeszcze nie teraz */ }
+  }
+}, 3000);
 
 function handleEvent(ev) {
   switch (ev.type) {
@@ -2644,6 +2920,7 @@ function appendLog(text) {
 }
 
 let LAST_TASK_LABEL = null;    /* nazwa ostatnio uruchomionego zadania */
+let LAST_RUN_ERROR = "";       /* dlaczego zadanie nie wystartowało */
 let LAST_STATUS_ERR = false;   /* czy ostatni status był błędem (czerwony) */
 let STOP_REQUESTED = false;   /* czy użytkownik kliknął „Zatrzymaj" */
 
@@ -3057,7 +3334,9 @@ function showPary(ev) {
     tbody.appendChild(tr);
   });
   tabela.appendChild(tbody);
-  box.appendChild(tabela);
+  const wrap = el("div", "braki-tabela-wrap");
+  wrap.appendChild(tabela);
+  box.appendChild(wrap);
   modal.appendChild(box);
 
   const row = el("div", "modal-row");

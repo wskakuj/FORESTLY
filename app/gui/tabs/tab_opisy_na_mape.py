@@ -708,3 +708,343 @@ class TabOpisyNaMapeMixin:
                 _zap(out)
             except Exception:
                 pass
+
+    # ============================================== PEŁNY AUTOMAT (GEO-MAP)
+    def _pelen_automat_ustawienia(self):
+        """Ustawienia zakładki „GEO-MAP | Pełny automat”."""
+        def _txt(attr, default=""):
+            e = getattr(self, attr, None)
+            if e is None:
+                return default
+            try:
+                v = e.get()
+            except Exception:
+                return default
+            return (v or "").strip() or default
+
+        def _bool(attr, default=False):
+            v = getattr(self, attr, None)
+            if v is None:
+                return default
+            try:
+                return bool(v.get())
+            except Exception:
+                return default
+
+        tryb = _txt("pa_zrodlo_var", "Baza MIETEK")
+        if "TAKSATOR" in tryb.upper():
+            tryb_kod = "taksator"
+        elif "GO" in tryb.upper():
+            tryb_kod = "excel"
+        else:
+            tryb_kod = "mietek"
+        return {
+            "tryb": tryb_kod,
+            "excel": _txt("pa_excel_entry"),
+            "mietki": _txt("pa_mietki_entry"),
+            "mdb": _txt("pa_mdb_entry"),
+            "mapy": _txt("pa_source_entry"),
+            "out": _txt("pa_out_entry"),
+            "kol_nr": "N",               # stałe — jak w zakładce „Literowanie i Opisy”
+            "klucz": "TX",
+            "a2": True,
+            "a5": True,
+            "lit_overwrite": True,   # zawsze nadpisujemy — bez przełącznika
+            "lit_tol": _txt("pa_lit_tol_entry", "1.0"),
+            "rozsuwaj": _bool("pa_rozsuwaj_var", True),
+            "font_mm": "2.5",
+            "skala": "5000",
+            "p3": "-0.25",
+        }
+
+    def start_pelen_automat(self):
+        """PEŁNY AUTOMAT: literacja → wpisanie opisów → ułożenie mapy."""
+        u = self._pelen_automat_ustawienia()
+        if not u["mapy"] or not Path(u["mapy"]).exists():
+            self.log("[AUTO] Wskaż folder z mapami (.MAP) albo plik mapy.")
+            self.update_status("Brak map", "#D83B01", animate=False)
+            return
+        if not u["out"]:
+            self.log("[AUTO] Wskaż folder wynikowy — tam zapiszę gotowe mapy.")
+            self.update_status("Brak folderu wynikowego", "#D83B01", animate=False)
+            return
+        if u["tryb"] == "taksator":
+            if not self._bazy_ze_sciezki(u["mdb"]):
+                self.log("[AUTO] Wskaż plik bazy taksatora (.mdb) albo folder z bazami.")
+                self.update_status("Brak bazy .mdb", "#D83B01", animate=False)
+                return
+        elif u["tryb"] == "excel":
+            if not u["excel"] or not Path(u["excel"]).is_dir():
+                self.log("[AUTO] Wskaż folder z arkuszami Excel (Forestly GO).")
+                self.update_status("Brak folderu Excel", "#D83B01", animate=False)
+                return
+        else:
+            if not u["mietki"] or not Path(u["mietki"]).is_dir():
+                self.log("[AUTO] Wskaż folder z Mietkiem (pliki DBF).")
+                self.update_status("Brak folderu Mietka", "#D83B01", animate=False)
+                return
+        if self.running:
+            return
+        self._disable_ui_for_process()
+        self.log("[AUTO] Pełny automat — literacja, opisy i ułożenie map.")
+        self.set_progress(0)
+        threading.Thread(target=self.run_pelen_automat_thread, args=(u,),
+                         daemon=True).start()
+
+    def _auto_zrodlo_dla_mapy(self, sciezka_mapy, zrodla, bazy, cache, u):
+        """(zrodlo, blad) dla jednej mapy — źródło czytamy PRZED literacją.
+
+        Dzięki temu dopasowanie po nazwie działa na ORYGINALNEJ nazwie mapy
+        (po literacji plik roboczy nazywa się już inaczej).
+        """
+        if u["tryb"] == "taksator":
+            sc_b, baza = self._baza_dla_mapy(sciezka_mapy.stem, bazy, cache)
+            if not baza:
+                return None, "brak bazy .mdb o tej nazwie"
+            return baza, ""
+        _, zrodlo, blad = self._zrodlo_dla_mapy(sciezka_mapy, zrodla, u)
+        return zrodlo, blad
+
+    def _auto_wiersze_i_zapis(self, mapa, sciezka_mapy, zrodlo, u, out_root, obr):
+        """Wpisuje opisy do wczytanej mapy. Zwraca (wiersze, res, blad)."""
+        pom = []
+        if u["tryb"] == "taksator":
+            from app.core import opisy_na_mape_taksator as tk
+            wiersze = tk.zbuduj_wiersze(mapa, zrodlo, pominiete=pom)
+            if pom:
+                self.log("  ℹ️ %s: pominięto %d obiektów bez wydzielenia."
+                         % (sciezka_mapy.name, len(pom)))
+            if not any(r["ok"] for r in wiersze):
+                return wiersze, None, ""
+            res = tk.zapisz_mape(mapa, out_root, wiersze=wiersze)
+            return wiersze, res, ""
+        wiersze = onm.zbuduj_wiersze(mapa, u["tryb"], zrodlo, klucz=u["klucz"],
+                                     kol_nr=u["kol_nr"], pominiete=pom)
+        if pom:
+            self.log("  ℹ️ %s: pominięto %d obiektów bez oznaczenia wydzielenia."
+                     % (sciezka_mapy.name, len(pom)))
+        if not any(r["ok"] for r in wiersze):
+            return wiersze, None, ""
+        res = onm.zapisz_mape(mapa, out_root, a2=u["a2"], a5=u["a5"],
+                              wiersze=wiersze, obrot_srodek=obr)
+        return wiersze, res, ""
+
+    def run_pelen_automat_thread(self, u):
+        try:
+            import math as _m
+            from app.core import literacja as lit
+            from app.core import uklad_opisow as uk
+
+            self.update_status("Pełny automat — start...", "#0078D7")
+            mapy = self._mapy_w_folderze(u["mapy"])
+            if not mapy:
+                self.log("[AUTO] Nie znaleziono plików .MAP.")
+                self.update_status("Brak plików .MAP", "#D83B01", animate=False)
+                return
+            if u["tryb"] == "excel":
+                zrodla = self._arkusze_w_folderze(u["excel"])
+                self.log("[AUTO] Map: %d, arkuszy Excel: %d" % (len(mapy), len(zrodla)))
+            elif u["tryb"] == "mietek":
+                zrodla = self._obreby_w_folderze(u["mietki"])
+                self.log("[AUTO] Map: %d, obrębów w Mietku: %d" % (len(mapy), len(zrodla)))
+            else:
+                zrodla = {}
+                self.log("[AUTO] Map: %d, źródło: baza TAKSATORA (.mdb)." % len(mapy))
+            bazy = self._bazy_ze_sciezki(u["mdb"]) if u["tryb"] == "taksator" else {}
+            cache = {}
+
+            try:
+                tol = float(str(u.get("lit_tol", "1.0")).replace(",", "."))
+            except (TypeError, ValueError):
+                tol = 1.0
+            try:
+                obr = float(str(u.get("p3", "-0.25")).replace(",", ".")) * _m.pi / 200.0
+            except (TypeError, ValueError):
+                obr = -0.25 * _m.pi / 200.0
+
+            _baza = Path(u["out"])
+            _baza.mkdir(parents=True, exist_ok=True)
+            # NOWY podfolder na każdy przebieg — wyniki się nie mieszają.
+            _stempel = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+            out_root = _baza / ("GOTOWE_" + _stempel)
+            _nr = 2
+            while out_root.exists():
+                out_root = _baza / ("GOTOWE_%s_%d" % (_stempel, _nr))
+                _nr += 1
+            out_root.mkdir(parents=True, exist_ok=True)
+            self.log("[AUTO] Nowy folder wynikowy: %s" % out_root)
+
+            total = len(mapy)
+            self.start_progress_tracking(total, "Pełny automat")
+            wyniki = []
+            for idx, (klucz, sciezka) in enumerate(sorted(mapy.items()), start=1):
+                self.check_stop()
+                self.progress_current_file = sciezka.name
+                w = {"mapa": sciezka.name, "literacja": "", "poligonow": 0,
+                     "dopasowano": 0, "ulozenie": 0, "plik": "", "blad": ""}
+                stem = sciezka.stem
+                try:
+                    # --- źródło czytamy PRZED literacją (dopasowanie po nazwie)
+                    zrodlo, blad_zr = self._auto_zrodlo_dla_mapy(
+                        sciezka, zrodla, bazy, cache, u)
+                    if blad_zr:
+                        w["blad"] = blad_zr
+                        wyniki.append(w)
+                        self.log("  ⚠️ %s: %s" % (sciezka.name, blad_zr))
+                        self.set_progress(idx / total, current_file=sciezka.name, current=idx)
+                        continue
+
+                    # --- KROK 1: LITERACJA -------------------------------------
+                    mapa_rob = out_root / (stem + "_zaliterowane.MAP")
+                    try:
+                        st = lit.literate_plik(sciezka, mapa_rob, lit.DEFAULT_LAYER,
+                                               u["lit_overwrite"], tol,
+                                               lambda m: self.log("  [LIT] %s" % m))
+                        w["literacja"] = "%d wydz." % st.get("changed", 0)
+                        self.log("  ✔ %s: zaliterowano %d wydzieleń."
+                                 % (sciezka.name, st.get("changed", 0)))
+                    except Exception as e:                       # noqa: BLE001
+                        # Literacja się nie udała — POMIJAMY CAŁĄ MAPĘ.
+                        # (Bez literacji wpisywanie opisów dałoby mapę bez
+                        #  oznaczeń wydzieleń, więc lepiej jej nie ruszać.)
+                        w["blad"] = "literacja: %s" % e
+                        w["pominieta"] = True
+                        try:
+                            if mapa_rob.exists():
+                                mapa_rob.unlink()
+                        except OSError:
+                            pass
+                        self.log("  \u2717 %s: LITERACJA NIE UDA\u0141A SI\u0118 \u2014 "
+                                 "mapa POMINI\u0118TA. Pow\u00f3d: %s" % (sciezka.name, e))
+                        wyniki.append(w)
+                        self.set_progress(idx / total, current_file=sciezka.name,
+                                          current=idx)
+                        continue
+
+                    # --- KROK 2: OPISY -----------------------------------------
+                    mapa = onm.wczytaj_mape(mapa_rob)
+                    wiersze, res, blad = self._auto_wiersze_i_zapis(
+                        mapa, sciezka, zrodlo, u, out_root, obr)
+                    if blad:
+                        w["blad"] = blad
+                    w["poligonow"] = len(wiersze)
+                    w["dopasowano"] = sum(1 for r in wiersze if r["ok"])
+                    if not res or not w["dopasowano"]:
+                        self.log("  ⚠️ %s: nie dopasowano żadnego poligonu." % sciezka.name)
+                        try:
+                            mapa_rob.unlink()
+                        except OSError:
+                            pass
+                        wyniki.append(w)
+                        self.set_progress(idx / total, current_file=sciezka.name, current=idx)
+                        continue
+                    self.log("  • %s: dopasowano %d/%d poligonów."
+                             % (sciezka.name, w["dopasowano"], w["poligonow"]))
+
+                    # --- KROK 3: UKŁADANIE -------------------------------------
+                    sc_op = res.get("sciezka") or ""
+                    if not sc_op or not Path(sc_op).exists():
+                        w["blad"] = "nie powstał plik z opisami"
+                        wyniki.append(w)
+                        self.set_progress(idx / total, current_file=sciezka.name, current=idx)
+                        continue
+                    mapa2 = onm.wczytaj_mape(Path(sc_op))
+                    el = uk.uloz(mapa2, wysokosc_mm=float(u["font_mm"]),
+                                 skala=float(u["skala"]), obrot=obr,
+                                 tylko_srodek=not u.get("rozsuwaj", True))
+                    cel = out_root / (stem + "_GOTOWE.MAP")
+                    if el:
+                        lines, _zm = uk.ustaw_offsety(mapa2, el, obrot_rad=obr)
+                        cel.write_bytes(onm.przelicz_naglowek(lines))
+                        w["ulozenie"] = len(el)
+                        _wew = sum(1 for e in el if not e.get("wysiegnik"))
+                        _wys = sum(1 for e in el if e.get("wysiegnik"))
+                        self.log("  ✔ %s: ułożono %d opisów (w środku: %d, "
+                                 "z wysięgnikiem: %d)." % (sciezka.name, len(el), _wew, _wys))
+                    else:
+                        import shutil as _sh2
+                        _sh2.copy2(sc_op, cel)
+                        self.log("  ℹ️ %s: brak opisów do ułożenia — zapisano bez zmian."
+                                 % sciezka.name)
+                    w["plik"] = cel.name
+                    # sprzątanie plików pośrednich
+                    for tmp in (sc_op, mapa_rob):
+                        try:
+                            if tmp and Path(tmp).exists():
+                                Path(tmp).unlink()
+                        except OSError:
+                            pass
+                except Exception as e:                           # noqa: BLE001
+                    w["blad"] = str(e)
+                    self.log("  ✗ %s: %s" % (sciezka.name, e))
+                    traceback.print_exc()
+                wyniki.append(w)
+                self.set_progress(idx / total, current_file=sciezka.name, current=idx)
+
+            self._auto_raport(wyniki, u, out_root)
+            self.update_status("Pełny automat zakończony.", "#107C10", animate=False)
+        except InterruptedError:
+            self.log("\n[AUTO] ZADANIE PRZERWANE PRZEZ UŻYTKOWNIKA.")
+            self.update_status("Przerwano", "#D83B01", animate=False)
+        except Exception as e:
+            self.log("\n[AUTO] Błąd: %s" % e)
+            traceback.print_exc()
+            self.update_status("Błąd pełnego automatu", "#D83B01", animate=False)
+        finally:
+            self.running = False
+            self.after(0, self.restore_all_buttons)
+
+    def _auto_raport(self, wyniki, u, out_root):
+        linie = [
+            "FORESTLY — PEŁNY AUTOMAT (GEO-MAP)",
+            "Data: %s" % _dt.datetime.now().strftime("%d.%m.%Y %H:%M"),
+            "Źródło opisów: %s" % {"excel": "Excel z Forestly GO",
+                                   "mietek": "dane MIETKA",
+                                   "taksator": "baza TAKSATORA (.mdb)"}.get(u["tryb"], u["tryb"]),
+            "Kroki: literacja (5310) → wpisanie opisów (A2/A5) → ułożenie mapy",
+            "Folder wynikowy: %s" % out_root,
+            "-" * 70,
+        ]
+        sp = sd = sz = su = 0
+        for w in wyniki:
+            sp += w["poligonow"]; sd += w["dopasowano"]; sz += 1 if w["plik"] else 0
+            su += w["ulozenie"]
+            if w.get("blad"):
+                linie.append("  ✗ %-28s BŁĄD: %s" % (w["mapa"], w["blad"]))
+            else:
+                linie.append("  • %-28s literacja: %-16s poligonów: %4d, "
+                             "dopasowano: %4d, ułożono: %4d → %s"
+                             % (w["mapa"], w.get("literacja", "—"), w["poligonow"],
+                                w["dopasowano"], w["ulozenie"], w["plik"] or "—"))
+        linie += ["-" * 70,
+                  "Razem map: %d, gotowych: %d, poligonów: %d, dopasowanych: %d, "
+                  "ułożonych opisów: %d" % (len(wyniki), sz, sp, sd, su)]
+
+        # --- MAPY POMINIĘTE: dlaczego i na jakiej mapie -------------------
+        pominiete = [w for w in wyniki if w.get("pominieta") or w.get("blad")]
+        linie += ["-" * 70, "MAPY POMINI\u0118TE / Z B\u0141\u0118DEM:", "-" * 70]
+        if pominiete:
+            for w in pominiete:
+                linie.append("  \u2717 %s" % w["mapa"])
+                linie.append("      pow\u00f3d: %s" % (w.get("blad") or "nieznany"))
+                if w.get("literacja"):
+                    linie.append("      literacja: %s" % w["literacja"])
+        else:
+            linie.append("  (\u017cadnej mapy nie pomini\u0119to)")
+        linie.append("")
+        linie.append("Uwaga: mapa pomini\u0119ta nie zosta\u0142a zmieniona \u2014 "
+                     "w folderze wynikowym nie ma dla niej pliku _GOTOWE.MAP.")
+        try:
+            plik = out_root / "Pełny automat - raport.txt"
+            plik.write_text("\n".join(linie), encoding="utf-8-sig")
+            self.log("[AUTO] Raport: %s" % plik)
+        except OSError as e:
+            self.log("[AUTO] Nie udało się zapisać raportu: %s" % e)
+        self.log("\n[AUTO] Map: %d, gotowych: %d, dopasowanych poligonów: %d, "
+                 "ułożonych opisów: %d" % (len(wyniki), sz, sd, su))
+        _zap = getattr(self, "_zapamietaj_folder_wynikow", None)
+        if _zap is not None:
+            try:
+                _zap(out_root)
+            except Exception:
+                pass

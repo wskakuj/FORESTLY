@@ -78,6 +78,24 @@ def _pasuje_val(nazwa_xls, nazwa_val):
     return kx.endswith(kv) or kv.endswith(kx)
 
 
+def _pliki_rek(folder, rozszerzenia):
+    """Pliki o podanych rozszerzeniach — TAKŻE z PODFOLDERÓW.
+
+    Wcześniej rozliczanie patrzyło tylko na pliki bezpośrednio w folderze,
+    więc pliki w podfolderach były pomijane.
+    """
+    folder = Path(folder)
+    out = []
+    try:
+        for q in sorted(folder.rglob("*")):
+            if q.is_file() and q.suffix.lower() in rozszerzenia \
+                    and not q.name.startswith("~$"):
+                out.append(q)
+    except Exception:
+        pass
+    return out
+
+
 def _pary_obrebow(folder_xls, folder_val):
     """Dopasowuje pliki XLS do .VAL po nazwie obrębu.
 
@@ -85,13 +103,8 @@ def _pary_obrebow(folder_xls, folder_val):
       pary    — lista (plik_xls, plik_val albo None),
       bez_val — pliki .val, dla których nie znalazł się żaden XLS.
     """
-    xls_files = sorted(
-        q for q in Path(folder_xls).iterdir()
-        if q.is_file() and q.suffix.lower() in (".xls", ".xlsx")
-        and not q.name.startswith("~$"))
-    val_files = sorted(
-        q for q in Path(folder_val).iterdir()
-        if q.is_file() and q.suffix.lower() == ".val")
+    xls_files = _pliki_rek(folder_xls, (".xls", ".xlsx"))
+    val_files = _pliki_rek(folder_val, (".val",))
     pary = []
     uzyte = set()
     for x in xls_files:
@@ -551,11 +564,11 @@ class TabRozliczanieMixin:
         threading.Thread(
             target=self.run_zestawienie_thread, args=(raw,), daemon=True).start()
 
-    def run_zestawienie_thread(self, folder_str):
+    def run_zestawienie_thread(self, folder_str, out_folder=None):
         try:
             from app.core.excel_tasks import zrob_zestawienie_zbiorcze
             self.update_status("Zestawienie zbiorcze rozliczeń...", "#0078D7")
-            wynik = zrob_zestawienie_zbiorcze(Path(folder_str))
+            wynik = zrob_zestawienie_zbiorcze(Path(folder_str), out_folder)
             if wynik is None:
                 self.log("[ZESTAWIENIE] Brak plików *_Rozliczone.xlsx w folderze docelowym "
                          "— uruchom najpierw rozliczanie.")
@@ -685,14 +698,7 @@ class TabRozliczanieMixin:
             folder_out = Path(folder_out_str)
             folder_out.mkdir(parents=True, exist_ok=True)
 
-            xls_files = sorted(
-                [
-                    p for p in folder_xls.iterdir()
-                    if p.is_file()
-                       and p.suffix.lower() in {".xls", ".xlsx"}
-                       and not p.name.startswith("~$")
-                ]
-            )
+            xls_files = _pliki_rek(folder_xls, (".xls", ".xlsx"))
             if not xls_files:
                 raise Exception("Brak plików XLS/XLSX we wskazanym folderze.")
 
@@ -753,8 +759,14 @@ class TabRozliczanieMixin:
                         # Nadpisujemy tabelę pozostawiając tylko wiersze, gdzie J. rej. NIE JEST ZEREM
                         tabela_glowna = tabela_glowna[jrej_num != 0].copy()
 
-                    tabela_gotowa, tabela_przybylo, tabela_ubylo = wykonaj_makro_vba(
+                    _makro = wykonaj_makro_vba(
                         tabela_glowna, tabela_braki, tylko_wyrownywanie=tylko_wyrownywanie)
+                    if len(_makro) == 4:
+                        (tabela_gotowa, tabela_przybylo, tabela_ubylo,
+                         tabela_ponizej) = _makro
+                    else:
+                        tabela_gotowa, tabela_przybylo, tabela_ubylo = _makro
+                        tabela_ponizej = pd.DataFrame()
 
                     with pd.ExcelWriter(str(plik_wyjsciowy), engine="openpyxl") as writer:
                         kolumny_wyjsciowe = [
@@ -773,6 +785,18 @@ class TabRozliczanieMixin:
                             pd.DataFrame(
                                 columns=["J. rej.", "nr_dz", "pow ls", "pow dz", "właściciel"]
                             ).to_excel(writer, sheet_name="Nieotaksowane", index=False)
+
+                        # Arkusz: wydzielenia <= 0,004 ha (nie rozliczane)
+                        kol_pod = ["J. rej.", "nr działki", "litera", "pow geo",
+                                   "ROZLICZONE (było)", "pow ls", "właściciel"]
+                        if not tabela_ponizej.empty:
+                            tabela_ponizej[kol_pod].to_excel(
+                                writer, sheet_name="Ponizej 0,004 ha", index=False,
+                                startrow=1)
+                        else:
+                            pd.DataFrame(columns=kol_pod).to_excel(
+                                writer, sheet_name="Ponizej 0,004 ha", index=False,
+                                startrow=1)
 
                         if not tabela_przybylo.empty:
                             tabela_przybylo.to_excel(
@@ -813,6 +837,10 @@ class TabRozliczanieMixin:
                         if "UBYLO" in writer.sheets:
                             formatuj_arkusz_raportowy(
                                 writer.sheets["UBYLO"], "UBYŁO", "87CEEB")
+                        if "Ponizej 0,004 ha" in writer.sheets:
+                            formatuj_arkusz_raportowy(
+                                writer.sheets["Ponizej 0,004 ha"],
+                                "PONIŻEJ 0,004 ha — NIE ROZLICZANE", "A87400")
 
                     self.log(f"  ✅ Zapisano: {plik_wyjsciowy.name}")
                     stat_sukces += 1

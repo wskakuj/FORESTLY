@@ -59,6 +59,7 @@ from app.gui.tabs.tab_nazwiska_mietek import TabNazwiskaMietekMixin
 from app.gui.tabs.tab_stare_opisy import TabStareOpisyMixin
 from app.gui.tabs.tab_rozliczenie_mietka import TabRozliczenieMietkaMixin
 from app.gui.tabs.tab_opisy_na_mape import TabOpisyNaMapeMixin
+from app.gui.tabs.tab_rozliczanie_mietek import TabRozliczanieMietekMixin
 from app.gui.tabs.tab_mietek_v2 import TabMietekV2Mixin
 from app.gui.tabs.tab_mietek_rozbieznosci import TabMietekRozbieznosciMixin
 from app.gui.tabs.tab_mietek_plus10 import TabMietekPlus10Mixin
@@ -73,6 +74,9 @@ BROWSE_FILTERS = {
     "zm_src": ("Baza Access", ("*.mdb",)),
     "mapa_mdb": ("Baza Access", ("*.mdb", "*.accdb")),
     "mapa_src": ("Mapy GEO MAP", ("*.map",)),
+    "lit_source_entry": ("Mapy i archiwa", ("*.map", "*.~ap", "*.zip")),
+    "rm_mapy_entry": ("Mapy i archiwa", ("*.map", "*.~ap", "*.zip")),
+    "rm_ewid_entry": ("Ewidencja (Excel)", ("*.xls", "*.xlsx")),
 }
 MARGIN_FILE_TYPES = ["REJESTR1", "OPTAX", "TAB_KLW3", "WSKAZ1", "HALIZNY",
                      "WYK_NEG", "OPIS", "ZEST1", "WK_ZM1", "SKROTY"]
@@ -502,7 +506,7 @@ class WebBackend(
     TabWydrukiMixin, TabExcelZMdbMixin, TabTworzenieMietkowMixin,
     TabNazwiskaMietekMixin, TabMietekRozbieznosciMixin, TabMietekPlus10Mixin,
     TabStareOpisyMixin, TabMietekV2Mixin, TabRozliczenieMietkaMixin,
-    TabOpisyNaMapeMixin, UpdaterMixin,
+    TabOpisyNaMapeMixin, TabRozliczanieMietekMixin, UpdaterMixin,
 ):
     """Logika aplikacji bez CustomTkinter — z mostkiem do PyWebView."""
 
@@ -660,7 +664,14 @@ class WebBackend(
                              for (k, l, p) in typy],
                     "akcje": list(akcje),
                     "domyslne": dict(domyslne)})
-        ev.wait()
+        # limit czasu: gdy okno nie doczeka się odpowiedzi (np. użytkownik
+        # je zamknie albo nie zauważy), wracamy do ustawień domyślnych
+        # zamiast blokować zadanie na zawsze
+        if not ev.wait(timeout=1800):
+            self._dialog_waits.pop(did, None)
+            self.log("[OKNO] Nie doczekałem się odpowiedzi (typy właścicieli) "
+                     "— używam ustawień domyślnych.")
+            return None
         return self._dialog_waits.pop(did, (None, [None]))[1][0]
 
     def pokaz_dialog_par(self, tytul, xls_nazwy, val_nazwy, pary):
@@ -679,8 +690,93 @@ class WebBackend(
         self._emit({"type": "dialog", "kind": "pary", "id": did,
                     "title": str(tytul), "xls": list(xls_nazwy),
                     "val": list(val_nazwy), "pary": dict(pary)})
-        ev.wait()
+        if not ev.wait(timeout=1800):
+            self._dialog_waits.pop(did, None)
+            self.log("[OKNO] Nie doczekałem się odpowiedzi (połączenia "
+                     "XLS <-> VAL) — używam propozycji programu.")
+            return None
         return self._dialog_waits.pop(did, (None, [None]))[1][0]
+
+    def start_literacja(self):
+        """Literacja wydzieleń (warstwa 5310).
+
+        Obsługuje JEDEN plik, KILKA plików (ścieżki po średniku), FOLDER
+        z mapami albo ZIP. Wynik zapisywany jest w FOLDERZE (bez ZIP-a):
+        dla każdej mapy „<NAZWA>_zaliterowane.MAP”, kopia oryginałów,
+        raport CSV/TXT i podgląd SVG.
+        """
+        import threading
+        from pathlib import Path as _P
+
+        def _val(attr, dom=""):
+            f = getattr(self, attr, None)
+            try:
+                return (f.get() or "").strip() if f is not None else dom
+            except Exception:
+                return dom
+
+        src = _val("lit_source_entry")
+        out = _val("lit_output_entry")
+        if not src:
+            self.log("[LITERACJA] Wskaż pliki wejściowe: mapę, kilka map, folder albo ZIP.")
+            return
+        if not out:
+            self.log("[LITERACJA] Wskaż folder wyniku.")
+            return
+        try:
+            tol = float(_val("lit_tolerance_entry", "1.0").replace(",", "."))
+        except (TypeError, ValueError):
+            tol = 1.0
+
+        self.log("[LITERACJA] Start: %s" % src)
+        self.update_status("Literacja...", "#0078D7", animate=True)
+
+        def _praca():
+            try:
+                import shutil as _sh
+                import traceback as _tb
+                from app.core import literacja as lit
+
+                out_p = _P(out)
+                tmp_zip = out_p / "_ROZPAKOWANE_ZIP"
+                pliki, ostrz = lit.zbierz_pliki_wejsciowe(
+                    src, katalog_roboczy=tmp_zip,
+                    log=lambda m: self.log("[LITERACJA] %s" % m))
+                for o in ostrz:
+                    self.log("[LITERACJA] %s" % o)
+                if not pliki:
+                    self.log("[LITERACJA] Nie znalazłem żadnej mapy do zaliterowania.")
+                    self.update_status("Brak map", "#D83B01", animate=False)
+                    return
+                self.log("[LITERACJA] Do zaliterowania: %d plik(ów):" % len(pliki))
+                for f in pliki:
+                    self.log("[LITERACJA]    - %s" % f.name)
+
+                wyn = lit.literate_do_folder(
+                    pliki, out_p, lit.DEFAULT_LAYER, True, tol,
+                    lambda m: self.log("[LITERACJA] %s" % m))
+
+                self.log("[LITERACJA] Gotowe. Folder wynikowy: %s" % wyn["folder"])
+                self.log("[LITERACJA] Zaliterowano %d z %d map; wydzieleń: %d."
+                         % (wyn["mapy"], len(pliki), wyn["wydzielen"]))
+                if wyn.get("pominiete"):
+                    self.log("[LITERACJA] MAPY POMINIĘTE: %d" % len(wyn["pominiete"]))
+                    for nazwa, powod in wyn["pominiete"]:
+                        self.log("[LITERACJA]    x %s — %s" % (nazwa, powod))
+                self.log("[LITERACJA] Raport: %s" % wyn.get("raport_txt", ""))
+                try:
+                    if tmp_zip.exists():
+                        _sh.rmtree(tmp_zip, ignore_errors=True)
+                except OSError:
+                    pass
+                self.update_status("Literacja zakończona.", "#107C10", animate=False)
+            except Exception as e:
+                self.log("[LITERACJA] Błąd: %s" % e)
+                import traceback as _tb2
+                self.log(_tb2.format_exc())
+                self.update_status("Błąd literacji", "#D83B01", animate=False)
+
+        threading.Thread(target=_praca, daemon=True).start()
 
     # ------------------------------------------------- sztuczne widgety
 
@@ -1255,8 +1351,12 @@ class WebBackend(
         return r
 
 
-    def _zapytaj_plik_czy_folder(self):
-        """Pyta, czy wskazać folder (całość), czy pojedynczy plik.
+    def _zapytaj_plik_czy_folder(self, wiele=False):
+        """Pyta, czy wskazać folder (całość), czy plik(i).
+
+        `wiele=False` — drugi przycisk to „Pojedynczy plik",
+        `wiele=True`  — „Pliki (zaznacz kilka)" — wtedy w oknie wyboru
+        można zaznaczyć wiele plików naraz (Ctrl/Shift).
 
         Okno w stylu programu (ciemny motyw Forestly). Zwraca
         'folder', 'file' albo None (anulowano).
@@ -1293,8 +1393,11 @@ class WebBackend(
             tk.Label(root, text="Co chcesz wskazać?",
                      bg=TLO, fg=TEKST,
                      font=("Segoe UI", 13, "bold")).pack(pady=(18, 2))
-            tk.Label(root, text="Folder ułoży wszystkie pliki naraz — "
-                                "pojedynczy plik tylko jeden.",
+            tk.Label(root, text=("Folder ułoży wszystkie pliki naraz — "
+                                 "zaznaczysz też kilka plików jednocześnie."
+                                 if wiele else
+                                 "Folder ułoży wszystkie pliki naraz — "
+                                 "pojedynczy plik tylko jeden."),
                      bg=TLO, fg=SZARY,
                      font=("Segoe UI", 9)).pack(pady=(0, 14))
 
@@ -1315,7 +1418,7 @@ class WebBackend(
                 return b
 
             _btn("Folder (całość)", "folder", akcent=True)
-            _btn("Pojedynczy plik", "file")
+            _btn("Pliki (zaznacz kilka)" if wiele else "Pojedynczy plik", "file")
 
             root.bind("<Escape>", lambda e: _w(None))
             root.update_idletasks()
@@ -1354,6 +1457,38 @@ class WebBackend(
                     path = result[0] if result else None
                 else:
                     path = None
+            elif kind == "multi_both":
+                # pytamy: cały folder, czy KILKA plików (można zaznaczyć wiele)
+                _co = self._zapytaj_plik_czy_folder(wiele=True)
+                if _co == "folder":
+                    result = win.create_file_dialog(D_FOLDER)
+                    path = result[0] if result else None
+                    _folder_wybrany = True
+                elif _co == "file":
+                    fdesc = BROWSE_FILTERS.get(control_id,
+                                               ("Wszystkie pliki", ("*.*",)))
+                    result = win.create_file_dialog(
+                        D_OPEN, allow_multiple=True,
+                        file_types=(f"{fdesc[0]} ({';'.join(fdesc[1])})",))
+                    if result:
+                        sciezki = [result] if isinstance(result, str) else list(result)
+                        path = ";".join(str(x) for x in sciezki)
+                    else:
+                        path = None
+                else:
+                    path = None
+            elif kind == "open_multi":
+                # Wybór WIELU plików naraz — ścieżki łączymy średnikiem.
+                fdesc = BROWSE_FILTERS.get(control_id,
+                                           ("Wszystkie pliki", ("*.*",)))
+                result = win.create_file_dialog(
+                    D_OPEN, allow_multiple=True,
+                    file_types=(f"{fdesc[0]} ({';'.join(fdesc[1])})",))
+                if result:
+                    sciezki = [result] if isinstance(result, str) else list(result)
+                    path = ";".join(str(x) for x in sciezki)
+                else:
+                    path = None
             elif kind == "folder":
                 result = win.create_file_dialog(D_FOLDER)
                 path = result[0] if result else None
@@ -1374,9 +1509,12 @@ class WebBackend(
             self.log(f"[BŁĄD] Wybór pliku: {e}")
             path = None
         if path:
-            # folder trafia do historii wprost; plik — jego katalog nadrzędny
-            self.add_to_history(str(path) if _folder_wybrany
-                                else str(Path(path).parent))
+            # folder trafia do historii wprost; plik(i) — katalog nadrzędny
+            if _folder_wybrany:
+                self.add_to_history(str(path))
+            else:
+                _pierwszy = str(path).split(";")[0]
+                self.add_to_history(str(Path(_pierwszy).parent))
             controls = {c["id"]: c for t in self.schema["tabs"]
                         for c in t["controls"] if c.get("id")}
             c = controls.get(control_id)
@@ -1437,6 +1575,9 @@ class WebBackend(
             "start_excel_z_mdb": self.start_excel_z_mdb_pipeline,
             "start_pdf_converter": self.start_pdf_converter_pipeline,
             "start_rozliczanie": self.start_rozliczanie_pipeline,
+            "start_literacja": self.start_literacja,
+            "start_rozliczanie_mietki": self.start_rozliczanie_mietki,
+            "start_pelen_automat": self.start_pelen_automat,
             "start_generowanie_val": self.start_generowanie_val,
             "start_zestawienie": self.start_zestawienie_zbiorcze,
             "start_zestawienie_mietki": self.start_zestawienie_mietki,
@@ -1468,6 +1609,16 @@ class WebBackend(
 
     def stop(self):
         self.stop_event.set()
+        # Zwalniamy okna, na których odpowiedź czeka zadanie. Bez tego wątek
+        # zostałby zablokowany na zawsze, a stan „trwa zadanie" nigdy by nie
+        # spadł — i każde następne uruchomienie kończyłoby się komunikatem
+        # o błędzie, bez żadnego wpisu w dzienniku.
+        try:
+            for _did, (_ev, _box) in list(getattr(self, "_dialog_waits", {}).items()):
+                _box[0] = None
+                _ev.set()
+        except Exception:
+            pass
         self.log("[STOP] Zatrzymywanie po bieżącym kroku...")
         # v2.0.139: renderowanie HTML→PDF ubijamy NATYCHMIAST — wcześniej
         # „Zatrzymaj” czekał na koniec bieżącego print-to-pdf (do 120 s)
@@ -1734,6 +1885,12 @@ class WebBackend(
     # ------------------------------------------------------------ polling
 
     def poll(self):
+        # znacznik czasu — diagnostyka może sprawdzić, czy interfejs w ogóle
+        # odbiera zdarzenia (jeśli dawno nie odpytywał, to pętla padła)
+        try:
+            self._last_poll_ts = time.time()
+        except Exception:
+            pass
         with self._ev_lock:
             events = list(self._events)
             self._events.clear()
