@@ -1491,6 +1491,30 @@ NOWOSCI = [
 
 # Usprawnienia w zakładkach, które już istniały (niebieskie kafelki).
 USPRAWNIONE = [
+    {"key": "GEO-MAP|Zaczytywanie Opisów", "wersja": "v2.0.171",
+     "label": "Zaczytywanie opisów — układanie także dla TAKSATORA",
+     "opis": "W trybie bazy TAKSATORA (.mdb) opisy są teraz od razu prostowane i "
+             "centrowane na wydzieleniach — tak samo jak w trybach MIETEK i Forestly GO. "},
+    {"key": "GEO-MAP|Zaczytywanie Opisów", "wersja": "v2.0.171",
+     "label": "Krótkie etykiety zamiast długich opisów",
+     "opis": "Obiekty nieleśne dostają krótkie oznaczenia: halizna, staw, łąka, "
+             "bagno, płaz, rola. Płaz i bagno są rozpoznawane z typu powierzchni "
+             "(mają pierwszeństwo przed gatunkiem), a łąka i staw — ze słów "
+             "w informacjach różnych."},
+    {"key": "GEO-MAP|Zaczytywanie Opisów", "wersja": "v2.0.171",
+     "label": "Polskie znaki w opisach (Mazowia)",
+     "opis": "Mapy są czytane i zapisywane w kodowaniu Mazowia — dzięki temu "
+             "GEO-MAP pokazuje \u201eŁąka\u201d i \u201eBiały Zdrój\u201d, a nie "
+             "przekręcone znaki. Treść opisu nie jest już zmieniana."},
+    {"key": "GEO-MAP|Zaczytywanie Opisów", "wersja": "v2.0.171",
+     "label": "Naprawa \u201eBłąd odczytu z dysku\u201d",
+     "opis": "Opis z bazy, który zawierał znak nowej linii, rozjeżdżał atrybut "
+             "mapy na dwie linie i GEO-MAP nie mógł otworzyć pliku. Teraz takie "
+             "znaki zamieniane są na spacje — atrybut jest zawsze w jednej linii."},
+    {"key": "GEO-MAP|Zaczytywanie Opisów", "wersja": "v2.0.171",
+     "label": "Folder z mapami i folder z bazami .mdb",
+     "opis": "Można wskazać cały folder z mapami (układa wszystkie naraz) oraz "
+             "folder z bazami .mdb — program dopasuje bazę po nazwie mapy."},
     {"key": "ROZLICZANIE|Rozliczanie powierzchni", "wersja": "v2.0.170",
      "label": "Rozliczanie — wydzielenia do 0,004 ha",
      "opis": "Takie wydzielenia trafiają do osobnego arkusza „Ponizej 0,004 ha” "

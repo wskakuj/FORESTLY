@@ -1,3 +1,3 @@
-# Co nowego w v2.0.171
-- poprawiono zaczytywanie opisów do map
+# Co nowego w v2.0.172
+- poprawiono zaczytywanie opisów na mapę, halizny i płazowiny
 
