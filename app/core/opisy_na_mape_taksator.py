@@ -36,6 +36,12 @@ ETYKIETY_TYPOW = {
     "ZRĄB": "zrąb",
     "SUKCESJA": "sukcesja",
     "INNE WYL": "inne wylesienie",
+    # płaz i bagno — mogą być w „Rodz. pow." (typ powierzchni)
+    "PŁAZ": "Płaz",
+    "PLAZ": "Płaz",
+    "BAGNO": "bagno",
+    "HAL": "halizna",
+    "HALIZNA": "halizna",
     # drogi (różne kody dróg w bazie) — na mapie krótko „droga”
     "DROGI L": "droga",
     "DROGI P": "droga",
@@ -202,6 +208,14 @@ def oznaczenie(rec):
     Dla obiektów bez gatunku: najpierw „informacje różne" z bazy (SUBAREA_INFO,
     np. „Rola", „Łąka", „Bagno"), a gdy puste — etykieta z typu powierzchni.
     """
+    # „Rodz. pow." (typ powierzchni): płaz i bagno NIE są drzewostanem,
+    # więc mają pierwszeństwo przed gatunkiem — inaczej obiekt z gatunkiem
+    # BRZ dostawałby „BRZ70" zamiast „Płaz".
+    _typ0 = (rec.get("typ") or "").strip().upper()
+    if _typ0 in ("PŁAZ", "PLAZ", "PŁAZOWINA", "PLAZOWINA"):
+        return "Płaz"
+    if _typ0.startswith("BAGNO"):
+        return "bagno"
     g = (rec.get("gatunek") or "").strip()
     if g:
         part = str(rec.get("udzial") or "").strip()
@@ -210,8 +224,25 @@ def oznaczenie(rec):
         return "%s%s%s" % (part, g, _wiek(rec.get("wiek")))
     info = (rec.get("info") or "").strip()
     if info:
+        # Treść „informacji różnych" bywa długa (np. „pjd. Ol II kl..w. fragm.
+        # Ols kompleks pon. 0,10ha"). Jeśli zawiera znane słowo — bierzemy
+        # krótką etykietę; jeśli nie — zostawiamy treść bez zmian.
+        _low = info.lower()
+        for _kl, _lab in (("łąka", "łąka"), ("laka", "łąka"),
+                          ("staw", "staw"), ("bagno", "bagno"),
+                          ("płaz", "Płaz"), ("plaz", "Płaz"),
+                          ("rola", "rola"), ("pastwisko", "pastwisko"),
+                          ("sukcesja", "sukcesja"), ("zrąb", "zrąb"),
+                          ("halizna", "halizna")):
+            if _kl in _low:
+                return _lab
+        # brak znanego słowa — jeśli to halizna (typ HAL), zwracamy „halizna"
+        if (rec.get("typ") or "").strip().upper() in ("HAL", "HALIZNA"):
+            return "halizna"
         return info
     typ = (rec.get("typ") or "").strip()
+    if typ.upper() in ("HAL", "HALIZNA"):
+        return "halizna"
     lab = ETYKIETY_TYPOW.get(typ)
     if lab:
         return lab

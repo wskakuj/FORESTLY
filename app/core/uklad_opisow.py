@@ -26,13 +26,40 @@ Zależności: tylko biblioteka standardowa.
 
 import math
 import re
+import threading
+
+# Flaga ZATRZYMANIA pracy — ustawiana przyciskiem „Stop” w programie.
+# Układanie sprawdza ją w pętlach i przerywa, NIE zapisując wyniku.
+ZATRZYMAJ = threading.Event()
+
+
+def zatrzymano():
+    """Czy użytkownik nacisnął „Stop”."""
+    return ZATRZYMAJ.is_set()
+
+
+def wyzeruj_zatrzymanie():
+    """Wołane przed każdym nowym układaniem."""
+    ZATRZYMAJ.clear()
 
 # --- domyślne parametry (można nadpisać) ---
 WYSOKOSC_MM = 2.5      # wysokość pisma warstwy 5310 wg biblioteki .lay
 SKALA = 5000           # skala mapy (1:5000)
-SZER_ZNAKU = 0.62      # przybliżony stosunek szerokości znaku do wysokości
-ODSTEP = 1.15          # mnożnik odstępu między opisami (>1 = trochę luzu)
+SZER_ZNAKU = 0.83      # zmierzone na DXF z GEO-MAP (czcionka Simplex.SHX, width 0.75)
+ODSTEP = 1.35          # zmierzone na DXF: napis jest wyższy niż zakładano (1.29 na linię)
 KROK = 1.0             # krok siatki wyszukiwania (w wysokościach opisu)
+# =====================================================================
+# WERSJA TESTOWA: BEZ WYSIĘGNIKÓW.
+# Gdy True — program NIE wyprowadza niczego poza wydzielenie: ani opisów,
+# ani liter. Opisy i litery układają się wyłącznie w swoim wydzieleniu,
+# a wysięgniki nie są w ogóle tworzone. Ustaw False, żeby wrócić do
+# normalnego działania.
+# =====================================================================
+BEZ_WYSIEGNIKOW = True
+
+WERSJA_ALGORYTMU = "algorytm TESTOWY (08.10.2026) — BEZ WYSIĘGNIKÓW: wszystko w swoim wydzieleniu"
+NA_STYK_TOL = 0.0      # „na styk”: o ile metrów opis może wystawać z wydzielenia
+GAP_OPIS = 5.0         # minimalny odstęp między dwoma opisami (m)
 
 
 # ------------------------------------------------------------- odczyt mapy
@@ -213,6 +240,25 @@ def _box_w_srodku(prost, pts):
     return True
 
 
+def _ile_rogow_w_srodku(prost, pts):
+    x0, y0, x1, y1 = prost
+    return sum(1 for p in ((x0, y0), (x1, y0), (x1, y1), (x0, y1))
+               if _w_srodku(p, pts))
+
+
+def _w_wydzieleniu(prost, pts):
+    """Czy opis/litera jest W WYDZIELENIU — cały, albo „na styk”.
+
+    Zasada użytkownika: jeśli opis mieści się w wydzieleniu choćby na styk
+    (może wystawać o kilka metrów), to ma tam zostać — bez wysięgnika.
+    Wysięgnik dopiero, gdy naprawdę się nie mieści.
+    """
+    if _box_w_srodku(prost, pts):
+        return True
+    # box „wystaje” o nie więcej niż NA_STYK_TOL metrów?
+    return _box_w_srodku(_rozszerz(prost, -NA_STYK_TOL), pts)
+
+
 def _w_srodku(p, pts):
     """Czy punkt leży w wielokącie (ray casting)."""
     x, y = p
@@ -310,7 +356,20 @@ def rozmiar_opisu(tekst, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0):
     if abs(obrot) > 1e-9:
         c, si = abs(math.cos(obrot)), abs(math.sin(obrot))
         szer, wys = szer * c + wys * si, szer * si + wys * c
-    return (szer, wys)
+    # ORIENTACJA (ustalona na DXF z GEO-MAP): napis biegnie wzdłuż osi Y mapy,
+    # a jego wysokość wzdłuż osi X. Dlatego zwracamy (wysokość, szerokość) —
+    # inaczej program liczył prostokąty obrócone o 90° i nie widział nakładek.
+    return (wys, szer)
+
+
+MNOZNIK_LITERY = 1.2   # GEO-MAP rysuje litery 3.0 mm, opisy 2.5 mm
+MARGINES_LIT_LIT = 1.5 # minimalny odstęp między dwiema literami (m)
+ODSTEP_LIT_OPIS = 5.0  # minimalny odstęp LITERY od OPISU (m) — nie mogą się stykać
+
+
+def rozmiar_litery(tekst, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0):
+    """Rozmiar prostokąta LITERY — litery są o 20% większe niż opisy."""
+    return rozmiar_opisu(tekst, wysokosc_mm * MNOZNIK_LITERY, skala, obrot)
 
 
 def _prost(srodek, rozmiar):
@@ -531,7 +590,7 @@ def uloz(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, iteracje=12, tryb="wolne",
         lit_info = None
         if lit and o.get("linia_litery") is not None:
             ol = _off_linii(o["linia_litery"])
-            roz_l = rozmiar_opisu(lit, wysokosc_mm, skala, obrot)
+            roz_l = rozmiar_litery(lit, wysokosc_mm, skala, obrot)
             if roz_l[0] > 0:
                 pb = _prost((srodek[0] + ol[0], srodek[1] + ol[1]), roz_l)
                 przeszkody.append(pb)
@@ -774,7 +833,7 @@ def uloz(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, iteracje=12, tryb="wolne",
                     if zle:
                         continue
                     for j2, e2 in enumerate(elementy):
-                        if j2 != i and _nakladka(p2, e2["prost"]) > 0:
+                        if j2 != i and _nakladka(_rozszerz(p2, GAP_OPIS), e2["prost"]) > 0:
                             zle = True
                             break
                     if zle:
@@ -825,7 +884,7 @@ def uloz(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, iteracje=12, tryb="wolne",
                             zle = True; break
                     if zle: continue
                     for j2, e2 in enumerate(elementy):
-                        if j2 != i and _nakladka(p2, e2["prost"]) > 0:
+                        if j2 != i and _nakladka(_rozszerz(p2, GAP_OPIS), e2["prost"]) > 0:
                             zle = True; break
                     if zle: continue
                     najlepsza = (dx, dy, p2); break
@@ -995,6 +1054,8 @@ def ustaw_offsety(mapa, elementy, obrot_rad=0.0):
         o = e["obiekt"]
         dx, dy = e["offset"]
         i = o.get("linia_opisu")
+        if e.get("tylko_litera"):
+            continue            # litera bez opisu — ruszamy tylko linię „L 2”
         if i == "NOWA":
             # opis nie ma jeszcze linii „L 3” (mapa po QGIS) — dopiszemy ją
             _nowe_opisy.append(e)
@@ -1038,23 +1099,32 @@ def ustaw_offsety(mapa, elementy, obrot_rad=0.0):
             else:
                 kon = _punkt_na_granicy((e["srodek"][0] + dx, e["srodek"][1] + dy),
                                         lpoz, e["pts"])
+            if e.get("litera_poza") and e.get("wsp_kon"):
+                # „3mx": wysięgnik opisu idzie do WSPÓLNEGO punktu z literą
+                kon = (e["srodek"][0] + e["wsp_kon"][0],
+                       e["srodek"][1] + e["wsp_kon"][1])
             wx, wy = kon[0] - e["srodek"][0], kon[1] - e["srodek"][1]
             # STRONA WYSIĘGNIKA. Wysięgnik ma wychodzić z tego KOŃCA kreski
             # opisu, który leży BLIŻEJ litery — wtedy nie przecina tekstu.
             # Uwaga na kodowanie w pliku GEO-MAP (potwierdzone na mapach
-            # użytkownika): flaga 133 = koniec od strony MNIEJSZEGO X,
-            # 69 = od strony WIĘKSZEGO X — czyli odwrotnie, niż wygląda
-            # to na ekranie (podgląd GEO-MAP jest lustrzany w poziomie).
+            # użytkownika): flaga 69 = koniec od strony MNIEJSZEGO X (lewy),
+            # 133 = WIĘKSZEGO X (prawy) — tak jak rysuje to renderer
+            # zgodny z GEO-MAP.
             # Wybór końca kreski: ten, z którego odcinek do końca wysięgnika
             # NIE przecina prostokąta opisu (mniejsze przecięcie = czytelniej).
             # Gdy oba przecinają tyle samo — koniec bliżej litery.
             _box = _prost((e["srodek"][0] + dx, e["srodek"][1] + dy),
                           _roz_zapas(e["rozmiar"]))
-            _cy = (e["srodek"][1] + dy)
-            _l = _dlugosc_odc_w_prost((_box[0], _cy), kon, _box)
-            _p = _dlugosc_odc_w_prost((_box[2], _cy), kon, _box)
-            # 69 = koniec od strony MNIEJSZEGO X, 133 = WIĘKSZEGO X
-            flaga = 133 if _l <= _p else 69
+            _cx = (_box[0] + _box[2]) / 2.0
+            _l = _dlugosc_odc_w_prost((_cx, _box[1]), kon, _box)
+            _p = _dlugosc_odc_w_prost((_cx, _box[3]), kon, _box)
+            # Wysięgnik wychodzi z krawędzi wzdłuż osi Y pliku .MAP (oś X jest
+            # zamieniona z widokiem GEO-MAP — zmierzone na DXF).
+            # 69 = krawędź od strony MNIEJSZEGO Y, 133 = WIĘKSZEGO Y.
+            flaga = 69 if _l <= _p else 133
+            if e.get("litera_poza") and e.get("wsp_kon"):
+                flaga = (69 if (e["srodek"][1] + e["wsp_kon"][1])
+                         <= (e["srodek"][1] + dy) else 133)
             nowa = "%s %s %.3f %.3f %.7f 1.0000000 %d %.3f %.3f" % (
                 p[0] if p else "L", p[1] if len(p) > 1 else "3",
                 dx, dy, obrot_rad, flaga, wx, wy)
@@ -1088,7 +1158,16 @@ def ustaw_offsety(mapa, elementy, obrot_rad=0.0):
             continue
         stara = linie[i]
         p = stara.split()
-        if len(p) >= 6:
+        if e.get("litera_poza") and e.get("wsp_kon"):
+            # litera poza wydzieleniem — DOSTAJE wysięgnik do tego samego punktu
+            _kat = p[4] if len(p) > 4 else ("%.7f" % obrot_rad)
+            _y_lit = e["srodek"][1] + ol[1]
+            _y_kon = e["srodek"][1] + e["wsp_kon"][1]
+            _fl = 69 if _y_kon <= _y_lit else 133
+            nowa = ("L 2 %.3f %.3f %s 1.0000000 %d %.3f %.3f"
+                    % (ol[0], ol[1], _kat, _fl,
+                       e["wsp_kon"][0], e["wsp_kon"][1]))
+        elif len(p) >= 6:
             nowa = "%s %s %.3f %.3f %.7f %s" % (p[0], p[1], ol[0], ol[1],
                                                 obrot_rad, " ".join(p[5:]))
         else:
@@ -1096,6 +1175,19 @@ def ustaw_offsety(mapa, elementy, obrot_rad=0.0):
         if nowa != stara:
             linie[i] = nowa
             zmiany += 1
+    # Prostokąty wszystkich napisów (opisy + litery) — wysięgnik nie może
+    # przechodzić przez ŻADEN z nich (zasada użytkownika).
+    _napisy = []
+    for _e in elementy:
+        _n = (_e.get("litera") or "").strip()
+        if _e.get("prost"):
+            _napisy.append((_n, _e["prost"]))
+        _li2 = _e.get("lit_info")
+        if _li2 and _li2[2] and _li2[2][0] > 0:
+            _ol2 = _e.get("offset_litery") or _li2[1]
+            _napisy.append((_n, _prost((_e["srodek"][0] + _ol2[0],
+                                        _e["srodek"][1] + _ol2[1]), _li2[2])))
+
     # NA KOŃCU: popraw STRONĘ WYSIĘGNIKA z tego, co faktycznie jest w liniach.
     # Liczymy z gotowego pliku (nie z pamięci), więc flaga zawsze zgadza się
     # ze stroną, po której stoi litera.
@@ -1125,20 +1217,54 @@ def ustaw_offsety(mapa, elementy, obrot_rad=0.0):
         else:
             lit_x, lit_y = opis_x, opis_y
         # strona: koniec kreski, z którego wysięgnik nie przecina opisu
-        # (133 = strona mniejszego X, 69 = większego X)
+        # (69 = strona mniejszego X (lewa), 133 = większego X (prawa))
         try:
             _box = _prost((opis_x, opis_y), _roz_zapas(e["rozmiar"]))
             try:
                 _kon = (e["srodek"][0] + float(q[7]), e["srodek"][1] + float(q[8]))
             except (ValueError, IndexError):
                 _kon = (lit_x, lit_y)
-            _l = _dlugosc_odc_w_prost((_box[0], opis_y), _kon, _box)
-            _p = _dlugosc_odc_w_prost((_box[2], opis_y), _kon, _box)
-            flaga = 133 if _l <= _p else 69
+            _l = _dlugosc_odc_w_prost((opis_x, _box[1]), _kon, _box)
+            _p = _dlugosc_odc_w_prost((opis_x, _box[3]), _kon, _box)
+            # dodatkowo: policz, ile CUDZYCH napisów przecina każde wyjście
+            _nazwa_l = (e.get("litera") or "").strip()
+            _zle_l = _zle_p = 0
+            for _n2, _r2 in _napisy:
+                if _n2 == _nazwa_l:
+                    continue
+                if _odc_przecina_prost((opis_x, _box[1]), _kon, _r2):
+                    _zle_l += 1
+                if _odc_przecina_prost((opis_x, _box[3]), _kon, _r2):
+                    _zle_p += 1
+            # najpierw unikamy przecinania CUDZYCH napisów, potem własnego opisu
+            if _zle_l != _zle_p:
+                flaga = 69 if _zle_l < _zle_p else 133
+            else:
+                flaga = 69 if _l <= _p else 133
+            if e.get("litera_poza") and e.get("wsp_kon"):
+                flaga = (69 if (e["srodek"][1] + e["wsp_kon"][1])
+                         <= (e["srodek"][1] + float(q[3])) else 133)
         except Exception:
-            flaga = 133 if lit_x <= opis_x else 69
-        nowa = "%s %s %s %s %s %s %d %s %s" % (
-            q[0], q[1], q[2], q[3], q[4], q[5], flaga, q[7], q[8])
+            flaga = 69 if lit_x <= opis_x else 133
+        # KOŃCÓWKA WYSIĘGNIKA: musi wskazywać NA LITERĘ w jej OSTATECZNYM
+        # miejscu. Wcześniej liczona była z pozycji sprzed przesunięcia litery,
+        # więc wysięgnik celował tam, gdzie litera stała wcześniej.
+        try:
+            _li = e.get("lit_info")
+            _lroz = _li[2] if _li else (0.0, 0.0)
+            if e.get("litera_poza") and e.get("wsp_kon"):
+                kon = (e["srodek"][0] + e["wsp_kon"][0],
+                       e["srodek"][1] + e["wsp_kon"][1])
+            elif _lroz and _lroz[0] > 0:
+                kon = _koniec_wys((lit_x, lit_y), _lroz, (opis_x, opis_y))
+            else:
+                kon = (lit_x, lit_y)
+            wx = kon[0] - e["srodek"][0]
+            wy = kon[1] - e["srodek"][1]
+        except Exception:
+            wx, wy = q[7], q[8]
+        nowa = "%s %s %s %s %s %s %d %.3f %.3f" % (
+            q[0], q[1], q[2], q[3], q[4], q[5], flaga, wx, wy)
         if nowa != linie[i_op]:
             linie[i_op] = nowa
             zmiany += 1
@@ -1167,9 +1293,9 @@ def ustaw_offsety(mapa, elementy, obrot_rad=0.0):
                 else:
                     kon = _punkt_na_granicy(opis_c, e["srodek"], e["pts"])
                 _box = _prost(opis_c, _roz_zapas(e["rozmiar"]))
-                _l = _dlugosc_odc_w_prost((_box[0], opis_c[1]), kon, _box)
-                _p = _dlugosc_odc_w_prost((_box[2], opis_c[1]), kon, _box)
-                flaga = 133 if _l <= _p else 69
+                _l = _dlugosc_odc_w_prost((opis_c[0], _box[1]), kon, _box)
+                _p = _dlugosc_odc_w_prost((opis_c[0], _box[3]), kon, _box)
+                flaga = 69 if _l <= _p else 133
                 tekst = "L 3 %.3f %.3f %.7f 1.0000000 %d %.3f %.3f" % (
                     dx, dy, obrot_rad, flaga,
                     kon[0] - e["srodek"][0], kon[1] - e["srodek"][1])
@@ -1257,16 +1383,17 @@ def policz_kolizje(mapa, lines=None, wysokosc_mm=WYSOKOSC_MM, skala=SKALA,
         objs = wszystkie_poligony(mapa)
     h = wysokosc_mm * skala / 1000.0
 
-    def _roz(t):
+    def _roz(t, lit=False):
         w = _wiersze(t)
         if not w:
             return (0.0, 0.0)
-        a = max(len(x) for x in w) * h * SZER_ZNAKU
-        b = len(w) * h * ODSTEP
+        _h = h * (MNOZNIK_LITERY if lit else 1.0)   # litery są większe
+        a = max(len(x) for x in w) * _h * SZER_ZNAKU
+        b = len(w) * _h * ODSTEP
         if abs(obrot) > 1e-9:
             c, si = abs(math.cos(obrot)), abs(math.sin(obrot))
             a, b = a * c + b * si, a * si + b * c
-        return (a, b)
+        return (b, a)   # ORIENTACJA: szerokość wzdłuż osi Y (jak GEO-MAP)
 
     opisy, litery = [], []
     wewn = wys = 0
@@ -1290,7 +1417,7 @@ def policz_kolizje(mapa, lines=None, wysokosc_mm=WYSOKOSC_MM, skala=SKALA,
                     except ValueError:
                         pass
         if a1 and 2 in off:
-            r = _roz(a1)
+            r = _roz(a1, lit=True)
             if r[0] > 0:
                 ox, oy = off[2]
                 litery.append((o.get("start"), _prost((b[0] + ox, b[1] + oy), r)))
@@ -1457,7 +1584,7 @@ def _odl_od_krawedzi(p, pts):
     return best
 
 
-def _kand_litery_prio(prost, roz_l, home, krok=2.0, zasieg=140.0):
+def _kand_litery_prio(prost, roz_l, home, krok=2.0, zasieg=50.0, tylko_bok=False):
     """Kandydaci dla LITERY w kolejności preferencji.
 
     PRIORYTET (potwierdzony przez użytkownika): litera ma stać Z LEWEJ STRONY
@@ -1475,6 +1602,8 @@ def _kand_litery_prio(prost, roz_l, home, krok=2.0, zasieg=140.0):
     # 2) z prawej, w linii opisu
     for k in range(1, 8):
         out.append((x1 + hw + krok * k, cy))
+    if tylko_bok:
+        return out
     # 3) nad i pod opstem (wyśrodkowane w poziomie)
     for k in range(1, 8):
         out.append((cx, y0 - hh - krok * k))
@@ -1496,7 +1625,7 @@ def _kand_litery_prio(prost, roz_l, home, krok=2.0, zasieg=140.0):
     return out
 
 
-def _kand_litery(pts, base, home, krok=2.0, zasieg=140.0):
+def _kand_litery(pts, base, home, krok=2.0, zasieg=50.0):
     """Kandydaci dla LITERY — od najbliższego jej miejscu domowemu."""
     out = [(home[0], home[1])]
     r = 1
@@ -1559,7 +1688,7 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
             continue
         ol = _off_linii_litery(mapa, o)
         lit = (o.get("litera") or "").strip()
-        roz_l = rozmiar_opisu(lit, wysokosc_mm, skala, obrot) if lit else (0.0, 0.0)
+        roz_l = rozmiar_litery(lit, wysokosc_mm, skala, obrot) if lit else (0.0, 0.0)
         li = idx_lit.get(id(o))
         el = {"obiekt": o, "tekst": o["tekst"], "pts": pts, "srodek": srodek,
               "rozmiar": roz, "offset": (0.0, 0.0),
@@ -1583,8 +1712,12 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
         return False
 
     for _ in range(max(1, iteracje)):
+        if zatrzymano():
+            break
         zmiany = 0
         for i, el in enumerate(elementy):
+            if zatrzymano():
+                break
             base = el["srodek"]
             roz = el["rozmiar"]
             pts = el["pts"]
@@ -1596,122 +1729,169 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
             # (0,5 potem 0,25 m). Dzięki temu opis, który mieści się
             # „na styk", zostaje W ŚRODKU, zamiast wychodzić na
             # zewnątrz z wysięgnikiem.
-            wybor_zapas = None   # dobry srodek, nawet gdy litera nie ustapi
-            for marg_wew in (1.0, 0.5, 0.25):
-                _kands = _kand_opisu(el, krok_srodkowy)[:maks_kand]
-                # Preferuj pozycję NAJDALEJ od linii wydzielenia (czyli bliżej
-                # jego środka) — inaczej opis siada w narożniku, na liniach.
-                try:
-                    _kands = sorted(_kands,
-                                    key=lambda q: -_odl_od_krawedzi(
-                                        (base[0] + q[0], base[1] + q[1]), pts))
-                except Exception:
-                    pass
-                if li_info is not None:
-                    # Gdy opis i litera mieszczą się RAZEM w wydzieleniu,
-                    # wybieramy takie miejsce, żeby LITERA wypadła po LEWEJ
-                    # stronie opisu (kolejność kandydatów decyduje o wyborze).
-                    _kands = sorted(_kands,
-                                    key=lambda q: 0 if (li_info[1][0] - q[0]) <= -1.0 else 1)
-                _d = DIAG.setdefault(el["tekst"], {"kand": 0, "poza_obrysem": 0,
-                                             "przecina": 0, "na_opisie": 0,
-                                             "na_literze": 0, "ok": 0})
-                for (dx, dy) in _kands:
-                    _d["kand"] += 1
-                    prost = _prost((base[0] + dx, base[1] + dy), roz)
-                    if not _box_w_srodku(_rozszerz(prost, marg_wew), pts):
-                        _d["poza_obrysem"] += 1
-                        continue
-                    if _przecina(prost):
-                        _d["przecina"] += 1
-                        continue
-                    zle = False
-                    for j2, e2 in enumerate(elementy):
-                        if j2 != i and _nakladka(prost, e2["prost"]) > 0:
-                            zle = True
-                            break
-                    if zle:
-                        _d["na_opisie"] += 1
-                        continue
-                    # opis nie może wchodzić na CUDZE litery (własna ustąpi sama)
-                    _wlasna = el["lit_info"][0] if el.get("lit_info") else None
-                    for jj in range(len(litery)):
-                        if jj != _wlasna and _nakladka(prost, litery[jj]) > 0:
-                            zle = True
-                            break
-                    if zle:
-                        _d["na_literze"] += 1
-                        continue
-                    _d["ok"] += 1
-                    # opis OK — teraz litera musi ustąpić
-                    if li_info is None:
-                        wybor = (dx, dy, prost)
-                        zn_lit = None
-                        break
-                    li, ol, roz_l = li_info
-                    home = (base[0] + ol[0], base[1] + ol[1])
-                    znal = None
-                    for (lx, ly) in _kand_litery_prio(prost, roz_l, home, krok_litery):
-                        lb = _prost((lx, ly), roz_l)
-                        if not _box_w_srodku(_rozszerz(lb, margines_litery), pts):
+            # DWA PRZEJŚCIA: najpierw litera OBOK opisu (z lewej,
+            # potem z prawej) — nawet gdy trzeba przesunąć opis. Dopiero
+            # gdy się nie da — litera nad/pod opisem.
+            for _pass_bok in (True, False):
+                wybor_zapas = None   # dobry srodek, nawet gdy litera nie ustapi
+                for marg_wew in (1.0, 0.5, 0.25, 0.0):
+                    _kands = _kand_opisu(el, krok_srodkowy)[:maks_kand]
+                    # Preferuj pozycję NAJDALEJ od linii wydzielenia (czyli bliżej
+                    # jego środka) — inaczej opis siada w narożniku, na liniach.
+                    try:
+                        _kands = sorted(_kands, key=lambda q: math.hypot(q[0], q[1]))
+                    except Exception:
+                        pass
+                    if li_info is not None:
+                        # Gdy opis i litera mieszczą się RAZEM w wydzieleniu,
+                        # wybieramy takie miejsce, żeby LITERA wypadła po LEWEJ
+                        # stronie opisu (kolejność kandydatów decyduje o wyborze).
+                        _kands = sorted(_kands,
+                                        key=lambda q: 0 if (li_info[1][0] - q[0]) <= -1.0 else 1)
+                    _d = DIAG.setdefault(el["tekst"], {"kand": 0, "poza_obrysem": 0,
+                                                 "przecina": 0, "na_opisie": 0,
+                                                 "na_literze": 0, "ok": 0})
+                    for (dx, dy) in _kands:
+                        _d["kand"] += 1
+                        prost = _prost((base[0] + dx, base[1] + dy), roz)
+                        if not _box_w_srodku(_rozszerz(prost, marg_wew), pts):
+                            _d["poza_obrysem"] += 1
                             continue
-                        if _przecina(lb):
-                            continue
-                        if _nakladka(_rozszerz(prost, max(margines_litery, 2.5)), lb) > 0:
+                        if _przecina(prost):
+                            _d["przecina"] += 1
                             continue
                         zle = False
                         for j2, e2 in enumerate(elementy):
-                            if j2 != i and _nakladka(e2["prost"], lb) > 0:
+                            if j2 != i and _nakladka(_rozszerz(prost, GAP_OPIS), e2["prost"]) > 0:
                                 zle = True
                                 break
                         if zle:
+                            _d["na_opisie"] += 1
                             continue
+                        # opis nie może wchodzić na CUDZE litery (własna ustąpi sama)
+                        _wlasna = el["lit_info"][0] if el.get("lit_info") else None
                         for jj in range(len(litery)):
-                            if jj != li and _nakladka(litery[jj], lb) > 0:
+                            if jj != _wlasna and _nakladka(prost, litery[jj]) > 0:
                                 zle = True
                                 break
                         if zle:
+                            _d["na_literze"] += 1
                             continue
-                        znal = (lx, ly, lb)
+                        _d["ok"] += 1
+                        # opis OK — teraz litera musi ustąpić
+                        if li_info is None:
+                            wybor = (dx, dy, prost)
+                            zn_lit = None
+                            break
+                        li, ol, roz_l = li_info
+                        home = (base[0] + ol[0], base[1] + ol[1])
+                        znal = None
+                        for (lx, ly) in _kand_litery_prio(prost, roz_l, home, krok_litery,
+                                                             tylko_bok=_pass_bok):
+                            lb = _prost((lx, ly), roz_l)
+                            if not _box_w_srodku(_rozszerz(lb, margines_litery), pts):
+                                continue
+                            if _przecina(lb):
+                                continue
+                            if _nakladka(_rozszerz(prost, max(margines_litery, 2.5)), lb) > 0:
+                                continue
+                            zle = False
+                            for j2, e2 in enumerate(elementy):
+                                if j2 != i and _nakladka(e2["prost"], lb) > 0:
+                                    zle = True
+                                    break
+                            if zle:
+                                continue
+                            for jj in range(len(litery)):
+                                if jj != li and _nakladka(_rozszerz(litery[jj],
+                                                                    MARGINES_LIT_LIT), lb) > 0:
+                                    zle = True
+                                    break
+                            if zle:
+                                continue
+                            znal = (lx, ly, lb)
+                            break
+                        if znal is None:
+                            # Litera nie ma gdzie uciec. Opis może zostać
+                            # w środku TYLKO wtedy, gdy nie wchodzi na literę
+                            # w jej obecnym miejscu — inaczej litera wyląduje
+                            # na opisie. Gdy wchodzi — próbujemy kolejne,
+                            # trochę mniej środkowe miejsce.
+                            if _nakladka(_rozszerz(prost, margines_litery),
+                                         _prost(home, roz_l)) > 0:
+                                continue
+                            if wybor_zapas is None:
+                                wybor_zapas = (dx, dy, prost)
+                            continue
+                        if math.hypot(dx, dy) > 45.0:
+                            # daleko od obecnego miejsca — zapamietaj jako zapas,
+                            # ale szukaj dalej czegos blizej
+                            if wybor_zapas is None:
+                                wybor_zapas = (dx, dy, prost)
+                            continue
+                        wybor = (dx, dy, prost)
+                        zn_lit = (li, znal)
                         break
-                    if znal is None:
-                        # REGULA: jesli opis zmiescil sie w srodku, to ma tam
-                        # zostac — nawet gdy litera nie ma gdzie uciec.
-                        # Litera zostaje na swoim miejscu, opis jest wazniejszy.
-                        if wybor_zapas is None:
-                            wybor_zapas = (dx, dy, prost)
-                        continue
-                    if math.hypot(dx, dy) > 45.0:
-                        # daleko od obecnego miejsca — zapamietaj jako zapas,
-                        # ale szukaj dalej czegos blizej
-                        if wybor_zapas is None:
-                            wybor_zapas = (dx, dy, prost)
-                        continue
-                    wybor = (dx, dy, prost)
-                    zn_lit = (li, znal)
-                    break
 
-                if wybor is not None:
-                    break
+                    if wybor is not None:
+                        break
             if wybor is None and wybor_zapas is not None:
                 wybor = wybor_zapas
                 zn_lit = None      # litera zostaje tam, gdzie byla
             if wybor is None:
+                # „NA STYK”: opis w większości w wydzieleniu (≥3 z 4 rogów)
+                # zostaje W ŚRODKU — bez wysięgnika. Zgodnie z zasadą:
+                # lepiej na styk w wydzieleniu niż daleko z wysięgnikiem.
+                for (dx, dy) in sorted(
+                        _kand_opisu(el, krok_srodkowy)[:maks_kand],
+                        key=lambda q: -_odl_od_krawedzi(
+                            (base[0] + q[0], base[1] + q[1]), pts)):
+                    prost = _prost((base[0] + dx, base[1] + dy), roz)
+                    if not _w_wydzieleniu(prost, pts):
+                        continue
+                    zle = False
+                    for j2, e2 in enumerate(elementy):
+                        if j2 != i and _nakladka(_rozszerz(prost, GAP_OPIS), e2["prost"]) > 0:
+                            zle = True
+                            break
+                    if zle:
+                        continue
+                    _wl = el["lit_info"][0] if el.get("lit_info") else None
+                    for jj in range(len(litery)):
+                        if jj != _wl and _nakladka(prost, litery[jj]) > 0:
+                            zle = True
+                            break
+                    if zle:
+                        continue
+                    # własna litera ZOSTAJE na miejscu (zn_lit=None) — więc
+                    # opis nie może wejść na nią w jej obecnym położeniu
+                    if el.get("lit_info") is not None:
+                        _ol2, _rl2 = el["lit_info"][1], el["lit_info"][2]
+                        if _nakladka(prost, _prost((base[0]+_ol2[0],
+                                                    base[1]+_ol2[1]), _rl2)) > 0:
+                            continue
+                    wybor = (dx, dy, prost)
+                    zn_lit = None
+                    break
+            if wybor is None and not BEZ_WYSIEGNIKOW:
                 # Brak miejsca w środku — odsuwamy opis NA ZEWNĄTRZ, ale
                 # DALeko od granicy (żeby nie leżał na linii) i tak, by nie
                 # wchodził na inne opisy. Wtedy dostaje wysięgnik.
                 _kand_out = []
-                for r in range(1, 22):
+                for r in range(0, 26):
                     for k in range(24):
                         a = k * math.pi / 12
-                        dxx = math.cos(a) * (25.0 + r * 6.0)
-                        dyy = math.sin(a) * (25.0 + r * 6.0)
+                        _dd = 10.0 + r * 5.0
+                        dxx = math.cos(a) * _dd
+                        dyy = math.sin(a) * _dd
                         p2 = _prost((base[0] + dxx, base[1] + dyy), roz)
-                        if _przecina(p2):
+                        # DOKŁADNA kontrola krawędzi własnego wydzielenia —
+                        # siatkowa była zachowawcza i odrzucała dobre miejsca
+                        if _przecina_krawedzie(p2, pts):
                             continue
                         zle = False
                         for j2, e2 in enumerate(elementy):
-                            if j2 != i and _nakladka(p2, e2["prost"]) > 0:
+                            if j2 != i and _nakladka(_rozszerz(p2, GAP_OPIS), e2["prost"]) > 0:
                                 zle = True
                                 break
                         if not zle:
@@ -1735,16 +1915,56 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
                             kon_ = _koniec_wys(lit_c, li_info[2], opis_c)
                         else:
                             kon_ = _punkt_na_granicy(opis_c, base, pts)
-                        prz = min(_dlugosc_odc_w_prost((pbox_[0], opis_c[1]), kon_, pbox_),
-                                  _dlugosc_odc_w_prost((pbox_[2], opis_c[1]), kon_, pbox_))
-                        if _stroma(kon_, opis_c, roz): prz += 1000.0
+                        prz = min(_dlugosc_odc_w_prost((opis_c[0], pbox_[1]), kon_, pbox_),
+                                  _dlugosc_odc_w_prost((opis_c[0], pbox_[3]), kon_, pbox_))
+                        if _stroma(kon_, opis_c, roz): prz += 50.0
+                        # KLUCZOWE (zmierzone na DXF): wysięgnik wychodzi z BOKU
+                        # opisu na środku wysokości. Jeśli litera stoi NAD/POD
+                        # opisem (jej X wpada w zakres X opisu), to — niezależnie
+                        # od strony — linia MUSI przejść przez tekst. Dlatego
+                        # mocno karzemy takie położenie: litera ma być POZIOMO
+                        # poza prostokątem opisu.
+                        if pbox_[1] <= kon_[1] <= pbox_[3]:
+                            prz += 1000.0
+                        # wysięgnik NIE MOŻE przechodzić przez ŻADEN opis
+                        _l_ = _dlugosc_odc_w_prost((opis_c[0], pbox_[1]), kon_, pbox_)
+                        _p_ = _dlugosc_odc_w_prost((opis_c[0], pbox_[3]), kon_, pbox_)
+                        _st = (opis_c[0], pbox_[1] if _l_ <= _p_ else pbox_[3])
+                        _x0 = min(_st[0], kon_[0]); _x1 = max(_st[0], kon_[0])
+                        _y0 = min(_st[1], kon_[1]); _y1 = max(_st[1], kon_[1])
+                        for _e2 in elementy:
+                            if _e2 is el:
+                                continue
+                            _b2 = _e2.get("prost")
+                            if not _b2 or _b2[2] <= _b2[0]:
+                                continue
+                            if (_b2[2] < _x0 - 1 or _b2[0] > _x1 + 1
+                                    or _b2[3] < _y0 - 1 or _b2[1] > _y1 + 1):
+                                continue
+                            if _dlugosc_odc_w_prost(_st, kon_, _b2) > 1.0:
+                                prz += 1000.0
+                                break
+                        # wysięgnik nie może też przechodzić przez CUDZĄ LITERĘ
+                        # (filtr odległości — inaczej mapa liczy się o wiele za długo)
+                        _wl2 = el["lit_info"][0] if el.get("lit_info") else None
+                        for _jj in range(len(litery)):
+                            if _jj == _wl2:
+                                continue
+                            _bl = litery[_jj]
+                            if (_bl[2] < _x0 - 1 or _bl[0] > _x1 + 1
+                                    or _bl[3] < _y0 - 1 or _bl[1] > _y1 + 1):
+                                continue
+                            if _dlugosc_odc_w_prost(_st, kon_, _bl) > 1.0:
+                                prz += 300.0
                         return prz
+                    _li_home = (li_info[1] if li_info else (0.0, 0.0))
                     _kand_out.sort(key=lambda kk: (round(_przeciecie_wys(kk), 2),
-                                                   math.hypot(kk[0], kk[1])))
+                                                   math.hypot(kk[0] - _li_home[0],
+                                                              kk[1] - _li_home[1])))
                     wybor = _kand_out[0]
             if wybor is None:
-                el["wewnatrz"] = False
-                el["wysiegnik"] = True
+                el["wewnatrz"] = _w_wydzieleniu(el["prost"], pts)
+                el["wysiegnik"] = False        # BEZ WYSIĘGNIKÓW
                 continue
             dx, dy, prost = wybor
             if abs(dx - el["offset"][0]) > 1e-9 or abs(dy - el["offset"][1]) > 1e-9:
@@ -1753,8 +1973,8 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
             el["prost"] = prost
             # „w środku" liczone CAŁYM prostokątem z marginesem — jeśli opis
             # wyszedł poza wydzielenie, MUSI dostać wysięgnik
-            el["wewnatrz"] = _box_w_srodku(prost, pts)
-            el["wysiegnik"] = not el["wewnatrz"]
+            el["wewnatrz"] = _w_wydzieleniu(prost, pts)
+            el["wysiegnik"] = (not el["wewnatrz"]) and not BEZ_WYSIEGNIKOW
             if zn_lit is not None:
                 li, (lx, ly, lb) = zn_lit
                 litery[li] = lb
@@ -1764,8 +1984,12 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
 
     # ---- na koniec: żadna litera nie może leżeć pod opisem ----
     for _ in range(6):
+        if zatrzymano():
+            break
         poprawki = 0
         for e in elementy:
+            if zatrzymano():
+                break
             li = e.get("lit_info")
             if not li:
                 continue
@@ -1852,8 +2076,12 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
     #  wiersz tekstu; szukamy miejsca poza wydzieleniem, przy którym jest
     #  czysto). PO ułożeniu liter, bo ich ruch zmienia geometrię wysięgnika.
     for _ in range(3):
+        if zatrzymano():
+            break
         poprawki = 0
         for el in elementy:
+            if zatrzymano():
+                break
             if not el.get("wysiegnik"):
                 continue
             li = el.get("lit_info")
@@ -1908,7 +2136,7 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
                     for e2 in elementy:
                         if e2 is el:
                             continue
-                        if _nakladka(p2, e2["prost"]) > 0:
+                        if _nakladka(_rozszerz(p2, GAP_OPIS), e2["prost"]) > 0:
                             zle = True; break
                     if zle:
                         continue
@@ -1930,5 +2158,281 @@ def uloz_wolne(mapa, wysokosc_mm=WYSOKOSC_MM, skala=SKALA, obrot=0.0,
         if not poprawki:
             break
 
+    # ---- NA KOŃCU: KAŻDA litera wydzielenia ma stać WEWNĄTRZ poligonu ----
+    # Dotyczy też wydzieleń BEZ opisu (np. mapy z QGIS, gdzie litery stoją
+    # poza obrysem). Liter, które już są w środku, NIE ruszamy.
+    _el_obj = {id(e["obiekt"]): e for e in elementy}
+    _boksy_op = [e["prost"] for e in elementy if e.get("prost")]
+    _boksy_lit = list(litery)
+
+    def _wolna_litera(pts, roz_l, gap_lit=None, marg=None, krok=None):
+        """Najbardziej środkowe wolne miejsce na literę (albo None).
+
+        Sprawdza krawędzie DOKŁADNIE (_przecina_krawedzie), nie przez siatkę —
+        przy wydzieleniach wklęsłych wszystkie rogi litery mogą być w środku,
+        a krawędź i tak przechodzi przez literę.
+        """
+        if gap_lit is None:
+            gap_lit = MARGINES_LIT_LIT
+        if marg is None:
+            marg = margines_litery
+        if krok is None:
+            krok = krok_litery
+        for (x, y, _d) in _punkty_srodkowe(pts, krok):
+            lb = _prost((x, y), roz_l)
+            if not _box_w_srodku(_rozszerz(lb, marg), pts):
+                continue
+            if _przecina_krawedzie(lb, pts):
+                continue
+            if any(_nakladka(_rozszerz(lb, max(margines_litery, 2.5)), b2) > 0
+                   for b2 in _boksy_op):
+                continue
+            if any(_nakladka(_rozszerz(lb, gap_lit), b2) > 0 for b2 in _boksy_lit):
+                continue
+            return (x, y, lb)
+        return None
+
+    for o in wszystkie_geo:
+        if zatrzymano():
+            break
+        lit = (o.get("litera") or "").strip()
+        pts = o.get("punkty") or []
+        if not lit or len(pts) < 3:
+            continue
+        b = srodek_bazowy(pts)
+        if b is None:
+            continue
+        roz_l = rozmiar_litery(lit, wysokosc_mm, skala, obrot)
+        if roz_l[0] <= 0:
+            continue
+        el = _el_obj.get(id(o))
+        if el is not None and el.get("lit_info") is not None:
+            akt = el.get("offset_litery") or el["lit_info"][1]
+            li_i = el["lit_info"][0]
+        else:
+            akt = _off_linii_litery(mapa, o)
+            li_i = idx_lit.get(id(o))
+        # obiekt z opisem MUSI mieć lit_info — inaczej wysięgnik liczy się
+        # od środka wydzielenia i trafia w wydzielenie, a nie w literę
+        if el is not None and el.get("lit_info") is None:
+            el["lit_info"] = (li_i, akt, roz_l)
+        lb = _prost((b[0] + akt[0], b[1] + akt[1]), roz_l)
+        # Literę zostawiamy, TYLKO gdy jest w środku i NIE leży na żadnym
+        # opisie. Gdy leży na opisie (własnym lub cudzym) — szukamy jej
+        # wolnego miejsca. To usuwa przypadki „litera pod opisem".
+        _na_opisie = any(_nakladka(lb, b2) > 0 for b2 in _boksy_op)
+        _na_literze = any(jj != li_i and _nakladka(_rozszerz(lb, MARGINES_LIT_LIT),
+                                                   b2) > 0
+                          for jj, b2 in enumerate(_boksy_lit))
+        # UWAGA: _box_w_srodku sprawdza tylko ROGI — przy wydzieleniu wklęsłym
+        # wszystkie rogi mogą być w środku, a krawędź i tak przechodzi przez
+        # literę. Dlatego dodatkowo sprawdzamy _przecina(lb).
+        if (_box_w_srodku(lb, pts) and not _przecina_krawedzie(lb, pts)
+                and not _na_opisie and not _na_literze):
+            continue                      # w środku i czysto — zostawiamy
+        if li_i is not None and 0 <= li_i < len(_boksy_lit):
+            _boksy_lit[li_i] = (0.0, 0.0, 0.0, 0.0)   # zwolnij stare miejsce
+        # ratunek stopniowany: najpierw z odstępem, potem bez, potem bez
+        # marginesu od krawędzi, na końcu drobniejszą siatką
+        znal = (_wolna_litera(pts, roz_l)
+                or _wolna_litera(pts, roz_l, gap_lit=0.0)
+                or _wolna_litera(pts, roz_l, gap_lit=0.0, marg=0.0)
+                or _wolna_litera(pts, roz_l, gap_lit=0.0, marg=0.0, krok=1.0))
+        if znal is None:
+            if li_i is not None and 0 <= li_i < len(_boksy_lit):
+                _boksy_lit[li_i] = lb
+            continue
+        x, y, lb2 = znal
+        if li_i is not None and 0 <= li_i < len(_boksy_lit):
+            _boksy_lit[li_i] = lb2
+        off = (x - b[0], y - b[1])
+        if el is not None:
+            # obiekt MA opis — litera w nowym miejscu, żeby wysięgnik
+            # trafiał w NIĄ (a nie w środek wydzielenia)
+            el["offset_litery"] = off
+            if el.get("lit_info") is None:
+                el["lit_info"] = (li_i, off, roz_l)
+        else:
+            # litera wydzielenia BEZ opisu — dopiszemy tylko jej pozycję
+            elementy.append({"obiekt": o, "offset": (0.0, 0.0),
+                             "offset_litery": off, "wysiegnik": False,
+                             "tylko_litera": True, "srodek": b,
+                             "rozmiar": (0.0, 0.0),
+                             "prost": (0.0, 0.0, 0.0, 0.0),
+                             "lit_info": None, "pts": pts})
+
+    # ---- WARIANT A: litera ma stać PRZY swoim opisie ----
+    # Gdy litera została daleko od opisu (np. opis jest szeroki i w miejscu
+    # litery się nie mieści), przesuwamy SAMĄ LITERĘ tuż przy opis — litera
+    # jest mała, więc zwykle się zmieści.
+    for e in elementy:
+        if zatrzymano():
+            break
+        if e.get("tylko_litera") or not e.get("lit_info"):
+            continue
+        li_i, ol, roz_l = e["lit_info"]
+        if not roz_l or roz_l[0] <= 0:
+            continue
+        base = e["srodek"]
+        pts = e["pts"]
+        akt = e.get("offset_litery") or ol
+        lpos = (base[0] + akt[0], base[1] + akt[1])
+        opos = (base[0] + e["offset"][0], base[1] + e["offset"][1])
+        if math.hypot(lpos[0] - opos[0], lpos[1] - opos[1]) <= 40.0:
+            continue                      # już blisko opisu
+        for (lx, ly) in _kand_litery_prio(e["prost"], roz_l, lpos):
+            lb = _prost((lx, ly), roz_l)
+            if not _box_w_srodku(_rozszerz(lb, margines_litery), pts):
+                continue
+            if _przecina(lb):
+                continue
+            # litera NIE MOŻE wejść na WŁASNY opis — ma stać OBOK niego
+            if _nakladka(_rozszerz(e["prost"], max(margines_litery, 2.5)), lb) > 0:
+                continue
+            zle = False
+            for e2 in elementy:
+                if e2 is e or not e2.get("prost") or e2["prost"][2] <= e2["prost"][0]:
+                    continue
+                if _nakladka(e2["prost"], lb) > 0:
+                    zle = True
+                    break
+            if zle:
+                continue
+            for jj in range(len(litery)):
+                if jj != li_i and _nakladka(litery[jj], lb) > 0:
+                    zle = True
+                    break
+            if zle:
+                continue
+            if li_i is not None and 0 <= li_i < len(litery):
+                litery[li_i] = lb
+            e["offset_litery"] = (lx - base[0], ly - base[1])
+            break
+
+    if BEZ_WYSIEGNIKOW:
+        return elementy          # wersja testowa: żadnych wysięgników
+
+    # ---- LITERA, KTÓRA SIĘ NIE MIEŚCI (przypadek „3mx") -----------------
+    # Gdy litera nie mieści się w wydzieleniu, stawiamy ją OBOK opisu i OBA
+    # napisy dostają wysięgnik do TEGO SAMEGO punktu w wydzieleniu
+    # (sposób wskazany przez użytkownika — przykład „3mx").
+    for _e in elementy:
+        if not _e.get("wysiegnik") or not _e.get("lit_info"):
+            continue
+        _li3, _ol3, _rl3 = _e["lit_info"]
+        _akt3 = _e.get("offset_litery") or _ol3
+        _lb3 = _prost((_e["srodek"][0] + _akt3[0], _e["srodek"][1] + _akt3[1]), _rl3)
+        if (_box_w_srodku(_rozszerz(_lb3, margines_litery), _e["pts"])
+                and not _przecina_krawedzie(_lb3, _e["pts"])):
+            continue                       # litera mieści się — nic nie robimy
+        # Najpierw WSPÓLNY PUNKT obu wysięgników — na granicy wydzielenia,
+        # w stronę jego środka (jak w przykładzie użytkownika).
+        _base3 = _e["srodek"]
+        _opis_c3 = (_base3[0] + _e["offset"][0], _base3[1] + _e["offset"][1])
+        _kon3 = _punkt_na_granicy(_opis_c3, _base3, _e["pts"])
+        # Potem litera OBOK opisu — ale TAK, żeby jej wysięgnik do wspólnego
+        # punktu NIE przechodził przez prostokąt opisu (inaczej tnie tekst).
+        _home3 = (_base3[0] + _akt3[0], _base3[1] + _akt3[1])
+        _box_op3 = _e["prost"]
+        _znalez3 = False
+        for (_lx3, _ly3) in _kand_litery_prio(_box_op3, _rl3, _home3):
+            _lb4 = _prost((_lx3, _ly3), _rl3)
+            if _nakladka(_rozszerz(_box_op3, ODSTEP_LIT_OPIS), _lb4) > 0:
+                continue
+            if _odc_przecina_prost((_lx3, _ly3), _kon3, _box_op3):
+                continue                       # wysięgnik litery tnie własny opis
+            _zle3 = False
+            for _e2 in elementy:
+                if _e2 is _e or not _e2.get("prost"):
+                    continue
+                if _nakladka(_e2["prost"], _lb4) > 0:
+                    _zle3 = True
+                    break
+            if _zle3:
+                continue
+            for _jj3 in range(len(litery)):
+                if _jj3 != _li3 and _nakladka(_rozszerz(litery[_jj3], MARGINES_LIT_LIT),
+                                              _lb4) > 0:
+                    _zle3 = True
+                    break
+            if _zle3:
+                continue
+            _e["offset_litery"] = (_lx3 - _base3[0], _ly3 - _base3[1])
+            if 0 <= _li3 < len(litery):
+                litery[_li3] = _lb4
+            _znalez3 = True
+            break
+        if not _znalez3:
+            # nie ma czystego miejsca na literę — NIE dajemy jej wysięgnika
+            # (inaczej jej linia cięłaby własny opis, np. „7bx")
+            continue
+        _e["litera_poza"] = True
+        _e["wsp_kon"] = (_kon3[0] - _base3[0], _kon3[1] - _base3[1])
+
+    # ---- na koniec: WYSIĘGNIKI nie mogą się KRZYŻOWAĆ -------------------
+    # Gdy dwa wysięgniki się przecinają, próbujemy ZAMIENIĆ tym opisom
+    # miejsca — wtedy każdy wysięgnik idzie do swojej litery z właściwej
+    # strony i zwykle krzyżowanie znika (sposób wskazany przez użytkownika).
+    def _odc_wys(_e):
+        _li = _e.get("lit_info")
+        if not _li or not _e.get("prost"):
+            return None
+        _i2, _ol, _rl = _li
+        _akt = _e.get("offset_litery") or _ol
+        _lit_c = (_e["srodek"][0] + _akt[0], _e["srodek"][1] + _akt[1])
+        _opis_c = (_e["srodek"][0] + _e["offset"][0], _e["srodek"][1] + _e["offset"][1])
+        _box = _prost(_opis_c, _roz_zapas(_e["rozmiar"]))
+        _kon = _koniec_wys(_lit_c, _rl, _opis_c) if (_rl and _rl[0] > 0) else _lit_c
+        _cx = (_box[0] + _box[2]) / 2.0
+        # flaga liczona DOKŁADNIE jak w ustaw_offsety: najpierw unikamy
+        # przecinania CUDZYCH napisów (opisy i litery), potem własnego opisu
+        _nm = (_e.get("litera") or "").strip()
+        _zle_l = _zle_p = 0
+        _cudze = [(e2.get("litera") or "").strip(), e2.get("prost")]
+        for _e2 in elementy:
+            if _e2 is _e:
+                continue
+            _b2 = _e2.get("prost")
+            if _b2 and _b2[2] > _b2[0]:
+                if _odc_przecina_prost((_cx, _box[1]), _kon, _b2):
+                    _zle_l += 1
+                if _odc_przecina_prost((_cx, _box[3]), _kon, _b2):
+                    _zle_p += 1
+        _wl3 = _e["lit_info"][0] if _e.get("lit_info") else None
+        for _jj in range(len(litery)):
+            if _jj == _wl3:
+                continue
+            _bl = litery[_jj]
+            if _bl[2] <= _bl[0]:
+                continue
+            if _odc_przecina_prost((_cx, _box[1]), _kon, _bl):
+                _zle_l += 1
+            if _odc_przecina_prost((_cx, _box[3]), _kon, _bl):
+                _zle_p += 1
+        if _zle_l != _zle_p:
+            return ((_cx, _box[1]) if _zle_l < _zle_p else (_cx, _box[3]), _kon)
+        _l = _dlugosc_odc_w_prost((_cx, _box[1]), _kon, _box)
+        _pp = _dlugosc_odc_w_prost((_cx, _box[3]), _kon, _box)
+        return ((_cx, _box[1]) if _l <= _pp else (_cx, _box[3]), _kon)
+
+    def _krzyz(a, b):
+        def _o(p, q, r):
+            return (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
+        return (_o(a[0], a[1], b[0]) * _o(a[0], a[1], b[1]) < 0
+                and _o(b[0], b[1], a[0]) * _o(b[0], b[1], a[1]) < 0)
+
+    _wys = [(_e, _odc_wys(_e)) for _e in elementy if _e.get("wysiegnik")]
+    _wys = [(_e, _w) for (_e, _w) in _wys if _w]
+    for _i in range(len(_wys)):
+        for _j in range(_i + 1, len(_wys)):
+            _ea, _wa = _wys[_i]
+            _eb, _wb = _wys[_j]
+            if not _krzyz(_wa, _wb):
+                continue
+            # UWAGA: zamiana WYŁĄCZONA. Geometria wysięgnika liczona tutaj
+            # nie zgadza się jeszcze co do joty z tym, co zapisuje
+            # ustaw_offsety, więc zamiana trafiała w złą parę. Wrócimy do tego
+            # po ujednoliceniu obliczeń.
+            pass
 
     return elementy

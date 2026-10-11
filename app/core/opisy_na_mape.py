@@ -127,11 +127,31 @@ def pobierz_atrybut(lines, start, koniec, nazwa):
     return None
 
 
+def _na_jedna_linie(wartosc):
+    """Zamienia znaki nowej linii i inne kontrolne na spacje.
+
+    Atrybut mapy (np. :A2[...]) MUSI być w jednej linii. Jeśli opis z bazy
+    zawiera przejście do nowej linii (albo tabulator), GEO-MAP zgłasza
+    "Błąd odczytu z dysku" — bo blok obiektu się rozjeżdża na dwie linie.
+    """
+    if wartosc is None:
+        return ""
+    tekst = str(wartosc)
+    tekst = tekst.replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
+    tekst = tekst.replace("\t", " ")
+    tekst = "".join(" " if (ord(ch) < 32 or ord(ch) == 127) else ch
+                    for ch in tekst)
+    while "  " in tekst:
+        tekst = tekst.replace("  ", " ")
+    return tekst.strip()
+
+
 def ustaw_atrybut(lines, start, koniec, nazwa, wartosc, zaraz_po=None):
     """Ustawia atrybut w bloku (podmienia albo wstawia nowy wiersz).
 
     zaraz_po — jeśli podane (np. „ID”), nowy atrybut wstawiany jest tuż po nim.
     """
+    wartosc = _na_jedna_linie(wartosc)      # atrybut musi byc w JEDNEJ linii
     for j in range(start + 1, koniec):
         m = RE_ATR.match(lines[j])
         if m and m.group(1) == nazwa:

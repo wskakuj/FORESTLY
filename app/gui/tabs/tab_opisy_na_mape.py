@@ -639,6 +639,27 @@ class TabOpisyNaMapeMixin:
                         res = tk.zapisz_mape(mapa, sciezka.parent, wiersze=wiersze)
                         w["zmiany"] = res["zmiany"]
                         w["plik"] = res["nazwa"]
+                        # UKŁADANIE ZARAZ PO WPISANIU (tak jak w trybie MIETEK/GO
+                        # i tak jak robi to program forestly-mapper).
+                        # Bez tego opisy zostają na liniach wydzieleń i nie mają
+                        # linii „L 3" — a mapper zakłada ją każdemu opisowi.
+                        try:
+                            import math as _mt
+                            _obr = float(str(u.get("p3", "-0.25")).replace(",", "."))
+                            _obr = _obr * _mt.pi / 200.0
+                        except (TypeError, ValueError):
+                            _obr = -0.25 * 3.141592653589793 / 200.0
+                        try:
+                            _n = self._wyśrodkuj_plik(
+                                res["sciezka"], _obr,
+                                font_mm=float(str(u.get("font_mm", "2.5")).replace(",", ".") or 2.5),
+                                skala=float(str(u.get("skala", "5000")).replace(",", ".") or 5000),
+                                rozsuwaj=True)
+                            self.log("  ✔ %s: wyśrodkowano i obrócono %d opisów (P3=%s grad)"
+                                     % (sciezka.name, _n, u.get("p3")))
+                        except Exception as _e:
+                            self.log("  ⚠️ %s: NIE udało się wyśrodkować/obrócić: %s"
+                                     % (sciezka.name, _e))
                     self.log("  • %s: dopasowano %d/%d → %s"
                              % (sciezka.name, w["dopasowano"], w["poligonow"],
                                 w.get("plik") or "(podgląd)"))
