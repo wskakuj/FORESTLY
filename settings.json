@@ -12,10 +12,10 @@
   "web.zestaw_mietki": "",
   "web.pc_src": "",
   "web.pc_dst": "",
-  "last_output_dir": "D:\\download\\gówno\\Nowy folder (27)",
-  "web.all_src": "",
-  "web.all_dst": "",
-  "web.all_tpl_szablon": "Wersja 1",
+  "last_output_dir": "D:\\download\\gówno\\Nowy folder (23)\\Nowy folder (4)\\Nowy folder\\PDF polaczone",
+  "web.all_src": "D:\\download\\gówno\\Nowy folder (23)\\Nowy folder (4)\\mietki\\WOLA RASZTOWSKA",
+  "web.all_dst": "D:\\download\\gówno\\Nowy folder (23)\\Nowy folder (4)\\Nowy folder",
+  "web.all_tpl_szablon": "Wersja 2",
   "web.all_tpl_doc": "UPUL",
   "web.all_tpl_prefix": "położonych na terenie obrębu",
   "web.all_tpl_woj": "KUJAWSKO-POMORSKIE",
@@ -34,10 +34,10 @@
   "web.all_og_tabela": "Mazowiecka",
   "web.all_custom_skroty": false,
   "web.all_skroty": "",
-  "web.all_kontrola": false,
+  "web.all_kontrola": true,
   "web.all_obie_wersje": false,
-  "web.all_mapa": "",
-  "web.remove_names": true,
+  "web.all_mapa": "D:\\download\\gówno\\Nowy folder (23)\\Nowy folder (4)\\mapy",
+  "web.remove_names": false,
   "web.czcionki.ALL": {
     "REJESTR1": {
       "tytul": {
@@ -243,7 +243,7 @@
   },
   "web.word_src": "",
   "web.word_dst": "",
-  "web.word_remove_names": true,
+  "web.word_remove_names": false,
   "web.word_filters": {
     "Wszystkie": true,
     "REJESTR1": false,
@@ -415,5 +415,52 @@
   "web.rm_halizny": true,
   "web.rm_zestaw": true,
   "web.nowe_szablony": true,
-  "web.rm_lit": true
+  "web.rm_lit": true,
+  "pdf_order.ALL": {
+    "order": [
+      "TITLE",
+      "OPIS",
+      "TAB_KLW3",
+      "OPTAX",
+      "WSK_ZB",
+      "WYK_NEG",
+      "HALIZNY",
+      "REJESTR1",
+      "ZEST1",
+      "WK_ZM1",
+      "SKROTY",
+      "MAPA"
+    ],
+    "excluded": [
+      "WSKAZ1"
+    ]
+  },
+  "pdf_order.PDF": {
+    "order": [
+      "TITLE",
+      "OPIS",
+      "TAB_KLW3",
+      "OPTAX",
+      "WSK_ZB",
+      "WYK_NEG",
+      "HALIZNY",
+      "REJESTR1",
+      "ZEST1",
+      "WK_ZM1",
+      "SKROTY",
+      "MAPA"
+    ],
+    "excluded": [
+      "WSKAZ1"
+    ]
+  },
+  "all_tpl.doc": "UPUL",
+  "all_tpl.prefix": "położonych na terenie obrębu",
+  "all_tpl.woj": "KUJAWSKO-POMORSKIE",
+  "all_tpl.powiat": "TUCHOLSKI",
+  "all_tpl.gmina": "CEKCYN",
+  "all_tpl.stan_na": "30.06.2026 r.",
+  "all_tpl.okres": "01.01.2027 – 31.12.2036 r.",
+  "all_tpl.wsk_od": "01-01-2027",
+  "all_tpl.wsk_do": "31-12-2036"
 }

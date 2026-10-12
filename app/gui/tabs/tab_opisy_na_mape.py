@@ -29,11 +29,23 @@ from app.core.wydruki import czytaj_dbf, znajdz_dbf
 
 
 def _klucz_nazwy(s):
-    """Nazwa do porównań: bez ogonków, małe litery, tylko [a-z0-9]."""
+    """Nazwa do porównań: bez ogonków, małe litery, tylko [a-z0-9].
+
+    Ignoruje wielkość liter, spacje, podkreślenia, kropki i myślniki —
+    dzięki temu „Wola_Rasztowska.MAP" pasuje do folderu mietka
+    „WOLA RASZTOWSKA_mietek". Usuwamy też końcówki typu „_mietek",
+    „-mietek", „mietek", które doklejają się do nazw folderów mietków.
+    """
     s = unicodedata.normalize("NFKD", str(s or ""))
     s = "".join(c for c in s if not unicodedata.combining(c))
     s = s.replace("ł", "l").replace("Ł", "L")
-    return re.sub(r"[^a-z0-9]+", "", s.lower())
+    k = re.sub(r"[^a-z0-9]+", "", s.lower())
+    # końcówki nazw folderów/plików mietków
+    for _kon in ("mietek", "mietki", "miet"):
+        if k.endswith(_kon) and len(k) > len(_kon) + 2:
+            k = k[:-len(_kon)]
+            break
+    return k
 
 
 class TabOpisyNaMapeMixin:

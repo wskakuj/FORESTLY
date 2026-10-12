@@ -5,7 +5,11 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="5553df60-78eb-40cf-b78a-3e24e8981b9c" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/app/gui/web_schema.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/gui/web_schema.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/STR_TYT_wersja_2.html" beforeDir="false" afterPath="$PROJECT_DIR$/STR_TYT_wersja_2.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/STR_TYT_wersja_3.html" beforeDir="false" afterPath="$PROJECT_DIR$/STR_TYT_wersja_3.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/gui/tabs/tab_opisy_na_mape.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/gui/tabs/tab_opisy_na_mape.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/settings.json" beforeDir="false" afterPath="$PROJECT_DIR$/settings.json" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -13,7 +17,7 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="149" />
+    <option name="cachedIndexableFilesCount" value="151" />
     <option name="fileBasedEmbeddingIndicesEnabled" value="true" />
   </component>
   <component name="Git.Settings">
