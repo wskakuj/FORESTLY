@@ -1,5 +1,5 @@
 """
-Forestly — Konfiguracja globalna
+Kombajn Leśny PRO — Konfiguracja globalna
 ==========================================
 Zależności: brak (moduł bazowy)
 Odpowiada za: wszystkie stałe, kolory, ścieżki, dane terytorialne,
@@ -18,9 +18,9 @@ from pathlib import Path
 import customtkinter as ctk
 
 # --- WERSJA I AKTUALIZACJA ---
-CURRENT_VERSION = "v2.0.18"
+CURRENT_VERSION = "v1.6.4"
 GITHUB_USER = "wskakuj"
-GITHUB_REPO = "FORESTLY"
+GITHUB_REPO = "kombajn-lesny-prov2"
 
 # --- KONFIGURACJA GUI ---
 ctk.set_appearance_mode("Dark")
@@ -73,7 +73,6 @@ COLORS = {
 
 # --- SEKWENCJE DO USUWANIA Z TXT ---
 SEQUENCES_TO_REMOVE = [
-    b"\x1b(s16.67H\x1b&l5E\x1b&a20L",   # nagłówek PCL WSKAZ1 (agencja)
     b"\x1b(s16.67H\x1b&l4E\x1b&a1L",
     b"\x1b(s16.67H\x1b&l5E\x1b&a9L",
     b"\x1b(s16.67H\x1b&l5E\x1b&a14L",
@@ -107,10 +106,9 @@ PDF_ORDER_TEMPLATES = [
     {"key": "OPIS", "label": "Opis ogólny", "aliases": ["opis", "op_ogplan"]},
     {"key": "TAB_KLW3", "label": "Tabela klas wieku", "aliases": ["tab_klw3.pdf"]},
     {"key": "OPTAX", "label": "Opis taksacyjny", "aliases": ["optax.pdf"]},
-    {"key": "WSK_ZB", "label": "Wskazówki zbiorcze", "aliases": ["wsk_zb.pdf", "wsk_zb"]},
+    {"key": "WSK_ZB", "label": "Wskazówki zbiorcze", "aliases": ["wsk_zb.pdf", "wskaz1.pdf"]},
     {"key": "WYK_NEG", "label": "Wykaz negatywny", "aliases": ["wyk_neg.pdf"]},
     {"key": "HALIZNY", "label": "Halizny", "aliases": ["halizny.pdf"]},
-    {"key": "WSKAZ1", "label": "Wskazówki gospodarki leśnej", "aliases": ["wskaz1.pdf", "wskaz1"]},
     {"key": "REJESTR1", "label": "Rejestr", "aliases": ["rejestr1.pdf"]},
     {"key": "ZEST1", "label": "Skorowidz działek", "aliases": ["zest1.pdf", "skorowidz dz"]},
     {"key": "WK_ZM1", "label": "Wykaz zmian", "aliases": ["wk_zm1.pdf"]},
@@ -192,8 +190,21 @@ def clean_xml_incompatible(text):
 
 
 def flatten_rel_path(rel_path):
+    """Spłaszcza ścieżkę: usuwa podfolder obrębu (np. WOL.001), zostawia wieś.
+
+    BŁĄD (naprawiony): warunek był `p.upper().startswith("WOL")` — usuwał
+    KAŻDY element zaczynający się na "WOL", więc gubił także wieś
+    "WOLA RASZTOWSKA_mietek". Skutek: pliki tej wsi trafiały do TXT/ bez
+    podfolderu wsi, nazwa folderu wychodziła pusta, a pakiet PDF był scalany
+    pod nazwą pierwszej wsi alfabetycznie (KRASZEW STARY_UPUL.pdf).
+
+    Teraz usuwamy WYŁĄCZNIE podfolder obrębu — czyli dokładnie "WOL" + kropka
+    + cyfry (np. WOL.001, wol.002). Wsie zaczynające się na "WOL" zostają.
+    """
+    import re as _re
     parts = rel_path.parts
-    new_parts = [p for p in parts[:-1] if not p.upper().startswith("WOL")]
+    new_parts = [p for p in parts[:-1]
+                 if not _re.fullmatch(r"WOL\.\d+", str(p).strip(), _re.I)]
     new_parts.append(parts[-1])
     return Path(*new_parts)
 
@@ -242,20 +253,6 @@ def get_saved_template_order(folder: Path, mode_key: str):
     data = load_order_store(folder)
     saved = data.get(mode_key)
     if isinstance(saved, list) and saved:
-        valid = [t["key"] for t in PDF_ORDER_TEMPLATES]
-        saved = [k for k in saved if k in valid]
-        # dopisanie nowych kluczy (np. WSKAZ1) na ich domyślnych pozycjach,
-        # z zachowaniem własnej kolejności starego zapisu
-        missing = [k for k in get_default_template_keys() if k not in saved]
-        for mk in missing:
-            inserted = False
-            for idx, sk in enumerate(saved):
-                if sk in valid and valid.index(mk) < valid.index(sk):
-                    saved.insert(idx, mk)
-                    inserted = True
-                    break
-            if not inserted:
-                saved.append(mk)
         return saved
     return get_default_template_keys()
 
@@ -266,21 +263,11 @@ def set_saved_template_order(folder: Path, mode_key: str, order_keys):
     save_order_store(folder, data)
 
 
-def build_ordered_pdfs_from_templates(pdfs, template_keys, excluded=None):
-    """Porządkuje PDF-y wg kluczy szablonów.
-
-    excluded — lista kluczy szablonów wykluczonych z scalania:
-    pasujące do nich pliki NIE trafiają do wyniku (ani do 'zaległości'
-    dokładanych na końcu).
-    """
-    excluded = set(excluded or [])
+def build_ordered_pdfs_from_templates(pdfs, template_keys):
     ordered = []
     used = set()
     template_map = {t["key"]: t for t in PDF_ORDER_TEMPLATES}
-    excluded_templates = [template_map[k] for k in excluded if k in template_map]
     for key in template_keys:
-        if key in excluded:
-            continue
         template = template_map.get(key)
         if not template:
             continue
@@ -289,35 +276,9 @@ def build_ordered_pdfs_from_templates(pdfs, template_keys, excluded=None):
             ordered.append(p)
             used.add(p)
     for p in pdfs:
-        if p in used:
-            continue
-        if any(template_matches(t, p.name) for t in excluded_templates):
-            continue  # wykluczony — nie dokładamy go na końcu
-        ordered.append(p)
-
-    # 'Skróty i symbole' — ZAWSZE na samym końcu scalonego PDF, także gdy
-    # w folderze są pliki niepasujące do żadnego szablonu (dokładane wyżej).
-    skroty_tpl = template_map.get("SKROTY")
-    if skroty_tpl is not None and "SKROTY" not in excluded:
-        ordered.sort(key=lambda _p: 1 if template_matches(skroty_tpl, _p.name) else 0)
+        if p not in used:
+            ordered.append(p)
     return ordered
-
-
-def get_saved_excluded_templates(folder: Path, mode_key: str):
-    """Klucze szablonów wykluczone z scalania dla danego trybu."""
-    data = load_order_store(folder)
-    saved = data.get(mode_key + "_excluded")
-    if isinstance(saved, list):
-        valid = {t["key"] for t in PDF_ORDER_TEMPLATES}
-        return [k for k in saved if k in valid]
-    return []
-
-
-def set_saved_excluded_templates(folder: Path, mode_key: str, excluded_keys):
-    data = load_order_store(folder)
-    valid = [t["key"] for t in PDF_ORDER_TEMPLATES]
-    data[mode_key + "_excluded"] = [k for k in (excluded_keys or []) if k in valid]
-    save_order_store(folder, data)
 
 
 def is_file_locked(filepath):

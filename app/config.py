@@ -20,7 +20,7 @@ ctk = leniwy_modul("customtkinter")
 np = leniwy_modul("numpy")
 
 # --- WERSJA I AKTUALIZACJA ---
-CURRENT_VERSION = "v2.0.173"
+CURRENT_VERSION = "v2.0.174"
 GITHUB_USER = "wskakuj"
 GITHUB_REPO = "FORESTLY"
 
@@ -202,8 +202,11 @@ def clean_xml_incompatible(text):
 
 
 def flatten_rel_path(rel_path):
+    """Spłaszcza ścieżkę: usuwa podfolder obrębu (np. WOL.001), zostawia wieś."""
+    import re as _re
     parts = rel_path.parts
-    new_parts = [p for p in parts[:-1] if not p.upper().startswith("WOL")]
+    new_parts = [p for p in parts[:-1]
+                 if not _re.fullmatch(r"WOL\.\d+", str(p).strip(), _re.I)]
     new_parts.append(parts[-1])
     return Path(*new_parts)
 
