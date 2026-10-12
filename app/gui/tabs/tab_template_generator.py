@@ -47,7 +47,7 @@ class TabTemplateGeneratorMixin:
         opt_doc = ctk.CTkOptionMenu(
             card,
             variable=self.tpl_data[mode_key]["doc_type_var"],
-            values=["UPUL", "ISL"],
+            values=["UPUL", "ISL", "Aneks"],
             width=200,
             height=32,
         )
@@ -237,42 +237,178 @@ class TabTemplateGeneratorMixin:
 
     def _build_str_tyt_doc(self, doc_type, prefix, woj, powiat, gmina,
                            stan_na, okres, out_path,
-                           village="NAZWA WSI", keep_area=False, area_text=""):
+                           village="NAZWA WSI", keep_area=False, area_text="",
+                           sample_name="STR_TYT.docx"):
         """Buduje bazowy szablon STR_TYT z wbudowanego wzorca i zapisuje do out_path.
 
         Wspólny rdzeń dla Kreatora (zakładka) i Pełnego Automatu (1-Click).
         Zwraca out_path; rzuca wyjątkiem przy błędzie."""
         out_path = str(out_path)
-        sample_path = get_resource_path("STR_TYT.docx")
+        sample_path = get_resource_path(sample_name)
         if not sample_path.exists():
             raise FileNotFoundError(
                 f"Nie znaleziono wbudowanego pliku wzorcowego: {sample_path}")
         doc = Document(sample_path)
-        replacements = {
-            "LUBIEWO": gmina,
-            "TUCHOLSKI": powiat,
-            "KUJAWSKO-POMORSKIE": woj,
-            "30.06.2026 r.": stan_na,
-            "01.01.2027 – 31.12.2036 r.": okres,
-            "NAZWA WSI": village,
-        }
+        if sample_name == "STR_TYT.docx":
+            replacements = {
+                "LUBIEWO": gmina,
+                "TUCHOLSKI": powiat,
+                "KUJAWSKO-POMORSKIE": woj,
+                "30.06.2026 r.": stan_na,
+                "01.01.2027 – 31.12.2036 r.": okres,
+                "NAZWA WSI": village,
+            }
+        else:
+            # szablony „wersja 2/3”: tokeny w nawiasach klamrowych.
+            # Druga ozdobna kreska to DOLNE OBRAMOWANIE akapitu z powierzchnią
+            # — dlatego NIE usuwamy akapitu, tylko czyścimy jego tekst.
+            if not keep_area:
+                for _p in list(doc.paragraphs):
+                    if "POWIERZCHNIA_WSI" in _p.text:
+                        for _r in _p.runs:
+                            _r.text = ""
+            replacements = {
+                "{GMINA}": gmina,
+                "{POWIAT}": powiat,
+                "{WOJEWÓDZTWO}": woj,
+                "{STAN_NA}": stan_na,
+                "{OKRES}": okres,
+                "NAZWA WSI": village,
+                "POWIERZCHNIA_WSI": area_text or "",
+            }
+        _tytul_klucze = ("UPROSZCZONY PLAN URZĄDZANIA LASÓW",
+                         "UPROSZCZONY PLAN URZĄDZENIA LASÓW",
+                         "UPROSZCZONY PLAN URZĄDZENIA LASU")
         if doc_type == "ISL":
-            replacements["UPROSZCZONY PLAN URZĄDZANIA LASÓW"] = (
-                "INWENTARYZACJA STANU LASU"
-            )
-            replacements["nie stanowiących własności Skarbu Państwa"] = (
-                "dla lasów niestanowiących własności Skarbu Państwa"
-            )
+            for _k in _tytul_klucze:
+                replacements[_k] = "INWENTARYZACJA STANU LASU"
+            # „dla lasów nie stanowiących…” -> „dla lasów niestanowiących…”.
+            # Ustawiamy CAŁY akapit — inaczej we wzorcu Wersji 2 (gdzie linia
+            # zaczyna się od „dla lasów”) wychodziło podwójne „dla lasów”.
+            for _p in doc.paragraphs:
+                if "nie stanowiących własności Skarbu Państwa" in _p.text:
+                    for _r in list(_p.runs):
+                        _r.text = ""
+                    if _p.runs:
+                        _p.runs[0].text = ("dla lasów niestanowiących "
+                                           "własności Skarbu Państwa")
+                    break
+        elif doc_type == "Aneks":
+            for _k in _tytul_klucze:
+                replacements[_k] = "ANEKS DO UPROSZCZONEGO PLANU URZĄDZENIA LASÓW"
+            # Aneks NIE ma linii „dla lasów nie stanowiących własności
+            # Skarbu Państwa” — czyścimy CAŁY akapit; zostaje spacja, żeby
+            # nie zmieniła się wysokość linii.
+            replacements["nie stanowiących własności Skarbu Państwa"] = ""
+            for _p in doc.paragraphs:
+                if "dla lasów" in _p.text:
+                    for _r in list(_p.runs):
+                        _r.text = ""
+                    if _p.runs:
+                        _p.runs[0].text = " "
         if prefix == "Obręb:":
             replacements["położonych na terenie"] = ""
             replacements["obrębu"] = "Obręb:"
         for paragraph in doc.paragraphs:
             replace_text_preserve_runs(paragraph, replacements)
         replace_text_in_tables(doc.tables, replacements)
-        # wiersz powierzchni: usuwany, chyba że jawnie zamówiony
-        self._apply_area_row(doc, keep_area, area_text)
+        # Tytuł strony tytułowej — łamanie linii zależne od typu dokumentu.
+        # UPUL: „…URZĄDZENIA / LASU”, ISL: „INWENTARYZACJA / STANU LASU”,
+        # Aneks: trzy linie. Aneks dodatkowo mniejszą czcionką (16pt) we
+        # wzorcu Wersji 2 — tam tytuł bazowy ma 22pt.
+        _tytuly = {"UPUL": "UPROSZCZONY PLAN URZĄDZENIA LASU",
+                   "ISL": "INWENTARYZACJA STANU LASU",
+                   "Aneks": "ANEKS DO UPROSZCZONEGO PLANU URZĄDZENIA LASÓW"}
+        _linie = {"UPUL": ("UPROSZCZONY PLAN URZĄDZENIA", "LASU"),
+                  "ISL": ("INWENTARYZACJA", "STANU LASU"),
+                  "Aneks": ("ANEKS DO", "UPROSZCZONEGO PLANU",
+                            "URZĄDZENIA LASÓW")}
+        _typ = "Aneks" if doc_type == "Aneks" else ("ISL" if doc_type == "ISL"
+                                                    else "UPUL")
+        for _par in doc.paragraphs:
+            if _tytuly[_typ] in _par.text:
+                _runs = _par.runs
+                if _runs:
+                    _first = _runs[0]
+                    for _r in _runs[1:]:
+                        _r._element.getparent().remove(_r._element)
+                    _l = _linie[_typ]
+                    _first.text = _l[0]
+                    for _cz in _l[1:]:
+                        _first.add_break()
+                        _first.add_text(_cz)
+                    if _typ == "Aneks" and sample_name == "STR_TYT_wersja_2.docx":
+                        from docx.shared import Pt as _Pt
+                        _first.font.size = _Pt(16)
+                break
+        # wiersz powierzchni: tylko dla wzorca wbudowanego
+        if sample_name == "STR_TYT.docx":
+            self._apply_area_row(doc, keep_area, area_text)
         doc.save(out_path)
         return out_path
+
+    def _str_tyt_html_na_pdf(self, html_name, doc_type, woj, powiat, gmina,
+                             stan_na, okres, village, area_text,
+                             out_dir_obj, doc_prefix, nazwa):
+        """Buduje stronę tytułową z szablonu HTML → PDF (bez Worda)."""
+        import tempfile, os, re as _re
+        from app.core.word_worker import get_resource_path
+        from app.core import szablony as _sz
+        p = get_resource_path(html_name)
+        if not p or not Path(p).exists():
+            raise FileNotFoundError("Nie znaleziono szablonu " + str(html_name))
+        html = Path(p).read_text(encoding="utf-8")
+        if doc_type == "ISL":
+            tytul = "INWENTARYZACJA<br>STANU LASU"
+        elif doc_type == "Aneks":
+            tytul = "ANEKS DO<br>UPROSZCZONEGO PLANU<br>URZĄDZENIA LASÓW"
+        else:
+            tytul = ""
+        if tytul:
+            html = html.replace(
+                '<span style="white-space:nowrap">UPROSZCZONY PLAN URZĄDZENIA'
+                '</span><br>LASU', tytul)
+            html = html.replace("UPROSZCZONY PLAN URZĄDZENIA LASU", tytul)
+        if doc_type == "ISL":
+            html = _re.sub(r'(<p class="dla"[^>]*>).*?(</p>)',
+                           r'\1dla lasów niestanowiących własności Skarbu Państwa\2',
+                           html, flags=_re.S)
+        if doc_type == "Aneks":
+            html = html.replace("</style>",
+                "\n.strona p.tytul, .strona p.naglowek { "
+                "white-space: normal !important; "
+                "text-align: center !important; }\n"
+                ".tytul { font-size: 15pt !important; "
+                "letter-spacing: 0.6pt !important; }\n</style>", 1)
+            # linia „dla lasów nie stanowiących własności Skarbu Państwa”
+            # -> „dla lasów” (tak samo jak w Wordzie i w STR_TYT_Aneks.doc)
+            html = _re.sub(r'(<p class="dla"[^>]*>).*?(</p>)',
+                           r'\1 \2', html, flags=_re.S)
+        for _a, _b in (
+            ("{GMINA}", (gmina or "—").upper()),
+            ("{POWIAT}", (powiat or "—").upper()),
+            ("{WOJEWÓDZTWO}", (woj or "—").upper()),
+            ("{STAN_NA}", stan_na or "—"),
+            ("{OKRES}", okres or "—"),
+            ("{NAZWA_WSI}", village or "NAZWA WSI"),
+            ("{POWIERZCHNIA_WSI}", area_text or "[BRAK_DANYCH]"),
+        ):
+            html = html.replace(_a, _b)
+        if not area_text:
+            html = _re.sub(r'<p class="powierzchnia"[^>]*>.*?</p>', "",
+                           html, flags=_re.S)
+        out_pdf = Path(out_dir_obj) / (str(doc_prefix) + str(nazwa) + ".pdf")
+        fd, tmp = tempfile.mkstemp(suffix=".html", prefix="STR_TYT_")
+        os.close(fd)
+        try:
+            Path(tmp).write_text(html, encoding="utf-8")
+            _sz.html_na_pdf(tmp, out_pdf)
+        finally:
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+        return str(out_pdf) if Path(out_pdf).exists() else None
 
     def _apply_area_row(self, doc, keep_area, area_text):
         """Dodaje/usuwa wiersz powierzchni w szablonie STR_TYT."""
@@ -357,7 +493,7 @@ class TabTemplateGeneratorMixin:
             return
         # Nazwa pliku: nazwa wsi (gdy strona dla konkretnej wsi) albo z automatu
         # "Szablon"; przedrostek zależny od typu dokumentu (UPUL_ / ISL_)
-        doc_prefix = "ISL_" if doc_type == "ISL" else "UPUL_"
+        doc_prefix = {"ISL": "ISL_", "Aneks": "ANEKS_"}.get(doc_type, "UPUL_")
         if vars_dict.get("single_village_var") and vars_dict["single_village_var"].get():
             nazwa = vars_dict["village_entry"].get().strip()
         else:
@@ -374,10 +510,51 @@ class TabTemplateGeneratorMixin:
             out_dir_obj = out_dir_obj.parent
         out_path = str(out_dir_obj / f"{doc_prefix}{nazwa}.docx")
         try:
+            _wv = vars_dict.get("wariant_var")
+            wariant = _wv.get().strip() if _wv is not None else ""
+        except Exception:
+            wariant = ""
+        html_name = None
+        if wariant.startswith("Wersja 3"):
+            html_name = "STR_TYT_wersja_3.html"
+        elif wariant.startswith("Wersja 2"):
+            html_name = "STR_TYT_wersja_2.html"
+        sample_name = {"STR_TYT_wersja_3.html": "STR_TYT_wersja_3.docx",
+                       "STR_TYT_wersja_2.html": "STR_TYT_wersja_2.docx"}.get(
+                           html_name, "STR_TYT.docx")
+        if html_name and wyjscie != "word":
+            try:
+                pdf_path = self._str_tyt_html_na_pdf(
+                    html_name, doc_type, woj, powiat, gmina, stan_na, okres,
+                    village,
+                    area_text if vars_dict["area_var"].get() else "",
+                    out_dir_obj, doc_prefix, nazwa)
+                if pdf_path:
+                    self.last_output_dir = Path(pdf_path).parent
+                    if getattr(self, "open_dir_btn", None) is not None:
+                        self.open_dir_btn.configure(state="normal")
+                    self.log("[KREATOR STR_TYT] Strona tytułowa (" + wariant
+                             + ", " + str(doc_type) + ") HTML→PDF: " + str(pdf_path))
+                    self._odswiez_eksplorator(Path(pdf_path).parent)
+                    messagebox.showinfo(
+                        "Sukces",
+                        "Strona tytułowa zapisana jako PDF (szablon " + wariant
+                        + ", " + str(doc_type) + "):\n\n" + str(pdf_path))
+                    return
+                self.log("[UWAGA][KREATOR STR_TYT] Szablon HTML " + str(html_name)
+                         + " nie dał pliku PDF — buduję z wzorca Worda.")
+            except Exception as _e:
+                self.log("[UWAGA][KREATOR STR_TYT] HTML→PDF nie udało się ("
+                         + str(_e) + ") — buduję z wzorca Worda.")
+        else:
+            self.log("[KREATOR STR_TYT] Wersja: " + (wariant or "(wbudowana)")
+                     + ", wyjście: " + (wyjscie or "word") + " → wzorzec "
+                     + str(sample_name) + ".")
+        try:
             self._build_str_tyt_doc(
                 doc_type, prefix, woj, powiat, gmina, stan_na, okres, out_path,
                 village=village, keep_area=bool(vars_dict["area_var"].get()),
-                area_text=area_text,
+                area_text=area_text, sample_name=sample_name,
             )
             self.last_output_dir = Path(out_path).parent
             # przycisk istnieje tylko w GUI CustomTkinter (web: brak widgetu)

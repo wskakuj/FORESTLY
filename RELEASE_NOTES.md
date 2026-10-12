@@ -1,3 +1,3 @@
-# Co nowego w v2.0.174
-- poprawiono pełny automat, już nie wyrzuca poszczególnych wsi bez folderów, każda wieś ląduje we własnym folderze
+# Co nowego w v2.0.175
+- poprawiono generowanie pojedynczych stron tytułowych i naprawiono możliwość generowania stron tyt w word
 

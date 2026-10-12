@@ -76,10 +76,38 @@ def _select(cid, attr, label, values, default, free=False):
             "values": values, "default": default, "free": free, "save": True}
 
 
-def _strtyt(cid, attr, label, values, default, imgs):
-    """v2.0.111: wybór szablonu strony tytułowej z podglądami (B/D)."""
-    return {"id": cid, "kind": "strtyt", "attr": attr, "label": label,
-            "values": values, "default": default, "save": True, "imgs": imgs}
+def _strtyt(cid, attr, label, values, default, imgs,
+            imgs_by_version=None, imgs_depends=None):
+    """v2.0.111: wybór szablonu strony tytułowej z podglądami (B/D).
+
+    v2.0.141: gdy podane imgs_by_version + imgs_depends, kafelki podmieniają
+    obrazki w zależności od wartości innej kontrolki (np. typ dokumentu
+    zależnie od wybranej wersji strony tytułowej)."""
+    d = {"id": cid, "kind": "strtyt", "attr": attr, "label": label,
+         "values": values, "default": default, "save": True, "imgs": imgs}
+    if imgs_by_version:
+        d["imgs_by_version"] = imgs_by_version
+        d["imgs_depends"] = imgs_depends
+    return d
+
+
+def _doc_imgs(kod_wersji="w1"):
+    """Kafelki typów dokumentu dla jednej wersji strony tytułowej."""
+    return [
+        {"src": "podglad_DOC_UPUL_" + kod_wersji + ".png",
+         "label": "UPUL — uproszczony plan urządzenia lasu", "value": "UPUL"},
+        {"src": "podglad_DOC_ISL_" + kod_wersji + ".png",
+         "label": "ISL — inwentaryzacja stanu lasu", "value": "ISL"},
+        {"src": "podglad_DOC_ANEKS_" + kod_wersji + ".png",
+         "label": "Aneks — aneks do uproszczonego planu", "value": "Aneks"},
+    ]
+
+
+def _doc_imgs_map():
+    """Podglądy typów dokumentu dla każdej wersji (w1/w2/w3)."""
+    return {"Wersja 1": _doc_imgs("w1"),
+            "Wersja 2": _doc_imgs("w2"),
+            "Wersja 3": _doc_imgs("w3")}
 
 
 def _info(text_):
@@ -1052,7 +1080,18 @@ def _tpl_controls(mode):
     gmina_list = list(TERRITORY_DATA.get(default_woj, {}).get(default_powiat, []))
     b = f"tpl_data.{mode}."
     return [
-        _select(f"tpl_{mode}_doc", b + "doc_type_var", "Typ dokumentu:", ["UPUL", "ISL"], "UPUL"),
+        # Wersja (układ) strony tytułowej — zwykła lista, BEZ kafelków.
+        _select(f"tpl_{mode}_wariant", b + "wariant_var",
+                "Wersja strony tytułowej:",
+                ["Wersja 1", "Wersja 2", "Wersja 3"], "Wersja 1"),
+        # Typ dokumentu jako KAFELKI z podglądem: UPUL / ISL / Aneks.
+        # imgs_by_version + imgs_depends → frontend podmienia obrazki
+        # w zależności od wybranej wersji (mniej podglądów na ekranie).
+        _strtyt(f"tpl_{mode}_doc", b + "doc_type_var", "Typ dokumentu:",
+                ["UPUL", "ISL", "Aneks"], "UPUL",
+                _doc_imgs("w1"),
+                imgs_by_version=_doc_imgs_map(),
+                imgs_depends=f"tpl_{mode}_wariant"),
         _select(f"tpl_{mode}_prefix", b + "prefix_var", "Prefiks obrębu:",
                 ["położonych na terenie obrębu", "Obręb:"], "położonych na terenie obrębu"),
         _select(f"tpl_{mode}_woj", b + "woj_var", "Województwo:", woj_list, default_woj,

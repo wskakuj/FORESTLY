@@ -897,7 +897,11 @@ class TabAllMixin:
             return e.get().strip() if e is not None else default
 
         wybor = _v("all_tpl_szablon_var", "Wersja 1")
-        if wybor.startswith("Wersja 3") or wybor.startswith("D"):
+        if wybor.startswith("Aneks 3"):
+            nazwa = "STR_TYT_Aneks_3.html"
+        elif wybor.startswith("Aneks 2"):
+            nazwa = "STR_TYT_Aneks_2.html"
+        elif wybor.startswith("Wersja 3") or wybor.startswith("D"):
             nazwa = "STR_TYT_wersja_3.html"
         elif wybor.startswith("Wersja 2") or wybor.startswith("B"):
             nazwa = "STR_TYT_wersja_2.html"

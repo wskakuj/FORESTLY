@@ -2273,24 +2273,45 @@ function renderStrTyt(c) {
     sel.dispatchEvent(new Event("change"));
     oznacz();
   };
-  for (const im of (c.imgs || [])) {
-    const fig = el("figure", "strtyt-podglad");
-    fig.dataset.value = im.value;
-    fig.title = "Kliknij, aby wybrać tę wersję";
-    const img = el("img");
-    img.src = im.src; img.alt = im.label; img.draggable = false;
-    fig.appendChild(img);
-    fig.appendChild(el("figcaption", null, escapeHtml(im.label)));
-    const lupa = el("button", "strtyt-lupa", "🔍");
-    lupa.type = "button";
-    lupa.title = "Powiększ podgląd";
-    lupa.onclick = (e) => { e.stopPropagation(); pokazLupkeStrTyt(im.src, im.label, () => wybierz(im.value)); };
-    fig.appendChild(lupa);
-    fig.onclick = () => wybierz(im.value);
-    box.appendChild(fig);
+  /* v2.0.141: podglądy mogą zależeć od innej kontrolki (np. typ dokumentu
+     od wybranej wersji strony tytułowej) — wtedy obrazki się podmieniają */
+  const zbiorImgs = () => {
+    if (c.imgs_by_version && c.imgs_depends) {
+      const dep = document.querySelector('[data-cid="' + c.imgs_depends + '"]');
+      const v = dep ? dep.value : "";
+      return c.imgs_by_version[v] || c.imgs_by_version["Wersja 1"] || c.imgs || [];
+    }
+    return c.imgs || [];
+  };
+  const zbuduj = () => {
+    box.innerHTML = "";
+    for (const im of zbiorImgs()) {
+      const fig = el("figure", "strtyt-podglad");
+      fig.dataset.value = im.value;
+      fig.title = "Kliknij, aby wybrać";
+      const img = el("img");
+      img.src = im.src; img.alt = im.label; img.draggable = false;
+      fig.appendChild(img);
+      fig.appendChild(el("figcaption", null, escapeHtml(im.label)));
+      const lupa = el("button", "strtyt-lupa", "\uD83D\uDD0D");
+      lupa.type = "button";
+      lupa.title = "Powiększ podgląd";
+      lupa.onclick = (e) => { e.stopPropagation(); pokazLupkeStrTyt(im.src, im.label, () => wybierz(im.value)); };
+      fig.appendChild(lupa);
+      fig.onclick = () => wybierz(im.value);
+      box.appendChild(fig);
+    }
+    oznacz();
+  };
+  zbuduj();
+  if (c.imgs_by_version && c.imgs_depends) {
+    const dep = document.querySelector('[data-cid="' + c.imgs_depends + '"]');
+    if (dep) dep.addEventListener("change", zbuduj);
+    else document.addEventListener("change", (ev) => {
+      if (ev.target && ev.target.dataset && ev.target.dataset.cid === c.imgs_depends) zbuduj();
+    });
   }
   if (sel) sel.addEventListener("change", oznacz);
-  oznacz();
   kontener.appendChild(row);
   kontener.appendChild(box);
   return kontener;
