@@ -2278,7 +2278,10 @@ function renderStrTyt(c) {
   const zbiorImgs = () => {
     if (c.imgs_by_version && c.imgs_depends) {
       const dep = document.querySelector('[data-cid="' + c.imgs_depends + '"]');
-      const v = dep ? dep.value : "";
+      /* kontrolka zależna może jeszcze nie istnieć w DOM (albo nie mieć
+         jeszcze zapisanej wartości) — wtedy bierzemy zapamiętaną wartość
+         z VALUES, żeby po restarcie kafelki pokazywały właściwą wersję */
+      const v = dep ? dep.value : (VALUES[c.imgs_depends] || "");
       return c.imgs_by_version[v] || c.imgs_by_version["Wersja 1"] || c.imgs || [];
     }
     return c.imgs || [];
@@ -2305,6 +2308,10 @@ function renderStrTyt(c) {
   };
   zbuduj();
   if (c.imgs_by_version && c.imgs_depends) {
+    /* odświeżenie po zakończeniu bieżącego renderu — kontrolka zależna
+       powstaje/dostaje wartość dopiero po zbudowaniu kafelków */
+    setTimeout(zbuduj, 0);
+    setTimeout(zbuduj, 200);
     const dep = document.querySelector('[data-cid="' + c.imgs_depends + '"]');
     if (dep) dep.addEventListener("change", zbuduj);
     else document.addEventListener("change", (ev) => {

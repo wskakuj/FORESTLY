@@ -5,15 +5,17 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="5553df60-78eb-40cf-b78a-3e24e8981b9c" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/STR_TYT_wersja_2.docx" beforeDir="false" afterPath="$PROJECT_DIR$/STR_TYT_wersja_2.docx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/STR_TYT_wersja_3.docx" beforeDir="false" afterPath="$PROJECT_DIR$/STR_TYT_wersja_3.docx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/STR_TYT_wersja_3.html" beforeDir="false" afterPath="$PROJECT_DIR$/STR_TYT_wersja_3.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/gui/tabs/tab_all.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/gui/tabs/tab_all.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/gui/tabs/tab_template_generator.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/gui/tabs/tab_template_generator.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/gui/web_schema.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/gui/web_schema.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/settings.json" beforeDir="false" afterPath="$PROJECT_DIR$/settings.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/webapp/app.js" beforeDir="false" afterPath="$PROJECT_DIR$/webapp/app.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/webapp/podglad_DOC_ANEKS_w1.png" beforeDir="false" afterPath="$PROJECT_DIR$/webapp/podglad_DOC_ANEKS_w1.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/webapp/podglad_DOC_ANEKS_w2.png" beforeDir="false" afterPath="$PROJECT_DIR$/webapp/podglad_DOC_ANEKS_w2.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/webapp/podglad_DOC_ANEKS_w3.png" beforeDir="false" afterPath="$PROJECT_DIR$/webapp/podglad_DOC_ANEKS_w3.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/webapp/podglad_DOC_ISL_w1.png" beforeDir="false" afterPath="$PROJECT_DIR$/webapp/podglad_DOC_ISL_w1.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/webapp/podglad_DOC_ISL_w2.png" beforeDir="false" afterPath="$PROJECT_DIR$/webapp/podglad_DOC_ISL_w2.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/webapp/podglad_DOC_ISL_w3.png" beforeDir="false" afterPath="$PROJECT_DIR$/webapp/podglad_DOC_ISL_w3.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/webapp/podglad_DOC_UPUL_w1.png" beforeDir="false" afterPath="$PROJECT_DIR$/webapp/podglad_DOC_UPUL_w1.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/webapp/podglad_DOC_UPUL_w2.png" beforeDir="false" afterPath="$PROJECT_DIR$/webapp/podglad_DOC_UPUL_w2.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/webapp/podglad_DOC_UPUL_w3.png" beforeDir="false" afterPath="$PROJECT_DIR$/webapp/podglad_DOC_UPUL_w3.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/webapp/style.css" beforeDir="false" afterPath="$PROJECT_DIR$/webapp/style.css" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

@@ -1214,7 +1214,9 @@ input.drop-over {
   gap: 12px; padding: 24px;
 }
 .strtyt-lightbox img {
-  max-height: 80vh; max-width: 90vw;
+  /* v2.0.141: powiększony podgląd — obrazek wypełnia wysokość ekranu
+     (proporcje zachowane), a nie tylko pokazuje się w naturalnym rozmiarze */
+  height: 90vh; width: auto; max-width: 94vw;
   background: #fff; border-radius: 6px; box-shadow: var(--shadow);
 }
 .strtyt-lightbox-cap { color: var(--text); font-size: 15px; }
