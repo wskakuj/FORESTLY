@@ -745,7 +745,7 @@ class TabAllMixin:
 
         Teksty '1. NADZÓR' i '2. WARUNKI PRZYRODNICZE', kategoria zagrożenia
         pożarowego (I/II/III) i wariant tabeli siedliskowej (mazowiecka/
-        wielkopolska). Brak pól (klasyczne GUI) => wartości domyślne
+        wielkopolska/drawsko). Brak pól (klasyczne GUI) => wartości domyślne
         zdefiniowane w tab_opis_og.
         """
         from app.gui.tabs import tab_opis_og as _oog

@@ -310,7 +310,7 @@ def build_schema():
                         ["I", "II", "III"], "I"),
                 _select("all_og_tabela", "all_og_tabela_var",
                         "Tabela siedliskowa w opisie ogólnym:",
-                        ["Mazowiecka", "Wielkopolska"], "Mazowiecka"),
+                        ["Mazowiecka", "Wielkopolska", "Drawsko"], "Mazowiecka"),
                 _check("all_custom_skroty", "all_custom_skroty_var",
                        "Użyj własnego pliku 'Skróty i symbole' (zamiast domyślnego z programu)", False),
                 _path("all_skroty", "all_skroty_entry", "Własny plik:",

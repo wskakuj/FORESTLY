@@ -127,6 +127,7 @@ def _wypakuj_szablony_obok_exe():
                       "STR_TYT_wersja_2.html", "STR_TYT_wersja_3.html",
                       "STR_TYT.docx", "opis_og_szablon.docx",
                       "opis_og_szablon_mazowiecka.docx",
+                      "opis_og_szablon_drawsko.docx",
                       "opis_og_szablon_taksator.docx",
                       "Skroty.docx"):
             zrodlo = meipass / nazwa

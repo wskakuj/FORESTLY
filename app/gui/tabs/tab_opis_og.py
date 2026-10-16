@@ -36,6 +36,7 @@ from pathlib import Path
 
 TPL_FILENAME = "opis_og_szablon.docx"            # wariant MIETEK (WSK_ZB) — tabela wielkopolska
 TPL_MAZ_FILENAME = "opis_og_szablon_mazowiecka.docx"  # wariant MIETEK — tabela mazowiecka
+TPL_DRAWSKO_FILENAME = "opis_og_szablon_drawsko.docx"  # wariant MIETEK — tabela drawsko
 TPL_TAKSATOR_FILENAME = "opis_og_szablon_taksator.docx"  # wariant TAKSATOR (raporty)
 
 # domyślne teksty edytowalnych sekcji opisu ogólnego (kreator 1-Click);
@@ -402,9 +403,15 @@ class TabOpisOgMixin:
             self.update_status("Brak wsi", "#D83B01", animate=False)
             return
 
-        # wariant tabeli siedliskowej: mazowiecka (domyślnie) albo wielkopolska
-        if str(tabela or "").strip().lower().startswith("wielk"):
+        # wariant tabeli siedliskowej: mazowiecka (domyślnie), wielkopolska
+        # albo drawsko
+        _tab = str(tabela or "").strip().lower()
+        if _tab.startswith("wielk"):
             tpl = get_resource_path(TPL_FILENAME)
+        elif _tab.startswith("draw"):
+            tpl = get_resource_path(TPL_DRAWSKO_FILENAME)
+            if not Path(tpl).exists():       # brak pliku — wracamy do mazowieckiej
+                tpl = get_resource_path(TPL_MAZ_FILENAME)
         else:
             tpl = get_resource_path(TPL_MAZ_FILENAME)
             if not Path(tpl).exists():

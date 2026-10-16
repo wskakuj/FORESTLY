@@ -1040,6 +1040,7 @@ function renderWizStep() {
     kartaT.appendChild(wizTiles(wizField("all_og_tabela"), [
       { v: "Mazowiecka", t: "Mazowiecka", s: "kolumny: Bśw, Bw, Bb, BMśw…" },
       { v: "Wielkopolska", t: "Wielkopolska", s: "kolumny: Bs, Bśw, BMśw…" },
+      { v: "Drawsko", t: "Drawsko", s: "kolumny: Bśw, Bw, Bb, BMśw… (region Drawsko)" },
     ]));
     st.appendChild(kartaT);
     next.onclick = () => { WIZ.step = 4; renderWizStep(); };
