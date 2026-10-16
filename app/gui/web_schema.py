@@ -71,9 +71,28 @@ def _group(label, controls, tooltip="", collapsed=True):
             "tooltip": tooltip, "collapsed": collapsed}
 
 
-def _select(cid, attr, label, values, default, free=False):
-    return {"id": cid, "kind": "select", "attr": attr, "label": label,
-            "values": values, "default": default, "free": free, "save": True}
+def _select(cid, attr, label, values, default, free=False, tiles=None):
+    """tiles — opcjonalne kafelki wyboru (te same co w kreatorze 1-Click);
+    frontend pokazuje je pod listą, a kliknięcie ustawia wartość."""
+    d = {"id": cid, "kind": "select", "attr": attr, "label": label,
+         "values": values, "default": default, "free": free, "save": True}
+    if tiles:
+        d["tiles"] = tiles
+    return d
+
+
+# kafelki wyboru — jedno źródło prawdy (karta „Opisy ogólne" i kreator 1-Click)
+KAT_TILES = [
+    {"v": "I", "t": "I kategoria", "s": "dużego zagrożenia pożarowego"},
+    {"v": "II", "t": "II kategoria", "s": "średniego zagrożenia pożarowego"},
+    {"v": "III", "t": "III kategoria", "s": "małego zagrożenia pożarowego"},
+]
+TAB_TILES = [
+    {"v": "Mazowiecka", "t": "Mazowiecka", "s": "kolumny: Bśw, Bw, Bb, BMśw…"},
+    {"v": "Wielkopolska", "t": "Wielkopolska", "s": "kolumny: Bs, Bśw, BMśw…"},
+    {"v": "Drawsko", "t": "Drawsko",
+     "s": "kolumny: Bśw, Bw, Bb, BMśw… (region Drawsko)"},
+]
 
 
 def _strtyt(cid, attr, label, values, default, imgs,
@@ -307,10 +326,11 @@ def build_schema():
                     "Mezoregion Doliny Dolnego Bugu", rows=4),
                 _select("all_og_kategoria", "all_og_kategoria_var",
                         "Kategoria zagrożenia pożarowego:",
-                        ["I", "II", "III"], "I"),
+                        ["I", "II", "III"], "I", tiles=KAT_TILES),
                 _select("all_og_tabela", "all_og_tabela_var",
                         "Tabela siedliskowa w opisie ogólnym:",
-                        ["Mazowiecka", "Wielkopolska", "Drawsko"], "Mazowiecka"),
+                        ["Mazowiecka", "Wielkopolska", "Drawsko"], "Mazowiecka",
+                        tiles=TAB_TILES),
                 _check("all_custom_skroty", "all_custom_skroty_var",
                        "Użyj własnego pliku 'Skróty i symbole' (zamiast domyślnego z programu)", False),
                 _path("all_skroty", "all_skroty_entry", "Własny plik:",
@@ -520,6 +540,26 @@ def build_schema():
                       "Folder z wynikami GDOŚ (opcjonalnie):",
                       "np. folder z plikami *_wynik.xlsx — formy ochrony przyrody "
                       "zostaną wstawione automatycznie"),
+                # --- te same ustawienia co w Pełnym Automacie (1-Click) ---
+                _textarea(
+                    "opis_og_nadzor", "opis_og_nadzor_entry",
+                    "1. NADZÓR — treść (można edytować):",
+                    "Nadzór nad gospodarką leśną lasów nie stanowiących własności "
+                    "Skarbu Państwa sprawuje Starosta Wołomiński w zakresie "
+                    "zadań własnych.", rows=2),
+                _textarea(
+                    "opis_og_warunki", "opis_og_warunki_entry",
+                    "2. WARUNKI PRZYRODNICZE — treść (można edytować):",
+                    "Lasy objęte uproszczonym planem urządzenia lasów położone są w:\n"
+                    "IV Mazowiecko-Podlaskiej krainie przyrodniczo-leśnej\n"
+                    "Mezoregion Doliny Dolnego Bugu", rows=4),
+                _select("opis_og_kategoria", "opis_og_kategoria_var",
+                        "Kategoria zagrożenia pożarowego:",
+                        ["I", "II", "III"], "I", tiles=KAT_TILES),
+                _select("opis_og_tabela", "opis_og_tabela_var",
+                        "Tabela siedliskowa w opisie ogólnym:",
+                        ["Mazowiecka", "Wielkopolska", "Drawsko"], "Mazowiecka",
+                        tiles=TAB_TILES),
             ],
             "buttons": [_button("run", "Generuj opisy ogólne", "start_opis_og")],
         },

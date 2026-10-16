@@ -346,8 +346,24 @@ class TabOpisOgMixin:
                      "— opisy ogólne nie powstaną.")
             self.update_status("Opisy ogólne pominięte", "#D83B01", animate=False)
             return
+        # edytowalne sekcje i wariant tabeli — tak samo jak w Pełnym Automacie
+        from app.gui.tabs import tab_opis_og as _oog
+
+        def _val(attr, dflt=""):
+            e = getattr(self, attr, None)
+            try:
+                v = e.get().strip() if e is not None else ""
+            except Exception:
+                v = ""
+            return v if v else dflt
+
+        nadzor = _val("opis_og_nadzor_entry", _oog.OG_NADZOR_DOMYSLNY)
+        warunki = _val("opis_og_warunki_entry", _oog.OG_WARUNKI_DOMYSLNE)
+        kategoria = _val("opis_og_kategoria_var", "I")
+        tabela = _val("opis_og_tabela_var", "mazowiecka")
         self._opis_og_generuj(Path(raw), Path(gdos_raw) if gdos_raw else None,
-                              skrocony=krotki)
+                              skrocony=krotki, nadzor=nadzor, warunki=warunki,
+                              kategoria=kategoria, tabela=tabela)
 
     def _opis_og_generuj(self, root, gdos_folder=None, tylko_istniejace=False,
                          skrocony=False, nadzor=None, warunki=None,

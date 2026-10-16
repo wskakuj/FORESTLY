@@ -5,18 +5,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="5553df60-78eb-40cf-b78a-3e24e8981b9c" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/gui/tabs/tab_opis_og.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/gui/tabs/tab_opis_og.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/gui/web_schema.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/gui/web_schema.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/webapp/app.js" beforeDir="false" afterPath="$PROJECT_DIR$/webapp/app.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/webapp/podglad_DOC_ANEKS_w1.png" beforeDir="false" afterPath="$PROJECT_DIR$/webapp/podglad_DOC_ANEKS_w1.png" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/webapp/podglad_DOC_ANEKS_w2.png" beforeDir="false" afterPath="$PROJECT_DIR$/webapp/podglad_DOC_ANEKS_w2.png" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/webapp/podglad_DOC_ANEKS_w3.png" beforeDir="false" afterPath="$PROJECT_DIR$/webapp/podglad_DOC_ANEKS_w3.png" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/webapp/podglad_DOC_ISL_w1.png" beforeDir="false" afterPath="$PROJECT_DIR$/webapp/podglad_DOC_ISL_w1.png" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/webapp/podglad_DOC_ISL_w2.png" beforeDir="false" afterPath="$PROJECT_DIR$/webapp/podglad_DOC_ISL_w2.png" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/webapp/podglad_DOC_ISL_w3.png" beforeDir="false" afterPath="$PROJECT_DIR$/webapp/podglad_DOC_ISL_w3.png" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/webapp/podglad_DOC_UPUL_w1.png" beforeDir="false" afterPath="$PROJECT_DIR$/webapp/podglad_DOC_UPUL_w1.png" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/webapp/podglad_DOC_UPUL_w2.png" beforeDir="false" afterPath="$PROJECT_DIR$/webapp/podglad_DOC_UPUL_w2.png" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/webapp/podglad_DOC_UPUL_w3.png" beforeDir="false" afterPath="$PROJECT_DIR$/webapp/podglad_DOC_UPUL_w3.png" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/webapp/style.css" beforeDir="false" afterPath="$PROJECT_DIR$/webapp/style.css" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -24,7 +15,7 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="153" />
+    <option name="cachedIndexableFilesCount" value="165" />
     <option name="fileBasedEmbeddingIndicesEnabled" value="true" />
   </component>
   <component name="Git.Settings">

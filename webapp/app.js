@@ -732,6 +732,20 @@ function closeWizard() {
 /* kafle-przyciski sterujące ukrytym selectem (kategoria zagrożenia,
    wariant tabeli) — pole zostaje w ukrytym formularzu, więc collectValues
    i zapis ustawień działają bez zmian */
+/* kafelki zdefiniowane przy kontrolce w schemacie — jedno źródło prawdy
+   (lista w karcie i w kreatorze nie może się już rozjechać) */
+function ctlTiles(cid) {
+  let found = null;
+  const walk = (cs) => {
+    for (const x of (cs || [])) {
+      if (x.kind === "group") walk(x.controls);
+      else if (x.id === cid) found = x;
+    }
+  };
+  ((SCHEMA && SCHEMA.tabs) || []).forEach(t => walk(t.controls));
+  return found && found.tiles ? found.tiles : null;
+}
+
 function wizTiles(f, opcje) {
   const kafle = el("div", "wiz-tiles");
   const sel2 = f ? (f.querySelector("select") || f.querySelector("input")) : null;
@@ -1027,21 +1041,15 @@ function renderWizStep() {
     const kartaK = el("div", "wiz-check-big");
     kartaK.innerHTML = '<h2>Kategoria zagrożenia pożarowego</h2>' +
       '<div class="wiz-sub">Która kategoria zostanie wpisana do opisu ogólnego?</div>';
-    kartaK.appendChild(wizTiles(wizField("all_og_kategoria"), [
-      { v: "I", t: "I kategoria", s: "dużego zagrożenia pożarowego" },
-      { v: "II", t: "II kategoria", s: "średniego zagrożenia pożarowego" },
-      { v: "III", t: "III kategoria", s: "małego zagrożenia pożarowego" },
-    ]));
+    kartaK.appendChild(wizTiles(wizField("all_og_kategoria"),
+      ctlTiles("all_og_kategoria") || []));
     st.appendChild(kartaK);
     const kartaT = el("div", "wiz-check-big");
     kartaT.innerHTML = '<h2>Tabela siedliskowa</h2>' +
       '<div class="wiz-sub">Wariant tabeli w opisie ogólnym — pomiędzy ' +
       '„położone są w…” a „Materiał używany do zalesień…”.</div>';
-    kartaT.appendChild(wizTiles(wizField("all_og_tabela"), [
-      { v: "Mazowiecka", t: "Mazowiecka", s: "kolumny: Bśw, Bw, Bb, BMśw…" },
-      { v: "Wielkopolska", t: "Wielkopolska", s: "kolumny: Bs, Bśw, BMśw…" },
-      { v: "Drawsko", t: "Drawsko", s: "kolumny: Bśw, Bw, Bb, BMśw… (region Drawsko)" },
-    ]));
+    kartaT.appendChild(wizTiles(wizField("all_og_tabela"),
+      ctlTiles("all_og_tabela") || []));
     st.appendChild(kartaT);
     next.onclick = () => { WIZ.step = 4; renderWizStep(); };
   } else if (WIZ.step === 4) {
@@ -2248,6 +2256,13 @@ function renderSelect(c) {
   sel.dataset.cid = c.id; sel.dataset.kind = "select";
   /* dla comboboxa input jest już wewnątrz .combo — nie przenosimy go */
   if (!row.contains(sel)) row.appendChild(sel);
+  /* v2.0.141: kontrolka może mieć kafelki wyboru (te same co w kreatorze).
+     Wtedy lista rozwijana jest zbędna — chowamy ją, ale zostaje w DOM,
+     bo z niej czytana jest wartość (collectValues / set_values). */
+  if (c.tiles && c.tiles.length) {
+    row.appendChild(wizTiles(row, c.tiles));
+    if (!c.free) sel.style.display = "none";
+  }
   return row;
 }
 
