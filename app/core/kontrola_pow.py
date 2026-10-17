@@ -329,6 +329,12 @@ def _read_dbf(filename):
 
 def _write_dbf(filename, fields, records):
     """Zapisuje listę rekordów do dBase III."""
+    # KOLEJNY = 1 dla KAŻDEGO rekordu — dotyczy pliku W*.DBF (właściciele
+    # mietka). Pole KOLEJNY występuje tylko w tej strukturze, więc inne
+    # pliki (D*, O*, WSIE, R*, Z*) zostają nietknięte. KOLEJNY nie jest
+    # nigdzie w programie czytany, więc zmiana nic nie psuje.
+    if any(str(f[0]).upper() == "KOLEJNY" for f in fields):
+        records = [dict(r, KOLEJNY=1) for r in records]
     num_records = len(records)
     header_length = 32 + (len(fields) * 32) + 1
     record_length = 1 + sum(f[2] for f in fields)
