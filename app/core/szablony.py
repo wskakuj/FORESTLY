@@ -225,6 +225,13 @@ def parse_optax(path):
             continue
         if k[0].isdigit() and k[1].isdigit():
             continue
+        # Wiersze naglowka OPTAX sa wielolinijkowe i maja po jednej niepustej
+        # komorce ("pow.", "do", "pozys", "[m3]"). Zadna komorka takiego
+        # wiersza nie ma cyfry, a kazdy wiersz DANYCH ja ma — dlatego
+        # odsiewamy wiersze bez ani jednej cyfry (inaczej do kolumny
+        # "Maks. miaz. do pozysk." trafialo slowo "do").
+        if not any(re.search(r"\d", c) for c in k):
+            continue
         wsk3 = [k[11], k[12] if len(k) > 12 else "", k[13] if len(k) > 13 else ""]
         wyk3 = [k[14] if len(k) > 14 else "",
                 k[15] if len(k) > 15 else "",
@@ -646,12 +653,16 @@ przeznaczonego do zalesienia</th>
 <th style="width:11%">Rodzaj wskazania</th><th class="n" style="width:6%">Pow.<br>[ha]</th>
 <th class="n" style="width:5%">Maks.<br>miąż. do<br>pozysk.<br>[m3]</th>
 <th>Czynn.</th><th class="n" style="width:4%">[ha]</th><th class="n" style="width:4%">[m3]</th>
+</tr>
+<tr class="numery"><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th><th>10</th><th>11</th><th>12</th><th>13</th><th>14</th><th>15</th><th>16</th><th>17</th></tr>
 
 <tbody>""" + "".join(tr) + "</tbody></table>"
+    extra = _th_nasycenie_css(nasycenie_naglowka) + """
+  tr.numery th { font-size: 6.6pt; font-weight: 600; padding: 0.4mm 0;
+                 text-align: center; border-top: 0.6pt solid #999; }"""
     return _strona("Opis lasów i gruntów przeznaczonych do zalesienia",
                    obiekt, stan, tresc, poziom=True, marginesy=marginesy,
-                   czcionki=czcionki,
-                   extra_css=_th_nasycenie_css(nasycenie_naglowka))
+                   czcionki=czcionki, extra_css=extra)
 
 
 def _tabklw3_tabelka(linie, start):

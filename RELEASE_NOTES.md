@@ -1,3 +1,3 @@
-# Co nowego w v2.0.180
-- poprawiono nowy szablon do wydruku TAB_KLW3
+# Co nowego w v2.0.181
+- poprawiono szablon OPTAX, dodano numery kolumn i usunięto pojawiające się "do" w kolumnie "Maks. miąż. do pozysk. [m3]"
 
