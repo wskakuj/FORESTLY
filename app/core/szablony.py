@@ -654,7 +654,90 @@ przeznaczonego do zalesienia</th>
                    extra_css=_th_nasycenie_css(nasycenie_naglowka))
 
 
+def _tabklw3_tabelka(linie, start):
+    """Zbiera wiersze tabelki ASCII (│ … │) od linii 'start' do konca tabelki."""
+    out = []
+    for ln in linie[start:]:
+        t = ln.strip()
+        if not t:
+            continue
+        if set(t) <= set("┌┐└┘├┤┬┴┼─│- "):
+            continue                      # obramowanie / separator tabelki
+        k = komorki(ln)
+        if k is None:
+            if out:
+                break                     # zwykly tekst = koniec tabelki
+            continue
+        out.append(k)
+    return out
+
+
+def parse_tabklw3_dodatki(path):
+    """Sekcje 2-4 z TAB_KLW3.TXT: siedliska, lasy ochronne, przebudowa.
+
+    Zwraca {"sekcje": [...]} — kazda sekcja to slownik gotowy do wypisania:
+    tabelka (kolumny + wartosci + stopka) albo wiersz 'Razem pow / Zasobnosc'.
+    """
+    linie = wczytaj(path).split("\n")
+    sekcje = []
+    for i, ln in enumerate(linie):
+        t = ln.strip()
+        if t.startswith("2. Zestawienie powierzchni siedliskowych"):
+            w = _tabklw3_tabelka(linie, i + 1)
+            kol, wart = [], []
+            for k in w:
+                if k and k[0].startswith("Powierzchnia"):
+                    wart = k[1:]
+                elif k and not k[0]:
+                    kol = k[1:]
+            stopka = ""
+            for ln2 in linie[i + 1:]:
+                m = re.search(r"powierzchnie inne\s*=\s*([\d.,]+)\s*ha", ln2)
+                if m:
+                    stopka = m.group(1)
+                    break
+                if ln2.strip().startswith("3."):
+                    break
+            sekcje.append({"tytul": t, "naglowek": "Siedliskowe typy lasu",
+                           "kolumny": kol, "wartosci": wart,
+                           "stopka": ("powierzchnie inne = " + stopka + " ha") if stopka else ""})
+        elif t.startswith("3. Zestawienie powierzchni lasów ochronnych"):
+            w = _tabklw3_tabelka(linie, i + 1)
+            kol, wart = [], []
+            for k in w:
+                if k and k[0].startswith("Powierzchnia"):
+                    wart = k[1:]
+                elif k and not k[0]:
+                    kol = k[1:]
+            sekcje.append({"tytul": t, "naglowek": "Kategoria ochronności",
+                           "kolumny": kol, "wartosci": wart, "stopka": ""})
+        elif t.startswith("4. Zestawienie powierzchni dla drzewostanów"):
+            pow_, zas = "", ""
+            for ln2 in linie[i + 1:]:
+                m = re.search(r"Razem\s+pow:\s*([\d.,]+)\s*ha\s+"
+                              r"Zasobność:\s*(\d+)\s*m3", ln2)
+                if m:
+                    pow_, zas = m.group(1), m.group(2)
+                    break
+            sekcje.append({"tytul": t, "przebudowa": True,
+                           "pow": pow_, "zas": zas})
+    return {"sekcje": sekcje}
+
+
+def parse_tabklw3_podsumowanie(path):
+    """Trzy linie pod tabela glowna TAB_KLW3: inne grunty / grunty do zal. /
+    Razem lasy — w kolejnosci wystapienia."""
+    out = []
+    for ln in wczytaj(path).split("\n"):
+        m = re.match(r"^\s*(inne grunty.*?|grunty do za[lł]\.?|Razem lasy)"
+                     r"\s*-\s*([\d.,]+)\s*$", ln)
+        if m:
+            out.append((m.group(1).strip(), m.group(2)))
+    return out
+
+
 def html_tabklw3(path, obiekt, stan, bez_nazwisk=False, marginesy=None, czcionki=None):
+    import html as _h
     grupy = parse_tabklw3(path)
     KLASY = ["Ia", "Ib", "IIa", "IIb", "IIIa", "IIIb", "IVa", "IVb",
              "Va", "Vb", "VIa", "VIb", "VII+", "K.D.O.", "K.O.", "Razem", "Ogółem"]
@@ -674,10 +757,69 @@ def html_tabklw3(path, obiekt, stan, bez_nazwisk=False, marginesy=None, czcionki
     head2 = '<tr>' + "".join(f'<th class="n">{k}</th>' for k in KLASY) + "</tr>"
     tresc = ("<table><thead>" + head1 + head2 + "</thead><tbody>" + "".join(tr)
              + "</tbody></table>")
+
+    # --- podsumowanie pod tabela glowna (inne grunty / grunty do zal. / Razem lasy) ---
+    podsum = ""
+    _pod = parse_tabklw3_podsumowanie(path)
+    if _pod:
+        podsum = ('<div class="podsum">' + "".join(
+            '<div><span>' + _h.escape(l, quote=False) + '</span>'
+            '<span class="sep">-</span><b>' + _h.escape(v, quote=False) + '</b></div>'
+            for l, v in _pod) + '</div>')
+
+    # --- sekcje 2-4 (siedliska, lasy ochronne, przebudowa) ---
+    dod = []
+    for _i, sek in enumerate(parse_tabklw3_dodatki(path)["sekcje"]):
+        tyt = _h.escape(sek["tytul"], quote=False)
+        _kls = "sekcja nowa-strona" if _i == 0 else "sekcja"
+        if sek.get("przebudowa"):
+            dod.append(
+                '<div class="' + _kls + '"><h2>' + tyt + '</h2>'
+                '<p class="raz">Razem&nbsp; pow: <b>' + _h.escape(sek["pow"])
+                + '</b> ha&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Zasobność: <b>'
+                + _h.escape(sek["zas"]) + '</b> m³</p></div>')
+            continue
+        kol = sek.get("kolumny") or []
+        wart = sek.get("wartosci") or []
+        if not kol or not wart:
+            continue
+        n = len(kol)
+        thead = ('<tr><th rowspan="2" style="width:22%">Wyszczególnienie</th>'
+                 '<th colspan="' + str(n) + '">' + _h.escape(sek["naglowek"])
+                 + '</th></tr><tr>'
+                 + "".join('<th class="n">' + _h.escape(k) + '</th>' for k in kol)
+                 + '</tr>')
+        tb = ('<tr><td>Powierzchnia ha</td>'
+              + "".join('<td class="n">' + _h.escape(v) + '</td>' for v in wart)
+              + '</tr>')
+        dod.append('<div class="' + _kls + '"><h2>' + tyt + '</h2>'
+                   '<table class="sek"><thead>' + thead + '</thead><tbody>' + tb
+                   + '</tbody></table>'
+                   + (('<p class="stopka">' + _h.escape(sek["stopka"])
+                       + '</p>') if sek.get("stopka") else "")
+                   + '</div>')
+
+    extra = """
+  .podsum { margin: 3mm 0 0; }
+  .podsum div { display: flex; justify-content: flex-end; align-items: baseline;
+                font-size: 9.5pt; line-height: 1.5; }
+  .podsum span:first-child { text-align: left; }
+  .podsum .sep { margin: 0 3mm; }
+  .podsum b { min-width: 22mm; text-align: right; }
+  .sekcja { page-break-inside: avoid; }
+  .nowa-strona { page-break-before: always; break-before: page; }
+  .sekcja h2 { font-size: 10.5pt; margin: 0 0 2.5mm; font-weight: 700; }
+  table.sek { width: auto; min-width: 60%; margin: 0 0 2mm; }
+  table.sek th, table.sek td { padding: 1.4mm 4mm; }
+  table.sek th { text-align: center; }
+  p.stopka { margin: 1.5mm 0 0 0; font-size: 9.5pt; }
+  p.raz { margin: 2mm 0 0 4mm; font-size: 10pt; }
+  .sekcja + .sekcja { margin-top: 7mm; }"""
+
     return _strona("Zestawienie powierzchni gruntów i miąższości drzewostanu "
                    "wg gatunków panujących (głównych) wg klas i podklas wieku",
-                   obiekt, stan, tresc, poziom=True, marginesy=marginesy,
-                   czcionki=czcionki)
+                   obiekt, stan, tresc + podsum + "".join(dod), poziom=True,
+                   marginesy=marginesy, czcionki=czcionki, extra_css=extra)
 
 
 def html_wskaz1(path, obiekt, stan, okres="", bez_nazwisk=False, marginesy=None, czcionki=None):
