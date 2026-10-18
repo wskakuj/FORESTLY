@@ -441,6 +441,9 @@ CSS = """
      domyślnie 40% = #acacac */
   th { font-weight: 600; font-size: 7.6pt; background: #acacac; color: #141414;
        -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* wiersz numerów kolumn (REJESTR1, OPTAX) — jak w oryginalnych wydrukach */
+  tr.numery th { font-size: 6.6pt; font-weight: 600; padding: 0.4mm 0;
+                 text-align: center; border-top: 0.6pt solid #999; }
   th .opis { color: #555; }
   /* pionowy napis ("Ochr.") — transform na spanie, NIE na komórce:
      transform bezpośrednio na th psuł obramowanie przy border-collapse */
@@ -454,6 +457,8 @@ CSS = """
   tr.razem td { font-weight: 600; background: #f7f7f7; }
   tr.razem.ob td { border-top: 1.6pt solid #111; font-weight: 700; }
   tr.sub td { font-style: italic; background: #fbfbfb; }
+  /* "Razem pozycja" — cały wiersz i wszystkie wartości pogrubione */
+  tr.rp td { font-weight: 700; background: #f0f0f0; }
   td.rl { text-align: right; white-space: nowrap; }
   tr.rdz td { background: none; border-top-color: transparent; border-bottom-color: transparent; }
   tr.rdz td.rl { text-align: right; font-style: italic; font-weight: 600;
@@ -562,16 +567,12 @@ def html_rejestr1(path, obiekt, stan, bez_nazwisk=False, marginesy=None,
                 else:
                     tr.append("<tr>" + wl_td + kom + "</tr>")
                 wl_first = False
-        cd = 15 if bez_nazwisk else 16
-        if p["razem_d"] and not p["razem_ob"]:
-            nr_d = p.get("razem_d_nr") or ""
-            tr.append(f'<tr class="rdz">'
-                      f'<td class="rl" colspan="2">Razem działka {nr_d} — {p["razem_d"]} ha</td>'
-                      f'<td colspan="{cd}"></td></tr>')
+        # wiersz "Razem działka" usunięty — pokazywał powierzchnię JEDNEJ
+        # działki, a nie wszystkich w pozycji (wprowadzał w błąd)
         cp_ = 4 if bez_nazwisk else 5
         if p["razem_p"]:
             rp = list(p["razem_p"]) + [""] * (6 - len(p["razem_p"]))
-            tr.append(f'<tr class="sub"><td class="rl" colspan="2">Razem pozycja</td>'
+            tr.append(f'<tr class="rp"><td colspan="2">Razem pozycja</td>'
                       f'<td colspan="{cp_}"></td>'
                       f'<td class="n">{rp[0]}</td><td class="n">{rp[1]}</td>'
                       f'<td class="n">{rp[2]}</td><td class="n">{rp[3]}</td>'
@@ -586,6 +587,12 @@ def html_rejestr1(path, obiekt, stan, bez_nazwisk=False, marginesy=None,
                       f'<td class="n">{rv[2]}</td><td class="n">{rv[3]}</td>'
                       f'<td class="n">{rv[4]}</td><td class="n">{rv[5]}</td>'
                       f'<td colspan="5"></td></tr>')
+    # numeracja kolumn jak w oryginalnym wydruku REJESTR1
+    # (18 kolumn z nazwiskami, 17 bez kolumny "Nazwisko i imię")
+    n_kol = 17 if bez_nazwisk else 18
+    numery = ('<tr class="numery">'
+              + "".join(f'<th>{i}</th>' for i in range(1, n_kol + 1))
+              + '</tr>')
     nazw_th = "" if bez_nazwisk else (
         '<th rowspan="3" style="width:14%">Nazwisko i imię<br>'
         '<span class="opis">adres, współwłaściciele</span></th>\n')
@@ -604,7 +611,8 @@ def html_rejestr1(path, obiekt, stan, bez_nazwisk=False, marginesy=None,
 <th rowspan="2" class="n" style="width:5.5%">Pow.<br>[ha]</th>
 <th rowspan="2" class="n" style="width:5.5%">Miąż.<br>[m³]</th></tr>
 <tr><th>gat.</th><th>W</th><th>Bon</th><th>Pow.</th><th>do<br>odn.</th>
-<th>pozost.</th></tr></thead>"""
+<th>pozost.</th></tr>
+{numery}</thead>"""
     tresc = ('<table>' + head + '<tbody>' + "".join(tr) + "</tbody></table>")
     return _strona("Rejestr działek leśnych i gruntów do zalesienia wg. właścicieli",
                    obiekt, stan, tresc, poziom=True, marginesy=marginesy,
@@ -657,12 +665,10 @@ przeznaczonego do zalesienia</th>
 <tr class="numery"><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th><th>10</th><th>11</th><th>12</th><th>13</th><th>14</th><th>15</th><th>16</th><th>17</th></tr>
 
 <tbody>""" + "".join(tr) + "</tbody></table>"
-    extra = _th_nasycenie_css(nasycenie_naglowka) + """
-  tr.numery th { font-size: 6.6pt; font-weight: 600; padding: 0.4mm 0;
-                 text-align: center; border-top: 0.6pt solid #999; }"""
     return _strona("Opis lasów i gruntów przeznaczonych do zalesienia",
                    obiekt, stan, tresc, poziom=True, marginesy=marginesy,
-                   czcionki=czcionki, extra_css=extra)
+                   czcionki=czcionki,
+                   extra_css=_th_nasycenie_css(nasycenie_naglowka))
 
 
 def _tabklw3_tabelka(linie, start):
