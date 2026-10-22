@@ -85,9 +85,9 @@
   "web.zm_src": "",
   "web.zm_out": "",
   "web.pc_dst": "D:\\download\\gówno\\Nowy folder (28)",
-  "web.all_src": "D:\\download\\gówno\\Nowy folder (29)\\Nowy folder (5)\\GMINA TŁUSZCZ",
+  "web.all_src": "D:\\download\\gówno\\Nowy folder (29)\\Nowy folder (5)\\Nowy folder",
   "web.all_dst": "D:\\download\\gówno\\Nowy folder (29)\\Nowy folder (5)",
-  "web.all_tpl_szablon": "Wersja 3",
+  "web.all_tpl_szablon": "Wersja 2",
   "web.all_tpl_doc": "UPUL",
   "web.all_tpl_prefix": "położonych na terenie obrębu",
   "web.all_tpl_woj": "KUJAWSKO-POMORSKIE",
@@ -107,9 +107,9 @@
   "web.all_custom_skroty": false,
   "web.all_skroty": "",
   "web.all_kontrola": true,
-  "web.all_obie_wersje": false,
+  "web.all_obie_wersje": true,
   "web.all_mapa": "",
-  "web.remove_names": false,
+  "web.remove_names": true,
   "web.czcionki.ALL": {
     "REJESTR1": {
       "tytul": {
@@ -315,7 +315,7 @@
   },
   "web.word_src": "",
   "web.word_dst": "",
-  "web.word_remove_names": false,
+  "web.word_remove_names": true,
   "web.word_filters": {
     "Wszystkie": true,
     "REJESTR1": false,
@@ -378,8 +378,8 @@
   "web.nm_rokz": "19",
   "web.mm_src": "D:\\download\\gówno\\Nowy folder (28)",
   "web.xl_dst": "\\\\NASA\\wd-wcc3f2596652\\aneks TUCHOLA\\xls",
-  "web.nowe_szablony": true,
-  "last_output_dir": "D:\\download\\gówno\\Nowy folder (29)\\Nowy folder (5)\\PDF polaczone",
+  "web.nowe_szablony": false,
+  "last_output_dir": "D:\\download\\gówno\\Nowy folder (29)\\Nowy folder (5)\\Bez nazwisk\\PDF polaczone",
   "web.opis_og_nadzor": "Nadzór nad gospodarką leśną lasów nie stanowiących własności Skarbu Państwa sprawuje Starosta Wołomiński w zakresie zadań własnych.",
   "web.opis_og_warunki": "Lasy objęte uproszczonym planem urządzenia lasów położone są w:\nIV Mazowiecko-Podlaskiej krainie przyrodniczo-leśnej\nMezoregion Doliny Dolnego Bugu",
   "web.opis_og_kategoria": "III",
@@ -392,5 +392,16 @@
   "all_tpl.stan_na": "30.06.2026 r.",
   "all_tpl.okres": "01.01.2027 – 31.12.2036 r.",
   "all_tpl.wsk_od": "01-01-2027",
-  "all_tpl.wsk_do": "31-12-2036"
+  "all_tpl.wsk_do": "31-12-2036",
+  "opis_og.nadzor": "Nadzór nad gospodarką leśną lasów nie stanowiących własności Skarbu Państwa sprawuje Starosta Wołomiński w zakresie zadań własnych.",
+  "opis_og.warunki": "Lasy objęte uproszczonym planem urządzenia lasów położone są w:\nIV Mazowiecko-Podlaskiej krainie przyrodniczo-leśnej\nMezoregion Doliny Dolnego Bugu",
+  "mapa.przypisania": {
+    "D:\\download\\gówno\\Nowy folder (29)\\Nowy folder (5)\\GMINA TŁUSZCZ\\GRABÓW\\MAPA\\GRABÓW.tif": "JARZĘBIA ŁAKA",
+    "D:\\download\\gówno\\Nowy folder (29)\\Nowy folder (5)\\GMINA TŁUSZCZ\\JARZĘBIA ŁAKA\\MAPA\\JARZĘBIA ŁĄKA.tif": "JARZĘBIA ŁAKA",
+    "D:\\download\\gówno\\Nowy folder (29)\\Nowy folder (5)\\GMINA TŁUSZCZ\\STASINÓW\\STASNINÓW MAPA\\STASINÓW_.tif": "STASINÓW",
+    "D:\\download\\gówno\\Nowy folder (29)\\Nowy folder (5)\\Nowy folder\\JARZĘBIA ŁAKA\\MAPA\\JARZĘBIA ŁĄKA.tif": "JARZĘBIA ŁAKA",
+    "JARZĘBIA ŁĄKA.tif": "JARZĘBIA ŁAKA",
+    "D:\\download\\gówno\\Nowy folder (29)\\Nowy folder (5)\\Nowy folder\\GRABÓW\\MAPA\\GRABÓW.tif": "GRABÓW",
+    "GRABÓW.tif": "GRABÓW"
+  }
 }

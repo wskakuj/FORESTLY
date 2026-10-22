@@ -694,24 +694,77 @@ async function wizMapyZeZrodla(host) {
   }
   box.innerHTML = '<div class="wiz-map-auto-h">Sprawdzam mapy…</div>';
   let r = null;
-  try { r = await api().mapy_ze_zrodla(); } catch (e) { r = null; }
-  if (!r || !r.ok) { box.innerHTML = ""; return; }
+  try { r = await api().mapy_status(); } catch (e) { r = null; }
+  if (!r || !r.ok) {
+    /* starsza wersja PROGRAMU (bez mapy_status) — pokaż choć prostą listę */
+    let r2 = null;
+    try { r2 = await api().mapy_ze_zrodla(); } catch (e) { r2 = null; }
+    if (r2 && r2.ok) {
+      const wg = {};
+      for (const m of (r2.mapy || [])) {
+        const k = m.wies || "(bez nazwy wsi)";
+        (wg[k] = wg[k] || []).push(m.plik);
+      }
+      const li = Object.keys(wg).sort().map(k =>
+        '<li><b>' + escapeHtml(k) + '</b> — ' +
+        wg[k].map(escapeHtml).join(", ") + '</li>').join("");
+      box.innerHTML = '<div class="wiz-map-auto-h">Zaczytane automatycznie (' +
+        (r2.mapy || []).length + '):</div><ul class="wiz-map-auto-l">' +
+        li + '</ul>';
+      return;
+    }
+    box.innerHTML = "";
+    return;
+  }
   const mapy = r.mapy || [];
   if (!mapy.length) {
     box.innerHTML = '<div class="wiz-map-auto-h">Nie znalazłem map — ' +
       'wskaż folder z mapami albo przeciągnij pliki poniżej.</div>';
     return;
   }
-  const wg = {};
-  for (const m of mapy) {
-    const k = m.wies || "(bez nazwy wsi)";
-    (wg[k] = wg[k] || []).push(m.plik);
+  const wsie = r.wsie || [];
+  const dop = mapy.filter(m => m.cel).length;
+  const h = ['<div class="wiz-map-auto-h">Mapy (' + mapy.length +
+             '): dopasowane ' + dop + ', niedopasowane ' +
+             (mapy.length - dop) + '</div>'];
+  if (mapy.length - dop > 0) {
+    h.push('<div class="wiz-map-hint">Niedopasowane (pomarańczowe) ' +
+           'przypisz do wsi z listy obok nazwy pliku — wybór zapisuje się ' +
+           'od razu. Opcja „automatycznie" przywraca dopasowanie po nazwie.' +
+           '</div>');
   }
-  const li = Object.keys(wg).sort().map(k =>
-    '<li><b>' + escapeHtml(k) + '</b> — ' +
-    wg[k].map(escapeHtml).join(", ") + '</li>').join("");
-  box.innerHTML = '<div class="wiz-map-auto-h">Zaczytane automatycznie (' +
-    mapy.length + '):</div><ul class="wiz-map-auto-l">' + li + '</ul>';
+  h.push('<ul class="wiz-map-auto-l">');
+  for (const m of mapy) {
+    const ok = !!m.cel;
+    h.push('<li class="' + (ok ? "wiz-map-ok" : "wiz-map-nie") + '">' +
+           '<b>' + escapeHtml(m.plik) + '</b> — ' +
+           (ok
+             ? ('wieś: <b>' + escapeHtml(m.cel) + '</b>' +
+                (m.recznie ? ' <span class="wiz-map-recz">(ręcznie)</span>' : ''))
+             : '<span class="wiz-map-brak">NIE DOPASOWANO</span>') +
+           (wsie.length
+             ? ' <select class="wiz-map-sel" data-sciezka="' +
+               escapeHtml(m.sciezka || "") + '">' +
+               '<option value="">— automatycznie (po nazwie) —</option>' +
+               wsie.map(w => '<option value="' + escapeHtml(w) + '"' +
+                             (w === m.cel ? " selected" : "") + '>' +
+                             escapeHtml(w) + '</option>').join("") +
+               '</select>'
+             : '') +
+           '</li>');
+  }
+  h.push("</ul>");
+  box.innerHTML = h.join("");
+  box.querySelectorAll("select.wiz-map-sel").forEach(sel => {
+    sel.addEventListener("change", async () => {
+      try {
+        const rr = await api().mapa_przypisz(sel.dataset.sciezka || "",
+                                             sel.value || "");
+        if (!rr || !rr.ok) toast((rr && rr.error) || "Nie zapisano.", "warn");
+        wizMapyZeZrodla(host);
+      } catch (e) { toast("Nie udało się zapisać przypisania.", "warn"); }
+    });
+  });
 }
 
 function wizVal(cid) {
@@ -1019,21 +1072,10 @@ function renderWizStep() {
         ' i opisami ogólnymi) → PDF → scalenie w jeden dokument.<br>' +
         'Przeprowadzę Cię przez pięć krótkich kroków — potem zrobię wszystko sama.</div>' +
       '</div>';
-    /* przełącznik nowych szablonów (HTML → PDF bez Worda) */
-    const nsw = el("label", "check-row wiz-newtpl");
-    nsw.innerHTML = '<input type="checkbox" id="wiz-nowe-szablony"><span>' +
-      '<b>Nowe szablony wydruków</b><br>' +
-      '<span class="opis">Włączony: szybsze generowanie PDF bez Worda i nowy,' +
-      ' czytelniejszy wygląd. Wyłączony: wszystko działa jak dotychczas.</span></span>';
-    const nsInp = nsw.querySelector("input");
-    nsInp.checked = (localStorage.getItem("forestly_nowe_szablony") ?? "1") !== "0";
-    nsInp.addEventListener("change", () => {
-      localStorage.setItem("forestly_nowe_szablony", nsInp.checked ? "1" : "0");
-      scheduleSetValues();
-    });
-    const heroBox = st.querySelector(".wiz-hero");
-    if (heroBox) heroBox.appendChild(nsw);
-    /* synchronizacja stanu z backendem od razu (żeby default też doszedł) */
+    /* Przełącznik „Nowe szablony wydruków" został USUNIĘTY z ekranu
+       powitalnego — wybór szablonów idzie teraz automatycznie za wersją
+       strony tytułowej („Wersja 1" = stare, „Wersja 2/3" = nowe).
+       Rozstrzyga to program przy starcie (log: [SZABLONY] …). */
     scheduleSetValues();
     back.classList.add("hidden");
     next.innerHTML = "<span>Zaczynamy ›</span>";
@@ -1274,6 +1316,14 @@ function renderWizStep() {
        _wizChk("all_kontrola") ? "PDF z kontrolą obok scalonych"
                                : "— bez kontroli —"],
       ["Mapy", wizVal("all_mapa") || "— automatycznie z folderów MAPA —"],
+      ["Szablony wydruków", (function () {
+         const v = String(wizVal("all_tpl_szablon") || "Wersja 1");
+         const nowe = (v.indexOf("Wersja 2") === 0 || v.indexOf("Wersja 3") === 0
+                       || v.indexOf("B") === 0 || v.indexOf("D") === 0);
+         return (nowe ? "nowe (HTML → PDF, bez Worda)"
+                      : "stare (jak dotychczas)") +
+                " — z wyboru: " + v;
+       })()],
       ["Własne skróty i symbole", wizVal("all_custom_skroty")
         ? (wizVal("all_skroty") || "(nie wskazano pliku)") : "domyślne z programu"],
       ["Opisy ogólne", wizVal("all_pelny_opis_og")
@@ -2329,6 +2379,20 @@ function renderStrTyt(c) {
   const kontener = el("div", "strtyt-kontener");
   const row = renderSelect({ id: c.id, label: c.label, values: c.values, default: c.default });
   const sel = row.querySelector('select[data-cid="' + c.id + '"]');
+  /* v2.0.14x: wybór wersji strony tytułowej steruje też przełącznikiem
+     „Nowe szablony wydruków" — „Wersja 1" (wbudowana, stara) = stare
+     szablony, „Wersja 2/3" = nowe. Inaczej tytuł i raporty wyglądały
+     niespójnie. */
+  if (c.id === "all_tpl_szablon" && sel) {
+    const _syncTpl = () => {
+      const _v = String(sel.value || "");
+      const _nowe = (_v.indexOf("Wersja 2") === 0 || _v.indexOf("Wersja 3") === 0
+                     || _v.indexOf("B") === 0 || _v.indexOf("D") === 0);
+      try { localStorage.setItem("forestly_nowe_szablony", _nowe ? "1" : "0"); } catch (e) {}
+    };
+    sel.addEventListener("change", _syncTpl);
+    _syncTpl();
+  }
   const box = el("div", "strtyt-podglady");
   const oznacz = () => {
     $$(".strtyt-podglad", box).forEach(f => f.classList.toggle("on", f.dataset.value === (sel && sel.value)));
@@ -2873,9 +2937,6 @@ function collectValues() {
       out[cid] = data;
     }
   });
-  /* przełącznik "nowe szablony" (ekran powitalny kreatora 1-Click) */
-  const _ns = document.getElementById("wiz-nowe-szablony");
-  if (_ns) out.nowe_szablony = _ns.checked;
   return out;
 }
 

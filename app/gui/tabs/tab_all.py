@@ -1218,6 +1218,30 @@ class TabAllMixin:
 
         ns_var = getattr(self, "nowe_szablony_var", None)
         nowe_szablony_flag = bool(ns_var.get()) if ns_var is not None else False
+
+        # Wybór strony tytułowej steruje też szablonami POZOSTAŁYCH wydruków:
+        #   „Wersja 1" (wbudowana, stara)  -> stare szablony,
+        #   „Wersja 2" / „Wersja 3"        -> nowe szablony.
+        # Bez tego tytuł i raporty wychodziły w różnych stylach.
+        # (Stare wartości v2.0.111–112: „Wbudowany"/„A —…"/„C —…" = stare,
+        #  „B —…"/„D —…" = nowe — rozpoznajemy jak reszta programu.)
+        if mode == "ALL":
+            _tpl_var = getattr(self, "all_tpl_szablon_var", None)
+            _tpl = str(_tpl_var.get() or "").strip() if _tpl_var is not None else ""
+            if _tpl:
+                _chce_nowe = (_tpl.startswith("Wersja 2")
+                              or _tpl.startswith("Wersja 3")
+                              or _tpl.startswith("B") or _tpl.startswith("D"))
+                if _chce_nowe != nowe_szablony_flag:
+                    nowe_szablony_flag = _chce_nowe
+                    if ns_var is not None:
+                        ns_var.set(_chce_nowe)
+                    self.log("[SZABLONY] Strona tytułowa: " + _tpl
+                             + " — pozostałe wydruki "
+                             + ("NOWYMI szablonami (spójnie z tytułem)."
+                                if _chce_nowe else
+                                "STARYM szablonem (spójnie z tytułem)."))
+
         if mode == "ALL":
             self.log("Nowe szablony wydruków (HTML → PDF, bez Worda): "
                      + ("WŁĄCZONE" if nowe_szablony_flag else "wyłączone")
@@ -2140,6 +2164,9 @@ class TabAllMixin:
         wtedy, gdy plik nazywa się zwyczajnie 'mapa.jpg'.
         """
         zrodla = {}
+        _widziane = set()      # ten sam plik bywa znaleziony dwa razy
+                               # (we wskazanym folderze i w drzewie źródłowym
+                               #  — np. gdy folder MAPY leży w źródle)
 
         def _dodaj(base):
             base = Path(base)
@@ -2149,6 +2176,13 @@ class TabAllMixin:
                 if not (f.is_file()
                         and f.suffix.lower() in self._MAPA_ROZSZERZENIA):
                     continue
+                try:
+                    _rp = str(Path(f).resolve())
+                except Exception:
+                    _rp = str(f)
+                if _rp in _widziane:
+                    continue
+                _widziane.add(_rp)
                 try:
                     rel = f.relative_to(base)
                 except ValueError:
@@ -2183,6 +2217,74 @@ class TabAllMixin:
         _dodaj(Path(tempfile.gettempdir()) / "forestly_mapy")
         return zrodla
 
+    # ------------------------------------------------ przypisania map
+    def _mapa_przypisania(self):
+        """Ręczne przypisania map do wsi: {pełna ścieżka pliku: nazwa wsi}.
+
+        Użytkownik poprawia dopasowanie w kreatorze (krok „Mapy") —
+        zapisuje się w settings.json i jest używane przy każdym biegu."""
+        try:
+            d = self.get_setting("mapa.przypisania", {})
+            return dict(d) if isinstance(d, dict) else {}
+        except Exception:
+            return {}
+
+    def _mapa_dla_wsi(self, zrodla, wies, przypisania=None):
+        """Plik mapy dla wsi: najpierw RĘCZNE przypisanie, potem nazwa pliku."""
+        if przypisania is None:
+            przypisania = self._mapa_przypisania()
+        wz = self._norm_nazwy(str(wies or "").replace(".001", ""))
+        if not wz:
+            return None
+        for _n, _f in zrodla.items():
+            _p = _f
+            _w = przypisania.get(str(Path(_p))) or przypisania.get(Path(_p).name)
+            if _w and self._norm_nazwy(_w) == wz:
+                return _p
+        for _n, _f in zrodla.items():
+            if wz in self._norm_nazwy(Path(_n).stem):
+                return _f
+        return None
+
+    def _wsie_ze_zrodla(self):
+        """Nazwy wsi ze wskazanego źródła (foldery z plikami O*.DBF)."""
+        try:
+            from app.config import folder_wsi_dla_danych
+            ent = getattr(self, "entries", None) or {}
+            src = ""
+            for _m in ("ALL", "NS"):
+                _e = (ent.get(_m) or {}).get("src")
+                if _e is not None and str(_e.get() or "").strip():
+                    src = str(_e.get()).strip()
+                    break
+            if src and Path(src).is_dir():
+                w = {folder_wsi_dla_danych(p.parent).name
+                     for p in Path(src).rglob("*.DBF")
+                     if p.name[:1].upper() == "O"}
+                w = {x for x in w if x}
+                if w:
+                    return sorted(w)
+            # zapas: foldery wynikowe z poprzedniego biegu (PDF/Word/TXT)
+            from app.config import nazwa_nietechnicznego
+            ent2 = getattr(self, "entries", None) or {}
+            for _m in ("ALL", "NS"):
+                _e = (ent2.get(_m) or {}).get("dst")
+                _dst = str(_e.get() or "").strip() if _e is not None else ""
+                if not _dst or not Path(_dst).is_dir():
+                    continue
+                for _sub in ("PDF", "Word", "TXT"):
+                    _d = Path(_dst) / _sub
+                    if not _d.is_dir():
+                        continue
+                    _w2 = {nazwa_nietechnicznego(q.parent)
+                           for q in _d.rglob("*.pdf")}
+                    _w2 = {x for x in _w2 if x}
+                    if _w2:
+                        return sorted(_w2)
+            return []
+        except Exception:
+            return []
+
     def _inject_mapa_step(self, pdf_dir):
         """Mapy (jpg/png/tiff) dopasowane PO NAZWIE WSI → 'mapa.pdf' w folderach.
 
@@ -2208,16 +2310,15 @@ class TabAllMixin:
                 # wieś z folderu PDF — z pominięciem folderów technicznych
                 # (PDF/WORD/TXT/MIETEK/MAPA…), więc działa też <wieś>/MIETEK
                 wsie = sorted({nazwa_nietechnicznego(f) for f in pdf_folders})
+            przypisania = self._mapa_przypisania()
+            _recznie = [f"{Path(k).name} → {v}" for k, v in przypisania.items()]
+            if _recznie:
+                self.log("[MAPA] Ręczne przypisania: " + "; ".join(_recznie))
             cache_pdfow = {}          # mapa źródłowa -> gotowy mapa.pdf (raz konwertowana)
             n = 0
             niedopasowane = []
             for wieś in wsie:
-                wz = self._norm_nazwy(wieś.replace(".001", ""))
-                trafienie = None
-                for nazwa, f in zrodla.items():
-                    if wz and wz in self._norm_nazwy(Path(nazwa).stem):
-                        trafienie = f
-                        break
+                trafienie = self._mapa_dla_wsi(zrodla, wieś, przypisania)
                 if trafienie is None and len(wsie) == 1 and len(zrodla) == 1:
                     trafienie = next(iter(zrodla.values()))   # jedna wieś, jedna mapa
                 if trafienie is None:
@@ -2238,19 +2339,22 @@ class TabAllMixin:
                     plik_mapy.write_bytes(cache_pdfow[trafienie])
                     n += 1
                 self.log(f"[MAPA] {wieś}: mapa {trafienie.name} → mapa.pdf")
-            for nazwa in zrodla:
-                if not any(self._norm_nazwy(w.replace(".001", ""))
-                           in self._norm_nazwy(Path(nazwa).stem)
-                           for w in wsie):
+            _uzyte = set()
+            for w in wsie:
+                _t = self._mapa_dla_wsi(zrodla, w, przypisania)
+                if _t is not None:
+                    _uzyte.add(str(_t))
+            for nazwa, f in zrodla.items():
+                if str(f) not in _uzyte:
                     niedopasowane.append(nazwa)
             if niedopasowane:
-                self.log("[MAPA] Nie dopasowano (w nazwie brak nazwy wsi): "
+                self.log("[MAPA] NIE dopasowano " + str(len(niedopasowane))
+                         + " map(y) — popraw ręcznie w kreatorze, krok Mapy: "
                          + ", ".join(niedopasowane))
             bez_mapy = [w for w in wsie
-                        if not any(self._norm_nazwy(w.replace(".001", ""))
-                                   in self._norm_nazwy(Path(n).stem) for n in zrodla)]
-            if bez_mapy and len(bez_mapy) < len(wsie):
-                self.log("[MAPA] Bez mapy zostały: " + ", ".join(bez_mapy))
+                        if self._mapa_dla_wsi(zrodla, w, przypisania) is None]
+            if bez_mapy:
+                self.log("[MAPA] Wsie bez mapy: " + ", ".join(bez_mapy))
             return n
         except Exception as e:
             self.log(f"[MAPA] Nie udało się dołączyć map: {e}")

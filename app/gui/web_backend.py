@@ -2574,6 +2574,72 @@ class WebBackend(
                 pass
         return r
 
+    def mapy_status(self):
+        """Mapy + informacja, do której wsi pasują — dla kreatora.
+
+        Zwraca też listę wsi ze źródła, żeby dało się RĘCZNIE poprawić
+        dopasowanie mapy, której nazwa nie zawiera nazwy wsi.
+        """
+        try:
+            zrodla = self._mapa_zrodla()
+        except Exception as e:
+            return {"ok": False, "error": str(e), "mapy": [], "wsie": []}
+        wsie = self._wsie_ze_zrodla()
+        przypisania = self._mapa_przypisania()
+        # wieś wskazana RĘCZNIE też musi być na liście wyboru — inaczej po
+        # zmianie źródła nie dałoby się przypisać mapy z powrotem
+        for _w in sorted({str(v).strip() for v in przypisania.values()
+                          if str(v).strip()}):
+            if _w not in wsie:
+                wsie.append(_w)
+        wsie = sorted({w for w in wsie if w})
+        _drop = Path(tempfile.gettempdir()) / "forestly_mapy"
+        _cel = {}          # ścieżka -> wieś (żeby pokazać, gdzie trafiła)
+        for w in wsie:
+            _f = self._mapa_dla_wsi(zrodla, w, przypisania)
+            if _f is not None and str(_f) not in _cel:
+                _cel[str(_f)] = w
+        out = []
+        for _klucz, f in sorted(zrodla.items(), key=lambda kv: str(kv[1])):
+            f = Path(f)
+            # RĘCZNE przypisanie ma zawsze pierwszeństwo — taka mapa nigdy
+            # nie pokaże się jako „NIE DOPASOWANO"
+            _man = str(przypisania.get(str(f))
+                       or przypisania.get(f.name) or "").strip()
+            _folder = str(f.parent)
+            if _drop.exists() and _drop in f.parents:
+                _folder = "przeciągnięte w kreatorze"
+            out.append({"plik": f.name, "folder": _folder,
+                        "sciezka": str(f),
+                        "cel": _man or _cel.get(str(f), ""),
+                        "recznie": bool(_man)})
+        return {"ok": True, "mapy": out, "wsie": wsie}
+
+    def mapa_przypisz(self, sciezka, wies):
+        """Ręczne przypisanie mapy do wsi (zapamiętane w settings.json).
+
+        Puste 'wies' = usuń przypisanie (mapa wraca do dopasowania po nazwie).
+        """
+        try:
+            d = self.get_setting("mapa.przypisania", {})
+            if not isinstance(d, dict):
+                d = {}
+            klucz = str(sciezka or "").strip()
+            if not klucz:
+                return {"ok": False, "error": "Nie wskazano mapy."}
+            if str(wies or "").strip():
+                _w = str(wies).strip()
+                d[klucz] = _w
+                # zapas: to samo pod nazwą pliku — gdyby ścieżka się zmieniła
+                d[Path(klucz).name] = _w
+            else:
+                d.pop(klucz, None)
+                d.pop(Path(klucz).name, None)
+            self.set_setting("mapa.przypisania", d)
+            return {"ok": True}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
     def mapy_ze_zrodla(self):
         """Mapy, które Pełny Automat weźmie SAM — do pokazania w kreatorze.
 

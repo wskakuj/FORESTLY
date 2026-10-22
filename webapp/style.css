@@ -1240,6 +1240,14 @@ input.drop-over {
 .wiz-map-auto-h { font-weight: 600; color: var(--text); margin-bottom: 3px; }
 .wiz-map-auto-l { margin: 0; padding-left: 18px; }
 .wiz-map-auto-l li { margin: 2px 0; }
+/* mapa NIEDOPASOWANA — wyróżniona na pomarańczowo */
+.wiz-map-nie, .wiz-map-nie b { color: #e8590c; }
+.wiz-map-brak { color: #e8590c; font-weight: 700; }
+.wiz-map-ok { color: inherit; }
+.wiz-map-recz { color: var(--text-dim); font-size: 12px; }
+.wiz-map-sel { margin-left: 6px; font-size: 12px; padding: 1px 4px;
+               border-radius: 6px; }
+.wiz-map-hint { color: var(--text-dim); font-size: 12px; margin: 2px 0 6px; }
 
 /* ==========================================================================
    MIETEK v2.0 — edytor danych (v2.0.115)

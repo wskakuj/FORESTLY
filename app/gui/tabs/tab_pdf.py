@@ -427,6 +427,39 @@ class TabPdfMixin:
                 if len(starts) < 2:
                     doc.close(); doc = None
                     continue    # jeden dokument (albo brak zakładek) — nic do separowania
+
+                # --- WERSJA DO WYDRUKU: BEZ SEKCJI MAPY ---
+                # Mapy nie idą do druku — zostają tylko w „zwykłym" scalonym
+                # PDF-ie. Sekcję rozpoznajemy po zakładce (scalanie wpisuje
+                # etykiety z PDF_ORDER_TEMPLATES; szablon mapy ma „Mapa",
+                # plik zwykle 'mapa.pdf').
+                _lbl_map = next((t.get("label") for t in PDF_ORDER_TEMPLATES
+                                 if t.get("key") == "MAPA"), "Mapa")
+                _lvl1 = [(str(_t).strip(), _p) for lvl, _t, _p in toc
+                         if lvl == 1]
+                _mapa_od = _mapa_do = None            # 1-based, włącznie
+                for _i, (_t, _p) in enumerate(_lvl1):
+                    _tl = _t.lower()
+                    if (_tl == str(_lbl_map).strip().lower()
+                            or "mapa" in _tl):
+                        _mapa_od = _p
+                        _mapa_do = (_lvl1[_i + 1][1] - 1
+                                    if _i + 1 < len(_lvl1) else doc.page_count)
+                        break
+                _ile_mapy = 0
+                if _mapa_od:
+                    _ile_mapy = _mapa_do - _mapa_od + 1
+                    for _p in range(_mapa_do - 1, _mapa_od - 2, -1):   # od końca
+                        doc.delete_page(_p)
+                    _nt = []
+                    for _lvl, _t, _p in toc:
+                        if _mapa_od <= _p <= _mapa_do:
+                            continue
+                        _nt.append([_lvl, _t,
+                                    _p - (_ile_mapy if _p > _mapa_do else 0)])
+                    doc.set_toc(_nt)
+                    toc = _nt
+                    starts = sorted({p for lvl, _t, p in toc if lvl == 1})
                 n = doc.page_count
                 # pusta strona po dokumencie i (1-based), gdy ma NIEPARZYSTĄ
                 # liczbę stron — suma stron przed następnym ma być parzysta
@@ -436,7 +469,7 @@ class TabPdfMixin:
                     if dl % 2 == 1:
                         e = starts[i + 1] - 2          # 0-based ostatnia strona dok. i
                         wstawione.append(e + 1)
-                if not wstawione:
+                if not wstawione and not _ile_mapy:
                     doc.close(); doc = None
                     self.log(f"[WYDRUK] {pdf_path.name} — każdy dokument ma "
                              f"parzystą liczbę stron, separatory niepotrzebne "
@@ -459,7 +492,8 @@ class TabPdfMixin:
                 count += 1
                 self.log(f"[WYDRUK] {target.name} — {len(wstawione)} pustych "
                          f"stron separatorów ({len(starts)} dokumentów, każdy "
-                         f"zaczyna się od nowej kartki)")
+                         f"zaczyna się od nowej kartki)"
+                         + (f", BEZ mapy ({_ile_mapy} str.)" if _ile_mapy else ""))
             except Exception as e:
                 if doc is not None:
                     try:
