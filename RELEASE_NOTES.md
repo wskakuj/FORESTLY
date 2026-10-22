@@ -1,3 +1,3 @@
-# Co nowego w v2.0.186
+# Co nowego w v2.0.187
 - fix
 

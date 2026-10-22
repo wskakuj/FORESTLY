@@ -11,6 +11,9 @@ hidden_imports += collect_submodules('CTkToolTip')
 hidden_imports += collect_submodules('pandas')
 hidden_imports += collect_submodules('numpy')
 hidden_imports += collect_submodules('fitz')
+# PyMuPDF pod nazwą 'pymupdf' (fitz to tylko alias) — bez tego jego
+# podmoduły (m.in. pymupdf.layout) nie trafiają do .exe
+hidden_imports += collect_submodules('pymupdf')
 hidden_imports += collect_submodules('openpyxl')
 hidden_imports += collect_submodules('docx')
 hidden_imports += collect_submodules('PIL')
@@ -51,11 +54,17 @@ datas = [
 ]
 datas += collect_data_files('customtkinter')
 datas += collect_data_files('CTkToolTip')
+# PyMuPDF: bez tych plików import 'pymupdf'/'fitz' w zbudowanym .exe
+# kończy się błędem FileNotFoundError (brak
+# pymupdf/layout/resources/onnx/layout_*.yaml i modeli).
+datas += collect_data_files('pymupdf')
+datas += collect_data_files('fitz')
 
 binaries = []
 binaries += collect_dynamic_libs('pandas')
 binaries += collect_dynamic_libs('numpy')
 binaries += collect_dynamic_libs('fitz')
+binaries += collect_dynamic_libs('pymupdf')
 
 a = Analysis(
     ['main.py'],
