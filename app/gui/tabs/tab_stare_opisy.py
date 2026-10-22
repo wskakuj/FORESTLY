@@ -211,7 +211,11 @@ class TabStareOpisyMixin:
         if m and m.group(1).strip():
             return m.group(1).strip()
         if path.parent != Path(root):
-            return path.parent.name
+            try:
+                from app.config import nazwa_wsi_z_folderu as _nw
+                return _nw(path.parent)
+            except Exception:
+                return path.parent.name
         return path.stem
 
     # ------------------------------------------------ konwersja .doc -> .docx

@@ -348,8 +348,13 @@ def build_schema():
                        "(folder 'Bez nazwisk').\nIgnoruje powyższy przełącznik "
                        "usuwania nazwisk."),
                 _path("all_mapa", "all_mapa_entry",
-                      "Folder z mapami (jpg/png/tiff, opcjonalnie):",
-                      "Wszystkie mapy z folderu — dopasuję do wsi po nazwie pliku",
+                      "Folder z mapami (opcjonalnie):",
+                      "Możesz nic tu nie wskazywać. Mapy leżące w drzewie "
+                      "źródłowym — w folderach 'MAPA' przy wsiach "
+                      "(np. <wieś>/MAPA/<wieś>.tif) — program znajdzie sam "
+                      "i dopasuje do wsi (kreator pokaże listę zaczytanych "
+                      "map w kroku 'Mapy'). Wskaż folder tylko wtedy, gdy mapy "
+                      "są gdzie indziej.",
                       kind="folder"),
                 _check("remove_names", "remove_names_var",
                        "Usuwaj nazwiska z REJESTRU (oraz 1. stronę)", True,

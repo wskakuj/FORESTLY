@@ -34,7 +34,11 @@ class TabRozliczenieMietkaMixin:
         kand = []
         if raporty_root:
             rp = Path(raporty_root)
-            wies = obr.parent.name if obr.parent != root else obr.name
+            try:
+                from app.config import nazwa_wsi_z_folderu as _nw
+                wies = _nw(obr)
+            except Exception:
+                wies = obr.parent.name if obr.parent != root else obr.name
             kand += [rp / wies / "nowe szablony", rp / "nowe szablony", rp]
         for base in (obr, obr.parent):
             if base:

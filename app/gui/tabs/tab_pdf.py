@@ -526,12 +526,17 @@ class TabPdfMixin:
                 pass
 
             # Inteligentne wyciąganie nazwy wsi do metadanych
-            if pdf_path.parent == in_dir:
-                village_name = in_dir.parent.name.upper()
-                if village_name in ["PDF POLACZONE", "PDF", "WORD", "TXT"]:
-                    village_name = in_dir.parent.parent.name.upper()
-            else:
-                village_name = pdf_path.parent.name.upper()
+            try:
+                from app.config import nazwa_wsi_z_folderu as _nw
+                village_name = (_nw(in_dir) if pdf_path.parent == in_dir
+                                else _nw(pdf_path.parent)).upper()
+            except Exception:
+                if pdf_path.parent == in_dir:
+                    village_name = in_dir.parent.name.upper()
+                    if village_name in ["PDF POLACZONE", "PDF", "WORD", "TXT"]:
+                        village_name = in_dir.parent.parent.name.upper()
+                else:
+                    village_name = pdf_path.parent.name.upper()
 
             out.set_metadata({
                 "title": f"UPUL - {village_name}",

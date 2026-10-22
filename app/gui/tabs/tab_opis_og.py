@@ -780,23 +780,24 @@ class TabOpisOgMixin:
         """Zwraca listę par (folder wsi, folder z danymi MIETEKA/O*.DBF).
 
         Obsługiwane układy (analogicznie do etapu MIETEK -> TXT):
+          root/<WIEŚ>/MIETEK/WOL.001/O*.DBF -> (root/<WIEŚ>, …/MIETEK/WOL.001)
           root/<WIEŚ>/WOL.001/O*.DBF  ->  (root/<WIEŚ>, root/<WIEŚ>/WOL.001)
+          root/<WIEŚ>/MIETEK/O*.DBF   ->  (root/<WIEŚ>, root/<WIEŚ>/MIETEK)
           root/<WIEŚ>/O*.DBF          ->  (root/<WIEŚ>, root/<WIEŚ>)
           root/WOL.001/O*.DBF         ->  (root, root/WOL.001)   (pojedyncza wieś)
+          root/MIETEK/O*.DBF          ->  (root, root/MIETEK)     (pojedyncza wieś)
           root/O*.DBF                 ->  (root, root)             (pojedyncza wieś)
         """
+        from app.config import folder_wsi_dla_danych
         root = Path(root)
         found = {}
         for p in root.rglob("*.DBF"):
             if p.name[:1].upper() != "O":
                 continue
             d = p.parent
-            if d == root:
-                village = root
-            elif d.name.upper().startswith("WOL"):
-                village = d.parent
-            else:
-                village = d
+            # wsią jest pierwszy folder o zwykłej nazwie nad folderem danych
+            # (pomijamy WOL.001, MIETEK, MAPA…)
+            village = folder_wsi_dla_danych(d)
             if village == root or village.parent == root:
                 found.setdefault(village, d)
         return sorted(found.items())

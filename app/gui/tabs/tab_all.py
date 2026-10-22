@@ -1114,9 +1114,10 @@ class TabAllMixin:
         if not kat_o:
             self.log("[TXT] Nie znaleziono plików O*.DBF — pomijam generowanie z DBF.")
             return 0
-        # obręb = folder nadrzędny (np. CHORZEWO nad WOL.001); gdy DBF-y leżą
-        # bezpośrednio w folderze źródłowym, traktujemy go jako obręb
-        obreby = sorted({d.parent if d.parent != in_root.parent else d for d in kat_o})
+        # obręb = folder WSI — wchodzimy w górę, pomijając foldery techniczne
+        # (WOL.001, MIETEK, MAPA); działa też dla <wieś>/MIETEK/WOL.001
+        from app.config import folder_wsi_dla_danych
+        obreby = sorted({folder_wsi_dla_danych(d) for d in kat_o})
         tylko = self._all_tylko_txt(pominiete)
         n = 0
         for obr in obreby:
@@ -1503,8 +1504,14 @@ class TabAllMixin:
                         obiekt, _stan = czytaj_dane_wsi(kat)
                     except Exception:
                         obiekt = ""
+                    _nw = ""
+                    try:
+                        from app.config import nazwa_wsi_z_folderu as _nwf
+                        _nw = _nwf(kat)
+                    except Exception:
+                        _nw = ""
                     wies = (str(obiekt or "").strip()
-                            or kat.name or kat.parent.name
+                            or _nw or kat.name
                             or f"OBREB{i + 1}")
                     # dwie wsie o tej samej nazwie (np. po kopii folderu)
                     # — dopisz folder obrębu, żeby PDF się nie nadpisał
@@ -2124,20 +2131,56 @@ class TabAllMixin:
         return "".join(ch for ch in t.lower() if ch.isalnum())
 
     def _mapa_zrodla(self):
-        """Wszystkie pliki map: z wybranego folderu + te przeciągnięte w kreatorze."""
+        """Wszystkie pliki map.
+
+        Źródła: wskazany folder (z podfolderami), DRZEWO ŹRÓDŁOWE — mapy leżące
+        przy wsiach w folderach 'MAPA' wczytują się same — oraz pliki
+        przeciągnięte w kreatorze. Klucz mapy to NAZWA WSI (pierwszy folder pod
+        danym źródłem) + nazwa pliku, więc mapa trafia do właściwej wsi także
+        wtedy, gdy plik nazywa się zwyczajnie 'mapa.jpg'.
+        """
         zrodla = {}
+
+        def _dodaj(base):
+            base = Path(base)
+            if not base.is_dir():
+                return
+            for f in sorted(base.rglob("*")):
+                if not (f.is_file()
+                        and f.suffix.lower() in self._MAPA_ROZSZERZENIA):
+                    continue
+                try:
+                    rel = f.relative_to(base)
+                except ValueError:
+                    rel = Path(f.name)
+                klucz = (f"{rel.parts[0]} {f.name}"
+                         if len(rel.parts) > 1 else f.name)
+                zrodla.setdefault(klucz, f)   # pierwszy wygrywa
+
         me = getattr(self, "all_mapa_entry", None)
         folder = (me.get().strip()
                   if me is not None and hasattr(me, "get") else "")
-        kandydaci = []
-        if folder and Path(folder).is_dir():
-            kandydaci.extend(Path(folder).iterdir())
-        drop = Path(tempfile.gettempdir()) / "forestly_mapy"
-        if drop.is_dir():
-            kandydaci.extend(drop.iterdir())
-        for f in kandydaci:
-            if f.is_file() and f.suffix.lower() in self._MAPA_ROZSZERZENIA:
-                zrodla[f.name] = f      # folder ma pierwszeństwo, drop dopisuje braki
+        if folder:
+            _dodaj(folder)                # wskazany folder ma pierwszeństwo
+
+        # ...a gdy mapy leżą w DRZEWIE ŹRÓDŁOWYM (np. <wieś>/MAPA/<wieś>.tif),
+        # program bierze je sam — nie trzeba nic wskazywać w polu map.
+        _ent = getattr(self, "entries", None) or {}
+        _src = ""
+        for _m in ("ALL", "NS"):
+            try:
+                _e = (_ent.get(_m) or {}).get("src")
+                if _e is not None:
+                    _v = str(_e.get() or "").strip()
+                    if _v:
+                        _src = _v
+                        break
+            except Exception:
+                pass
+        if _src and Path(_src).is_dir():
+            _dodaj(_src)
+
+        _dodaj(Path(tempfile.gettempdir()) / "forestly_mapy")
         return zrodla
 
     def _inject_mapa_step(self, pdf_dir):
@@ -2156,17 +2199,15 @@ class TabAllMixin:
             from app.config import (FOLDERY_TECHNICZNE,
                                     nazwa_nietechnicznego, nazwa_wsi_plaskiego_ukladu)
             pdf_folders = sorted({p.parent for p in Path(pdf_dir).rglob("*.pdf")})
-            # płaski układ (jeden folder mietka): PDF-y leżą bezpośrednio
-            # w folderze PDF, bez folderów wsi — całość to jedna "wieś",
-            # a jej nazwa bierze się z pierwszego nietechnicznego folderu
-            # nadrzędnego (tak samo jak nazwa scalonego PDF)
-            _plasko = all(f.name.upper() in FOLDERY_TECHNICZNE for f in pdf_folders)
+            # płaski układ: PDF-y leżą BEZPOŚREDNIO w folderze PDF (jeden mietek)
+            _plasko = Path(pdf_dir) in pdf_folders
             if _plasko:
                 # nazwa wsi z nagłówka OPTAX.TXT (pewna), gdy go brak — z folderu
                 wsie = [nazwa_wsi_plaskiego_ukladu(pdf_dir)]
             else:
-                wsie = sorted({f.name for f in pdf_folders
-                               if f.name.upper() not in FOLDERY_TECHNICZNE})
+                # wieś z folderu PDF — z pominięciem folderów technicznych
+                # (PDF/WORD/TXT/MIETEK/MAPA…), więc działa też <wieś>/MIETEK
+                wsie = sorted({nazwa_nietechnicznego(f) for f in pdf_folders})
             cache_pdfow = {}          # mapa źródłowa -> gotowy mapa.pdf (raz konwertowana)
             n = 0
             niedopasowane = []
@@ -2186,7 +2227,8 @@ class TabAllMixin:
                         mp = Path(tmp) / "mapa.pdf"
                         self._mapa_na_pdf(trafienie, mp)
                         cache_pdfow[trafienie] = mp.read_bytes()
-                docelowe = [f for f in pdf_folders if f.name == wieś]
+                docelowe = [f for f in pdf_folders
+                            if nazwa_nietechnicznego(f) == wieś]
                 if _plasko and not docelowe:
                     docelowe = [Path(pdf_dir)]   # PDF-y leżą bezpośrednio w PDF
                 for docel in docelowe:
@@ -2499,8 +2541,7 @@ class TabAllMixin:
                             continue
                         if not _txt:
                             continue
-                        _wies = (_k.parent.name if _k != in_root
-                                 else _k.name) or "obreb"
+                        _wies = folder_wsi_dla_danych(_k).name or "obreb"
                         _zadania.append((_wies, _txt,
                                          out_root / f"KONTROLA_{_wies}.pdf"))
                     _n = 0

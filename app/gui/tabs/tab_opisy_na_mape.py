@@ -91,8 +91,16 @@ class TabOpisyNaMapeMixin:
         out = {}
         for dbf in sorted(folder.rglob("O*.DBF")) + sorted(folder.rglob("O*.dbf")):
             d = dbf.parent
-            # nazwa obrębu to folder albo jego rodzic (np. „CHORZEWO\\WOL.001")
-            for nm in (d.name, d.parent.name):
+            # nazwa obrębu to folder, jego rodzic (np. „CHORZEWO\\WOL.001")
+            # albo — gdy dane leżą w podfolderze — nazwa WSI ponad
+            # WOL.001/MIETEK/MAPA (np. „CHORZEWO\\MIETEK\\WOL.001")
+            _nazwy = [d.name, d.parent.name]
+            try:
+                from app.config import folder_wsi_dla_danych as _fwd
+                _nazwy.insert(0, _fwd(d).name)
+            except Exception:
+                pass
+            for nm in _nazwy:
                 if nm:
                     out.setdefault(_klucz_nazwy(nm), d)
         return out

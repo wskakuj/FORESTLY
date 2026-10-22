@@ -2150,8 +2150,8 @@ class WebBackend(
                 continue
             obraby = sorted(d for d in Path(p).iterdir() if d.is_dir())
             for obr in obraby:
-                if not (list(obr.glob("*.DBF")) or list(obr.glob("*.dbf"))):
-                    continue
+                if not (any(obr.rglob("*.DBF")) or any(obr.rglob("*.dbf"))):
+                    continue    # DBF-y mogą leżeć w podfolderze (np. MIETEK)
                 work = Path(tempfile.gettempdir()) / "forestly_preview" / obr.name
                 try:
                     if not work.exists():
@@ -2552,6 +2552,38 @@ class WebBackend(
             except Exception:
                 pass
         return r
+
+    def mapy_ze_zrodla(self):
+        """Mapy, które Pełny Automat weźmie SAM — do pokazania w kreatorze.
+
+        Zbiera to samo, co krok map na końcu procesu: mapy z drzewa źródłowego
+        (foldery 'MAPA' przy wsiach), z ewentualnie wskazanego folderu map
+        oraz przeciągnięte w kreatorze. Zwraca listę z nazwą wsi.
+        """
+        try:
+            from app.config import folder_wsi_dla_danych
+        except Exception:
+            folder_wsi_dla_danych = None
+        out = []
+        try:
+            zrodla = self._mapa_zrodla()
+        except Exception as e:
+            return {"ok": False, "error": str(e), "mapy": []}
+        _drop = Path(tempfile.gettempdir()) / "forestly_mapy"
+        for _klucz, f in sorted(zrodla.items(), key=lambda kv: str(kv[1])):
+            f = Path(f)
+            wies, zrodlo = "", ""
+            try:
+                if folder_wsi_dla_danych is not None:
+                    wies = folder_wsi_dla_danych(f.parent).name
+                zrodlo = str(f.parent)
+            except Exception:
+                pass
+            if _drop.exists() and _drop in f.parents:
+                wies = "(przeciągnięta w kreatorze)"
+                zrodlo = ""
+            out.append({"plik": f.name, "wies": wies, "folder": zrodlo})
+        return {"ok": True, "mapy": out}
 
     def save_mapa_drop(self, nazwa, b64):
         """Mapa przeciągnięta w kreatorze (drag&drop) → plik na dysku.

@@ -1233,6 +1233,14 @@ input.drop-over {
 }
 .strtyt-lightbox-wybierz:hover { background: rgba(45, 212, 167, .12); }
 
+/* lista map zaczytanych automatycznie (kreator 1-Click, krok „Mapy") */
+.wiz-map-auto { margin: 8px 0 0; padding: 9px 12px; border-radius: 10px;
+                border: 1px dashed var(--border-strong); font-size: 13px;
+                color: var(--text-dim); }
+.wiz-map-auto-h { font-weight: 600; color: var(--text); margin-bottom: 3px; }
+.wiz-map-auto-l { margin: 0; padding-left: 18px; }
+.wiz-map-auto-l li { margin: 2px 0; }
+
 /* ==========================================================================
    MIETEK v2.0 — edytor danych (v2.0.115)
    ========================================================================== */

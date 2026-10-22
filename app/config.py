@@ -20,7 +20,7 @@ ctk = leniwy_modul("customtkinter")
 np = leniwy_modul("numpy")
 
 # --- WERSJA I AKTUALIZACJA ---
-CURRENT_VERSION = "v2.0.182"
+CURRENT_VERSION = "v2.0.183"
 GITHUB_USER = "wskakuj"
 GITHUB_REPO = "FORESTLY"
 
@@ -202,11 +202,19 @@ def clean_xml_incompatible(text):
 
 
 def flatten_rel_path(rel_path):
-    """Spłaszcza ścieżkę: usuwa podfolder obrębu (np. WOL.001), zostawia wieś."""
+    """Spłaszcza ścieżkę: usuwa podfoldery techniczne (obręb WOL.001, MIETEK,
+    MAPA, *.001), zostawia wieś."""
     import re as _re
     parts = rel_path.parts
-    new_parts = [p for p in parts[:-1]
-                 if not _re.fullmatch(r"WOL\.\d+", str(p).strip(), _re.I)]
+
+    def _techniczny(p):
+        s = str(p).strip()
+        u = s.upper()
+        return (bool(_re.fullmatch(r"WOL\.\d+", s, _re.I))
+                or u.endswith(".001")
+                or "MIETEK" in u or "MAPA" in u)
+
+    new_parts = [p for p in parts[:-1] if not _techniczny(p)]
     new_parts.append(parts[-1])
     return Path(*new_parts)
 
@@ -332,7 +340,48 @@ def set_saved_excluded_templates(folder: Path, mode_key: str, excluded_keys):
 
 
 # foldery techniczne wyników pełnego automatu — nie są nazwami wsi
-FOLDERY_TECHNICZNE = {"PDF", "WORD", "TXT", "Z NAZWISKAMI", "BEZ NAZWISK"}
+FOLDERY_TECHNICZNE = {"PDF", "WORD", "TXT", "Z NAZWISKAMI", "BEZ NAZWISK",
+                      # podfoldery w folderze wsi: <wieś>/MIETEK + <wieś>/MAPA
+                      "MIETEK", "MAPA"}
+
+
+def _folder_danych_mietka(nazwa):
+    """Czy folder to folder techniczny/danych mietka (WOL.001, MIETEK, MAPA)?"""
+    n = (nazwa or "").upper()
+    return (n.startswith("WOL") or n.endswith(".001")
+            or "MIETEK" in n or "MAPA" in n)
+
+
+def nazwa_wsi_z_folderu(folder):
+    """Nazwa WSI dla dowolnego folderu — danych mietka ALBO wynikowego.
+
+    Pomija foldery techniczne: wynikowe (PDF, WORD, TXT, Z NAZWISKAMI,
+    BEZ NAZWISK) oraz dane mietka (WOL.001, MIETEK, MAPA). Bezpieczny
+    odpowiednik 'folder.parent.name' — działa też dla <wieś>/MIETEK/WOL.001.
+    """
+    p = Path(folder)
+    while p.parent != p and (p.name.upper() in FOLDERY_TECHNICZNE
+                             or _folder_danych_mietka(p.name)):
+        p = p.parent
+    return p.name or Path(folder).name
+
+
+def folder_wsi_dla_danych(folder):
+    """Folder WSI dla folderu, w którym leżą pliki mietka.
+
+    Wchodzi w górę, pomijając foldery techniczne — wsią jest pierwszy folder
+    o zwykłej nazwie. Obsługuje wszystkie układy, m.in.:
+        <root>/<WIEŚ>/MIETEK/WOL.001  ->  <root>/<WIEŚ>   (typowy układ źródła)
+        <root>/<WIEŚ>/MIETEK          ->  <root>/<WIEŚ>
+        <root>/<WIEŚ>/WOL.001         ->  <root>/<WIEŚ>
+        <root>/<WIEŚ>                 ->  <root>/<WIEŚ>
+        <root>/WOL.001                ->  <root>          (pojedyncza wieś)
+        <root>                        ->  <root>
+    """
+    p = Path(folder)
+    while p.parent != p and _folder_danych_mietka(p.name):
+        p = p.parent
+    return p
 
 
 def nazwa_nietechnicznego(folder):

@@ -111,7 +111,7 @@ def policz_rozbieznosci(obreb_dir):
     wydz.sort(key=lambda w: _sort_key(w['wydz']))
     return {
         'folder': str(obreb),
-        'nazwa': obreb.parent.name or obreb.name,
+        'nazwa': _nazwa_wsi(obreb),
         'sumy': {'rej': sum(v[0] for v in rej.values()),
                  'opt': sum(opt.values())},
         'wydz': wydz,
@@ -282,6 +282,16 @@ def zastosuj_decyzje(obreb_dir, decyzje):
 # --------------------------------------------------------------------------
 # odczyt/zapis DBF (kopia z tab_mietek_plus10 — core nie może ciągnąć GUI)
 # --------------------------------------------------------------------------
+
+def _nazwa_wsi(folder):
+    """Nazwa wsi dla folderu z danymi mietka (pomija WOL.001, MIETEK, MAPA)."""
+    try:
+        from app.config import nazwa_wsi_z_folderu
+        return nazwa_wsi_z_folderu(folder)
+    except Exception:
+        p = Path(folder)
+        return p.parent.name or p.name
+
 
 def _read_dbf(filename):
     """Odczytuje plik dBase III zwracając (fields, records) — wartości tekstowe."""

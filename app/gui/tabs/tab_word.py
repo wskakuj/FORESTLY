@@ -132,6 +132,16 @@ class TabWordMixin:
                        and (_czesci[1].upper().startswith("WOL")
                             or _czesci[1].lower().endswith(".001"))))
             if not _ok:
+                # ...ale dopuszczamy też układy z podfolderem technicznym,
+                # np. <wieś>/MIETEK/WOL.001/PLIK.TXT (typowe źródło mietka):
+                # wieś wyznaczamy, wchodząc w górę ponad WOL.001/MIETEK/MAPA
+                try:
+                    from app.config import folder_wsi_dla_danych as _fwd
+                    _rel_w = _fwd(_f.parent).relative_to(in_dir)
+                    _ok = len(_rel_w.parts) <= 1
+                except Exception:
+                    _ok = False
+            if not _ok:
                 _glebokie.append(_f)
         if _glebokie:
             _przykl = ", ".join(sorted({f.parent.name for f in _glebokie})[:4])

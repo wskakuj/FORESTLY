@@ -274,8 +274,10 @@ def run_word_worker(in_dir_str, out_dir_str, remove_names, file_filter=None, mar
                         doc.PageSetup.LeftMargin = 28.35 * m[2]
                         doc.PageSetup.RightMargin = 28.35 * m[3]
                         doc.Save()
-                        wies = (rel_path.parent.name
-                                if str(rel_path.parent) != "." else "(folder główny)")
+                        # wieś = PIERWSZY folder ścieżki (a nie jej rodzic),
+                        # żeby „<wieś>/MIETEK/WOL.001" nie dawało „WOL.001"
+                        _cz = rel_path.parts
+                        wies = _cz[0] if len(_cz) > 1 else "(folder główny)"
                         done.setdefault(wies, []).append(target.stem)
                     except Exception as e:
                         errors.append((target.parent.name, target.name, str(e)))

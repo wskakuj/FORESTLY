@@ -203,8 +203,15 @@ def flatten_rel_path(rel_path):
     """
     import re as _re
     parts = rel_path.parts
-    new_parts = [p for p in parts[:-1]
-                 if not _re.fullmatch(r"WOL\.\d+", str(p).strip(), _re.I)]
+
+    def _techniczny(p):
+        s = str(p).strip()
+        u = s.upper()
+        return (bool(_re.fullmatch(r"WOL\.\d+", s, _re.I))
+                or u.endswith(".001")
+                or "MIETEK" in u or "MAPA" in u)
+
+    new_parts = [p for p in parts[:-1] if not _techniczny(p)]
     new_parts.append(parts[-1])
     return Path(*new_parts)
 

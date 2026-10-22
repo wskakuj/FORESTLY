@@ -682,6 +682,38 @@ function _wizChk(id) {
   return !!(c && c.checked);
 }
 
+/* Mapy, które Pełny Automat weźmie SAM — foldery 'MAPA' w drzewie źródłowym
+   (+ wskazany folder map, + przeciągnięte w kreatorze). Pokazywane w kroku
+   „Mapy" i w podsumowaniu, żeby było widać, co program zaczytuje. */
+async function wizMapyZeZrodla(host) {
+  if (!host) return;
+  let box = host.querySelector(".wiz-map-auto");
+  if (!box) {
+    box = el("div", "wiz-map-auto");
+    host.appendChild(box);
+  }
+  box.innerHTML = '<div class="wiz-map-auto-h">Sprawdzam mapy…</div>';
+  let r = null;
+  try { r = await api().mapy_ze_zrodla(); } catch (e) { r = null; }
+  if (!r || !r.ok) { box.innerHTML = ""; return; }
+  const mapy = r.mapy || [];
+  if (!mapy.length) {
+    box.innerHTML = '<div class="wiz-map-auto-h">Nie znalazłem map — ' +
+      'wskaż folder z mapami albo przeciągnij pliki poniżej.</div>';
+    return;
+  }
+  const wg = {};
+  for (const m of mapy) {
+    const k = m.wies || "(bez nazwy wsi)";
+    (wg[k] = wg[k] || []).push(m.plik);
+  }
+  const li = Object.keys(wg).sort().map(k =>
+    '<li><b>' + escapeHtml(k) + '</b> — ' +
+    wg[k].map(escapeHtml).join(", ") + '</li>').join("");
+  box.innerHTML = '<div class="wiz-map-auto-h">Zaczytane automatycznie (' +
+    mapy.length + '):</div><ul class="wiz-map-auto-l">' + li + '</ul>';
+}
+
 function wizVal(cid) {
 
   const n = WIZ.home && WIZ.home.querySelector('[data-cid="' + cssEscape(cid) + '"]');
@@ -1138,6 +1170,10 @@ function renderWizStep() {
     if (fm) {
       fm.classList.add("wiz-map-field");
       karta.appendChild(fm);
+      /* pokaż, KTÓRE mapy program zaczytuje sam (foldery MAPA w źródle) */
+      wizMapyZeZrodla(karta);
+      const _inpM = fm.querySelector("input");
+      if (_inpM) _inpM.addEventListener("input", () => wizMapyZeZrodla(karta));
     }
     const dz = el("div", "wiz-drop");
     dz.innerHTML = '<b>Przeciągnij i upuść mapy tutaj</b>' +
@@ -1237,7 +1273,7 @@ function renderWizStep() {
       ["Kontrola powierzchni REJESTR ↔ OPTAX",
        _wizChk("all_kontrola") ? "PDF z kontrolą obok scalonych"
                                : "— bez kontroli —"],
-      ["Mapy", wizVal("all_mapa") || "— bez map —"],
+      ["Mapy", wizVal("all_mapa") || "— automatycznie z folderów MAPA —"],
       ["Własne skróty i symbole", wizVal("all_custom_skroty")
         ? (wizVal("all_skroty") || "(nie wskazano pliku)") : "domyślne z programu"],
       ["Opisy ogólne", wizVal("all_pelny_opis_og")
@@ -1254,6 +1290,8 @@ function renderWizStep() {
         '<div class="wiz-row-v">' + escapeHtml(r[1]) + '</div>'));
     });
     st.appendChild(sum);
+    /* pokaż, KTÓRE mapy program zaczytuje sam (foldery MAPA w źródle) */
+    wizMapyZeZrodla(st);
 
     /* ---- kontrola powierzchni REJESTR <-> OPTAX: tabela decyzji ---- */
     const kz = el("div", "wiz-kontrola-tabela");
