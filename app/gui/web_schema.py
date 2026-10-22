@@ -35,6 +35,24 @@ def _text(cid, attr, label, default="", ph=""):
             "default": default, "ph": ph, "save": True}
 
 
+def _zapamietane(klucz, domyslna):
+    """Wartość zapamiętana w settings.json (albo domyślna).
+
+    Dzięki temu treści wpisane ręcznie — np. NADZÓR i WARUNKI PRZYRODNICZE
+    w opisach ogólnych — wracają po restarcie programu."""
+    try:
+        import json
+        from app.config import SETTINGS_FILE
+        if SETTINGS_FILE.exists():
+            _d = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+            _v = _d.get(klucz)
+            if isinstance(_v, str) and _v.strip():
+                return _v
+    except Exception:
+        pass
+    return domyslna
+
+
 def _textarea(cid, attr, label, default="", ph="", rows=4):
     return {"id": cid, "kind": "textarea", "attr": attr, "label": label,
             "default": default, "ph": ph, "save": True, "rows": rows}
@@ -315,15 +333,18 @@ def build_schema():
                 _textarea(
                     "all_og_nadzor", "all_og_nadzor_entry",
                     "1. NADZÓR — treść (można edytować):",
-                    "Nadzór nad gospodarką leśną lasów nie stanowiących własności "
-                    "Skarbu Państwa sprawuje Starosta Wołomiński w zakresie "
-                    "zadań własnych.", rows=2),
+                    _zapamietane("opis_og.nadzor",
+                                 "Nadzór nad gospodarką leśną lasów nie stanowiących "
+                                 "własności Skarbu Państwa sprawuje Starosta "
+                                 "Wołomiński w zakresie zadań własnych."), rows=2),
                 _textarea(
                     "all_og_warunki", "all_og_warunki_entry",
                     "2. WARUNKI PRZYRODNICZE — treść (można edytować):",
-                    "Lasy objęte uproszczonym planem urządzenia lasów położone są w:\n"
-                    "IV Mazowiecko-Podlaskiej krainie przyrodniczo-leśnej\n"
-                    "Mezoregion Doliny Dolnego Bugu", rows=4),
+                    _zapamietane("opis_og.warunki",
+                                 "Lasy objęte uproszczonym planem urządzenia lasów "
+                                 "położone są w:\n"
+                                 "IV Mazowiecko-Podlaskiej krainie przyrodniczo-leśnej\n"
+                                 "Mezoregion Doliny Dolnego Bugu"), rows=4),
                 _select("all_og_kategoria", "all_og_kategoria_var",
                         "Kategoria zagrożenia pożarowego:",
                         ["I", "II", "III"], "I", tiles=KAT_TILES),
@@ -549,15 +570,18 @@ def build_schema():
                 _textarea(
                     "opis_og_nadzor", "opis_og_nadzor_entry",
                     "1. NADZÓR — treść (można edytować):",
-                    "Nadzór nad gospodarką leśną lasów nie stanowiących własności "
-                    "Skarbu Państwa sprawuje Starosta Wołomiński w zakresie "
-                    "zadań własnych.", rows=2),
+                    _zapamietane("opis_og.nadzor",
+                                 "Nadzór nad gospodarką leśną lasów nie stanowiących "
+                                 "własności Skarbu Państwa sprawuje Starosta "
+                                 "Wołomiński w zakresie zadań własnych."), rows=2),
                 _textarea(
                     "opis_og_warunki", "opis_og_warunki_entry",
                     "2. WARUNKI PRZYRODNICZE — treść (można edytować):",
-                    "Lasy objęte uproszczonym planem urządzenia lasów położone są w:\n"
-                    "IV Mazowiecko-Podlaskiej krainie przyrodniczo-leśnej\n"
-                    "Mezoregion Doliny Dolnego Bugu", rows=4),
+                    _zapamietane("opis_og.warunki",
+                                 "Lasy objęte uproszczonym planem urządzenia lasów "
+                                 "położone są w:\n"
+                                 "IV Mazowiecko-Podlaskiej krainie przyrodniczo-leśnej\n"
+                                 "Mezoregion Doliny Dolnego Bugu"), rows=4),
                 _select("opis_og_kategoria", "opis_og_kategoria_var",
                         "Kategoria zagrożenia pożarowego:",
                         ["I", "II", "III"], "I", tiles=KAT_TILES),

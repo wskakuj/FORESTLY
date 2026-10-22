@@ -153,7 +153,12 @@ def main():
     # pierwszym użyciu, a czyszczenie osieroconych procesów Worda idzie
     # w tle (PowerShell na zimno potrafi zająć 1-3 s — nie blokuje startu)
     from app.core.leniwe_importy import zainstaluj_leniwe
-    zainstaluj_leniwe(["pandas", "numpy", "openpyxl", "pypdf", "pymupdf",
+    # UWAGA: 'pymupdf' celowo NIE jest na tej liście. Importuje się je
+    # przez leniwy_modul("pymupdf") (app/gui/tabs/tab_pdf.py), a hak
+    # meta-ścieżki opakowywał je DRUGI raz — przy rozszerzeniach C
+    # kończyło się to błędem „'_LazyModule' object has no attribute
+    # 'open'" i przerywało etap usuwania pustych stron.
+    zainstaluj_leniwe(["pandas", "numpy", "openpyxl", "pypdf",
                        "docx", "xlrd", "customtkinter"])
 
     import webview

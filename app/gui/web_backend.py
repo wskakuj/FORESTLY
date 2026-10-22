@@ -992,6 +992,19 @@ class WebBackend(
 
         for tab in self.schema["tabs"]:
             _index(tab["controls"])
+        # treści opisów ogólnych zapamiętujemy NA STAŁE (settings.json) —
+        # po restarcie wracają, i w Pełnym Automacie, i w karcie Opisy ogólne
+        _ZAPAMIETANE_TEKSTY = {
+            "all_og_nadzor": "opis_og.nadzor",
+            "all_og_warunki": "opis_og.warunki",
+            "opis_og_nadzor": "opis_og.nadzor",
+            "opis_og_warunki": "opis_og.warunki",
+        }
+        # ustawienia czytamy RAZ (porównanie + jeden zapis na zmianę)
+        try:
+            _ustawienia = self.load_settings()
+        except Exception:
+            _ustawienia = {}
         for cid, val in (values or {}).items():
             c = controls.get(cid)
             if not c:
@@ -999,6 +1012,14 @@ class WebBackend(
             kind = c["kind"]
             if kind in ("path", "text", "textarea"):
                 self._get_fake(c["attr"]).set(val)
+                _klucz = _ZAPAMIETANE_TEKSTY.get(cid)
+                if (_klucz and isinstance(val, str)
+                        and _ustawienia.get(_klucz) != val):
+                    try:
+                        self.set_setting(_klucz, val)
+                        _ustawienia[_klucz] = val
+                    except Exception:
+                        pass
             elif kind == "check":
                 self._get_fake(c["attr"]).set(bool(val))
             elif kind == "select":

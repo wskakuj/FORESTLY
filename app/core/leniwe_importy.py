@@ -71,11 +71,39 @@ class _LeniwyModul:
         object.__setattr__(self, "_nazwa", nazwa)
 
     def __getattr__(self, atrybut):
-        m = importlib.import_module(object.__getattribute__(self, "_nazwa"))
-        return getattr(m, atrybut)
+        nazwa = object.__getattribute__(self, "_nazwa")
+        m = importlib.import_module(nazwa)
+        try:
+            return getattr(m, atrybut)
+        except AttributeError:
+            # Moduł wrócił jako OPAKOWANIE LENIWE (hak meta-ścieżki z
+            # zainstaluj_leniwe) i nie odsłonił atrybutu — zdarza się przy
+            # rozszerzeniach C (np. pymupdf: brak 'open'). Importujemy go
+            # ponownie Z POMINIĘCIEM haka, dociągając prawdziwy moduł.
+            return getattr(_import_prawdziwy(nazwa), atrybut)
 
     def __repr__(self):
         return f"<leniwy moduł: {object.__getattribute__(self, '_nazwa')}>"
+
+
+def _import_prawdziwy(nazwa):
+    """Importuje moduł z pominięciem haka leniwego (zwraca prawdziwy moduł)."""
+    mod = sys.modules.get(nazwa)
+    if mod is not None and type(mod).__name__ != "_LazyModule":
+        return mod
+    haki = [z for z in sys.meta_path if isinstance(z, _LeniwyZnajdzca)]
+    for h in haki:
+        try:
+            sys.meta_path.remove(h)
+        except ValueError:
+            pass
+    sys.modules.pop(nazwa, None)
+    try:
+        return importlib.import_module(nazwa)
+    finally:
+        for h in haki:
+            if h not in sys.meta_path:
+                sys.meta_path.insert(0, h)
 
 
 def leniwy_modul(nazwa):
