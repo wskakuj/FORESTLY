@@ -20,7 +20,7 @@ ctk = leniwy_modul("customtkinter")
 np = leniwy_modul("numpy")
 
 # --- WERSJA I AKTUALIZACJA ---
-CURRENT_VERSION = "v2.0.184"
+CURRENT_VERSION = "v2.0.185"
 GITHUB_USER = "wskakuj"
 GITHUB_REPO = "FORESTLY"
 
@@ -202,8 +202,15 @@ def clean_xml_incompatible(text):
 
 
 def flatten_rel_path(rel_path):
-    """Spłaszcza ścieżkę: usuwa podfoldery techniczne (obręb WOL.001, MIETEK,
-    MAPA, *.001), zostawia wieś."""
+    """Spłaszcza ścieżkę do samej WSI.
+
+    Usuwa podfoldery techniczne (obręb WOL.001, MIETEK, MAPA, *.001), a gdy
+    nad wsią jest jeszcze folder-grupa (np. MIETKI, GMINA…) — usuwa i ten
+    nadmiarowy poziom. Przykłady:
+        GRABÓW/MIETEK/WOL.001/OPTAX.TXT        -> GRABÓW/OPTAX.TXT
+        MIETKI/GRABÓW/MIETEK/WOL.001/OPTAX.TXT -> GRABÓW/OPTAX.TXT
+        GRABÓW/OPTAX.TXT                       -> GRABÓW/OPTAX.TXT
+    """
     import re as _re
     parts = rel_path.parts
 
@@ -214,7 +221,13 @@ def flatten_rel_path(rel_path):
                 or u.endswith(".001")
                 or "MIETEK" in u or "MAPA" in u)
 
-    new_parts = [p for p in parts[:-1] if not _techniczny(p)]
+    nad = list(parts[:-1])
+    ma_tech = any(_techniczny(p) for p in nad)
+    new_parts = [p for p in nad if not _techniczny(p)]
+    # zostały 2+ foldery zwykłe, a na ścieżce był folder techniczny —
+    # pierwszy zwykły to folder-grupa nad wsią (np. MIETKI) → usuwamy go
+    if ma_tech and len(new_parts) >= 2:
+        new_parts = new_parts[1:]
     new_parts.append(parts[-1])
     return Path(*new_parts)
 

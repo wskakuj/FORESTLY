@@ -190,16 +190,14 @@ def clean_xml_incompatible(text):
 
 
 def flatten_rel_path(rel_path):
-    """Spłaszcza ścieżkę: usuwa podfolder obrębu (np. WOL.001), zostawia wieś.
+    """Spłaszcza ścieżkę do samej WSI.
 
-    BŁĄD (naprawiony): warunek był `p.upper().startswith("WOL")` — usuwał
-    KAŻDY element zaczynający się na "WOL", więc gubił także wieś
-    "WOLA RASZTOWSKA_mietek". Skutek: pliki tej wsi trafiały do TXT/ bez
-    podfolderu wsi, nazwa folderu wychodziła pusta, a pakiet PDF był scalany
-    pod nazwą pierwszej wsi alfabetycznie (KRASZEW STARY_UPUL.pdf).
-
-    Teraz usuwamy WYŁĄCZNIE podfolder obrębu — czyli dokładnie "WOL" + kropka
-    + cyfry (np. WOL.001, wol.002). Wsie zaczynające się na "WOL" zostają.
+    Usuwa podfoldery techniczne (obręb WOL.001, MIETEK, MAPA, *.001), a gdy
+    nad wsią jest jeszcze folder-grupa (np. MIETKI, GMINA…) — usuwa i ten
+    nadmiarowy poziom. Przykłady:
+        GRABÓW/MIETEK/WOL.001/OPTAX.TXT        -> GRABÓW/OPTAX.TXT
+        MIETKI/GRABÓW/MIETEK/WOL.001/OPTAX.TXT -> GRABÓW/OPTAX.TXT
+        GRABÓW/OPTAX.TXT                       -> GRABÓW/OPTAX.TXT
     """
     import re as _re
     parts = rel_path.parts
@@ -211,7 +209,13 @@ def flatten_rel_path(rel_path):
                 or u.endswith(".001")
                 or "MIETEK" in u or "MAPA" in u)
 
-    new_parts = [p for p in parts[:-1] if not _techniczny(p)]
+    nad = list(parts[:-1])
+    ma_tech = any(_techniczny(p) for p in nad)
+    new_parts = [p for p in nad if not _techniczny(p)]
+    # zostały 2+ foldery zwykłe, a na ścieżce był folder techniczny —
+    # pierwszy zwykły to folder-grupa nad wsią (np. MIETKI) → usuwamy go
+    if ma_tech and len(new_parts) >= 2:
+        new_parts = new_parts[1:]
     new_parts.append(parts[-1])
     return Path(*new_parts)
 
