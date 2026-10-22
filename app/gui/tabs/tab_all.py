@@ -1255,6 +1255,7 @@ class TabAllMixin:
             def _dwa_przebiegi():
                 self._dwie_wersje_aktywne = True
                 try:
+                    self._przebieg_nr = 1
                     self._przebieg_etykieta = "Przebieg 1/2 — Z NAZWISKAMI"
                     self.log("[OBIE WERSJE] Przebieg 1/2: REJESTR z pełnymi "
                              "nazwiskami → 'Z nazwiskami'.")
@@ -1268,6 +1269,7 @@ class TabAllMixin:
                         self.log("[OBIE WERSJE] Przerwano — drugi przebieg "
                                  " ('Bez nazwisk') już się nie wykona.")
                         return
+                    self._przebieg_nr = 2
                     self._przebieg_etykieta = "Przebieg 2/2 — BEZ NAZWISK"
                     self.log("[OBIE WERSJE] Przebieg 2/2: REJESTR bez nazwisk "
                              "→ 'Bez nazwisk' (tryb przyspieszony — generowane "
@@ -1279,6 +1281,7 @@ class TabAllMixin:
                                           nowe_szablony_flag)
                 finally:
                     self._dwie_wersje_aktywne = False
+                    self._przebieg_nr = 0
                     self._przebieg_etykieta = ""
                     self._incr_baza = None
                     self.running = False
@@ -2571,8 +2574,13 @@ class TabAllMixin:
         # -------------------------------
 
         # v2.0.108: bufor logów + licznik czasu na raport końcowy
+        # (tryb „Obie wersje": bufor biegnie przez OBA przebiegi, żeby
+        #  raport końcowy objął całą pracę — dlatego nie zerujemy go
+        #  przed drugim przebiegiem)
         if hasattr(self, "raport_start"):
-            self.raport_start()
+            if not (getattr(self, "_dwie_wersje_aktywne", False)
+                    and getattr(self, "_przebieg_nr", 1) > 1):
+                self.raport_start()
 
         pythoncom.CoInitialize()
         try:
@@ -3172,8 +3180,20 @@ class TabAllMixin:
             self.update_status("Zakończono pomyślnie.", "#27ae60", animate=False)
             # v2.0.108: zamiast gołego "Sukces" — okno z raportem biegu
             # + automatycznie otwarte okno z plikami docelowymi
-            if hasattr(self, "pokaz_raport_koncowy"):
-                self.pokaz_raport_koncowy(out_root)
+            # Tryb „Obie wersje": po PIERWSZYM przebiegu NIE pokazujemy
+            # powiadomienia — jedno podsumowanie leci dopiero po drugim,
+            # obejmując całą pracę.
+            if (getattr(self, "_dwie_wersje_aktywne", False)
+                    and getattr(self, "_przebieg_nr", 1) == 1):
+                self.log("[OBIE WERSJE] Przebieg 1/2 (Z NAZWISKAMI) "
+                         "zakończony — podsumowanie pokażę po drugim "
+                         "przebiegu, żeby nie wyskakiwało dwa razy.")
+            elif hasattr(self, "pokaz_raport_koncowy"):
+                _cel_raportu = out_root
+                if getattr(self, "_dwie_wersje_aktywne", False):
+                    # folder z OBIEMA wersjami ('Z nazwiskami' i 'Bez nazwisk')
+                    _cel_raportu = Path(out_root).parent
+                self.pokaz_raport_koncowy(_cel_raportu)
             else:
                 self.after(0, lambda: messagebox.showinfo("Sukces", "Zadanie zakończone."))
         except InterruptedError:
