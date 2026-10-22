@@ -1398,20 +1398,32 @@ function wizDone(ok) {
             "Wersja interfejsu (app.js): " + APP_JS_VER;
         } else {
           const p = d.pola || {};
+          const rm = (WIZ.kind === "RM");
+          /* UWAGA: rm_diag() opisuje zadanie „Rozliczanie + MIETEK" — dlatego
+             pokazywał jego ścieżki (mapy/ewidencja/wynik) TAKŻE przy Pełnym
+             Automacie, któremu one nie służą. Teraz ścieżki zależą od tego,
+             które zadanie faktycznie działało. */
+          const sciezki = rm
+            ? ("Program widzi wskazane ścieżki:\n" +
+               "  mapy:      " + (p.mapy || "(puste)") + "\n" +
+               "  ewidencja: " + (p.ewid || "(puste)") + "\n" +
+               "  wynik:     " + (p.out || "(puste)") + "\n\n")
+            : ("Pełny Automat — wskazane ścieżki:\n" +
+               "  mietki (źródło): " + (wizVal("all_src") || "(puste)") + "\n" +
+               "  folder wyników:  " + (wizVal("all_dst") || "(puste)") + "\n" +
+               "  mapy:            " +
+                 (wizVal("all_mapa") || "(same z folderów MAPA w źródle)") + "\n\n");
           tekst =
             "Wersja programu: " + (d.wersja || "?") + "\n" +
             "Interfejs (app.js): " + APP_JS_VER + "\n" +
-            "Ta wersja programu zna zadanie: " + (d.zadanie_jest ? "TAK" : "NIE") + "\n" +
+            (rm ? ("Ta wersja programu zna zadanie: " +
+                   (d.zadanie_jest ? "TAK" : "NIE") + "\n") : "") +
             "Inne zadanie jest w toku: " + (d.trwa ? "TAK" : "nie") + "\n" +
             "Odbiór zdarzeń z programu: " +
               ((d.odpytanie_s < 0) ? "NIGDY — to jest problem!"
                : (d.odpytanie_s + " s temu" +
                   (d.odpytanie_s > 3 ? " (za dawno — to jest problem!)" : " (dobrze)"))) +
-            "\n\n" +
-            "Program widzi wskazane ścieżki:\n" +
-            "  mapy:      " + (p.mapy || "(puste)") + "\n" +
-            "  ewidencja: " + (p.ewid || "(puste)") + "\n" +
-            "  wynik:     " + (p.out || "(puste)") + "\n\n" +
+            "\n\n" + sciezki +
             "Ostatnie wpisy programu:\n" +
             ((d.logi || []).slice(-15).join("\n") || "(brak)");
         }

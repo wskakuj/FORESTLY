@@ -1,3 +1,3 @@
-# Co nowego w v2.0.183
-- dodano nową strukturę folderów w pełny automat (1-click)
+# Co nowego w v2.0.184
+- poprawiono pełny automat (1-click)
 

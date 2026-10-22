@@ -120,34 +120,41 @@ class TabWordMixin:
                      f"wynikowych (TXT/PDF/Word) znalezionych w źródle.")
             files = [f for f in files if f not in set(_pomijane)]
 
-        # Struktura mietka to <wieś>/PLIK.TXT albo <wieś>/<obręb>.001/PLIK.TXT
-        # (ew. PLIK.TXT, gdy wskazano samą wieś / obręb). TXT-y zagnieżdżone
-        # głębiej to zapasowe kopie po starych biegach (np. "<wieś>/Nowy
-        # folder/") — nie mogą wejść do wydruków jako osobny pakiet "wsi".
+        # Struktura mietka bywa różna:
+        #   PLIK.TXT
+        #   <wieś>/PLIK.TXT
+        #   <wieś>/<obręb>.001/PLIK.TXT
+        #   <wieś>/MIETEK/WOL.001/PLIK.TXT
+        #   <cokolwiek>/<wieś>/MIETEK/WOL.001/PLIK.TXT   (źródła pogrupowane)
+        # Śmieciem po starych biegach jest natomiast np.
+        #   <wieś>/Nowy folder/PLIK.TXT
+        # — czyli folder NIETECHNICZNY pod wsią, bez żadnego folderu
+        # technicznego na ścieżce.
+        def _techniczny(_p):
+            _s = str(_p).upper()
+            return (_s.startswith("WOL") or _s.endswith(".001")
+                    or "MIETEK" in _s or "MAPA" in _s)
+
         _glebokie = []
         for _f in files:
             _czesci = _f.relative_to(in_dir).parts
-            _ok = (len(_czesci) <= 2
-                   or (len(_czesci) == 3
-                       and (_czesci[1].upper().startswith("WOL")
-                            or _czesci[1].lower().endswith(".001"))))
-            if not _ok:
-                # ...ale dopuszczamy też układy z podfolderem technicznym,
-                # np. <wieś>/MIETEK/WOL.001/PLIK.TXT (typowe źródło mietka):
-                # wieś wyznaczamy, wchodząc w górę ponad WOL.001/MIETEK/MAPA
-                try:
-                    from app.config import folder_wsi_dla_danych as _fwd
-                    _rel_w = _fwd(_f.parent).relative_to(in_dir)
-                    _ok = len(_rel_w.parts) <= 1
-                except Exception:
-                    _ok = False
+            _posr = _czesci[:-1]                 # foldery nad plikiem
+            _nt = [p for p in _posr if not _techniczny(p)]
+            _ma_tech = any(_techniczny(p) for p in _posr)
+            # 0-1 folder nietechniczny (wieś / sama wieś) — zawsze OK;
+            # 2 — OK tylko wtedy, gdy na ścieżce JEST folder techniczny
+            #     (np. MIETKI/<wieś>/MIETEK/WOL.001/PLIK.TXT).
+            _ok = (len(_nt) <= 1 or (len(_nt) <= 2 and _ma_tech))
             if not _ok:
                 _glebokie.append(_f)
         if _glebokie:
             _przykl = ", ".join(sorted({f.parent.name for f in _glebokie})[:4])
+            _np = ", ".join(sorted(str(f.relative_to(in_dir))
+                                   for f in _glebokie)[:2])
             self.log(f"[TXT] Pomijam {len(_glebokie)} plik(ów) TXT leżących "
                      f"głębiej niż folder wsi/.001 (folder {_przykl}) — "
-                     f"zapasowe kopie po starych biegach.")
+                     f"zapasowe kopie po starych biegach."
+                     + (f"\n      np.: {_np}" if _np else ""))
             files = [f for f in files if f not in set(_glebokie)]
         if not files:
             return 0
