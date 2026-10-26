@@ -2591,6 +2591,11 @@ class TabAllMixin:
     def run_logic_thread(self, src_str, out_str, mode, remove_names, margins_dict=None, nowe_szablony=False):
         # --- INICJALIZACJA ZMIENNYCH ---
         self._pipeline_failed = False
+        if hasattr(self, "report_exception"):
+            # Jedno miejsce logów dla obu przebiegów "Z/Bez nazwiskami".
+            self._diag_run_root = (Path(out_str).parent
+                if getattr(self, "_dwie_wersje_aktywne", False)
+                else Path(out_str))
         self._zapamietaj_all_tpl()   # karta „Strona tytułowa i daty” wróci po restarcie
         in_root = None
         out_root = None
