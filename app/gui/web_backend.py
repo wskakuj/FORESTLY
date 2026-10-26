@@ -535,6 +535,10 @@ class WebBackend(
         # zdarzenia do frontendu + dialogi
         self._events = deque()
         self._ev_lock = threading.Lock()
+        # Kontekst błędu jest osobny dla każdego wątku zadania.
+        self._diag_context = threading.local()
+        self._diag_errors = []
+        self._diag_lock = threading.Lock()
         self._dialog_waits = {}   # id -> (Event, result)
         self._pc_pliki = []       # pliki przeciągnięte do konwertera PDF
 
@@ -1108,9 +1112,43 @@ class WebBackend(
         self._emit({"type": "log", "text": str(text)})
 
     def raport_start(self):
-        """v2.0.108: start liczenia czasu i czyszczenie bufora na nowy bieg."""
+        """Start raportu biegu; osobna lista błędów dla tego uruchomienia."""
         self._log_buf = []
+        with self._diag_lock:
+            self._diag_errors.clear()
         self._raport_t0 = time.time()
+
+    def diag_set_file(self, path):
+        """Bieżący plik zadania z tego samego wątku (nie myli równoległych)."""
+        self._diag_context.file = str(path) if path else ""
+
+    def report_exception(self, exc, *, etap=None, plik=None, krytyczny=True,
+                         zadanie=None):
+        """Błąd w logu, raporcie końcowym i lokalnym pliku diagnostycznym.
+
+        Nie może ukryć pierwotnego wyjątku nawet przy braku praw zapisu logu.
+        """
+        from app.core.diagnostyka_bledow import (
+            opis_do_logu, zbuduj_raport, zapisz_raport_jsonl)
+        ctx = self._diag_context
+        etap = etap or getattr(ctx, "etap", "") or "Nieustalony etap"
+        plik = plik if plik is not None else getattr(ctx, "file", "")
+        raport = zbuduj_raport(
+            exc, etap=etap, plik=plik,
+            zadanie=zadanie or getattr(self, "_przebieg_etykieta", ""),
+            krytyczny=krytyczny)
+        folder = getattr(self, "last_output_dir", None)
+        try:
+            sciezka = zapisz_raport_jsonl(raport, folder)
+            if sciezka is not None:
+                raport["raport_plik"] = str(sciezka)
+        except (OSError, ValueError) as log_error:
+            raport["uwaga_zapis"] = "Nie udało się zapisać pliku diagnostyki: " + str(log_error)
+        with self._diag_lock:
+            self._diag_errors.append(raport)
+        self.log(opis_do_logu(raport))
+        self._emit({"type": "error_report", "report": raport})
+        return raport
 
     def _raport_folder(self, out_root):
         """Finalny folder wyników biegu (do otwarcia w Eksploratorze)."""
@@ -1205,6 +1243,7 @@ class WebBackend(
                     "wsie": wsie, "pakiety": pakiety, "wydruki": wydruki,
                     "strtyt": strtyt[:3],
                     "uwagi": uwagi[:60],
+                    "bledy": list(getattr(self, "_diag_errors", [])),
                     "folder": str(folder) if folder else ""})
         # automatyczne otwarcie okna z plikami docelowymi
         if folder is not None:
@@ -1217,6 +1256,9 @@ class WebBackend(
         self._emit({"type": "clear_log"})
 
     def update_status(self, text, color="#0078D7", animate=True):
+        if color not in ("#D83B01", "#27ae60", "#107C10"):
+            self._diag_context.etap = str(text)
+            self._diag_context.file = ""
         # przy "obu wersjach" pasek statusu mówi, który przebieg trwa
         et = getattr(self, "_przebieg_etykieta", "")
         if et:
@@ -1225,6 +1267,10 @@ class WebBackend(
 
     def set_progress(self, value, current_file=None, current=None,
                      total=None, description=None):
+        if current_file:
+            self.diag_set_file(current_file)
+        if description:
+            self._diag_context.etap = str(description)
         self._emit({"type": "progress", "value": value,
                     "file": current_file, "current": current,
                     "total": total, "desc": description})
@@ -1234,6 +1280,9 @@ class WebBackend(
                     "desc": description})
 
     def update_dashboard(self, step_index, status, text=None):
+        if status == "running" and text:
+            self._diag_context.etap = str(text)
+            self._diag_context.file = ""
         self._emit({"type": "dashboard", "step": step_index,
                     "status": status, "text": text})
 
@@ -1618,8 +1667,9 @@ class WebBackend(
         def _wrap():
             try:
                 task()
-            except Exception:
-                self.log(traceback.format_exc())
+            except Exception as exc:
+                self.report_exception(exc, etap=getattr(self._diag_context, "etap", "")
+                                      or "Uruchamianie zadania", zadanie=task_id)
                 self.update_status("Błąd", "#D83B01", animate=False)
                 self.running = False
                 self._emit({"type": "state", "running": False})
