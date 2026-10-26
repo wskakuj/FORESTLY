@@ -2120,6 +2120,7 @@ class WebBackend(
             ok, blad, pominiete = 0, 0, []
             for i, obr in enumerate(obraby, 1):
                 self.check_stop()
+                etap_obr = "TXT z DBF"
                 try:
                     # 1) TXT z DBF-ów (tylko wybrany raport), tak jak w zakładce
                     #    'MIETEK -> TXT' — plik powstaje obok plików DBF obrębu
@@ -2139,6 +2140,7 @@ class WebBackend(
                         self.log(f"  ℹ️ {obr.name}: {typ}.txt nie powstał (brak danych) — pomijam.")
                     else:
                         # 2) TXT → HTML → PDF nowym wyglądem
+                        etap_obr = "TXT → HTML → PDF"
                         pdf = dst_p / obr.name / f"{typ}.pdf"
                         pdf.parent.mkdir(parents=True, exist_ok=True)
                         szablony.generuj_raport_pdf(
@@ -2151,7 +2153,11 @@ class WebBackend(
                         self.log(f"  ✅ {obr.name}: {typ}.txt + PDF → {pdf}")
                 except Exception as e:
                     blad += 1
-                    self.log(f"  ✗ {obr.name}: {e}")
+                    self.report_exception(
+                        e, etap=f"Nowe szablony: {etap_obr} ({typ})",
+                        plik=txt if etap_obr == "TXT → HTML → PDF"
+                        and "txt" in locals() and txt is not None else obr,
+                        krytyczny=False, zadanie="Nowe szablony")
                 self.set_progress(i / len(obraby), current_file=obr.name)
             self.set_progress(1.0)
             self.last_output_dir = dst_p
@@ -2168,8 +2174,9 @@ class WebBackend(
         except InterruptedError:
             self.update_status("Zatrzymano", "#D83B01", animate=False)
             self.log("[STOP] Przerwano generowanie nowych szablonów.")
-        except Exception:
-            self.log(traceback.format_exc())
+        except Exception as e:
+            self.report_exception(e, etap="Nowe szablony: praca z obrębami",
+                                  zadanie="Nowe szablony")
             self.update_status("Błąd", "#D83B01", animate=False)
         finally:
             self.restore_all_buttons()
