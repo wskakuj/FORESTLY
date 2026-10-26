@@ -3201,9 +3201,17 @@ class TabAllMixin:
                     )
                     self.task_remove_blank_pages(dir_04, dir_05)
 
-            self.log("\nZAKOŃCZONO POMYŚLNIE.")
+            _bledy_biegu = list(getattr(self, "_diag_errors", []) or [])
+            if _bledy_biegu:
+                self.log(f"\nZAKOŃCZONO Z BŁĘDAMI: {len(_bledy_biegu)}. "
+                         "Szczegóły w raporcie biegu i _FORESTLY_DIAGNOSTYKA.")
+                self.update_status(
+                    f"Zakończono z błędami ({len(_bledy_biegu)}).",
+                    "#D83B01", animate=False)
+            else:
+                self.log("\nZAKOŃCZONO POMYŚLNIE.")
+                self.update_status("Zakończono pomyślnie.", "#27ae60", animate=False)
             self.set_progress(1.0)
-            self.update_status("Zakończono pomyślnie.", "#27ae60", animate=False)
             # v2.0.108: zamiast gołego "Sukces" — okno z raportem biegu
             # + automatycznie otwarte okno z plikami docelowymi
             # Tryb „Obie wersje": po PIERWSZYM przebiegu NIE pokazujemy
