@@ -195,7 +195,12 @@ class TabWordMixin:
                 count += 1
                 self.set_progress(idx / total if total else 1, current_file=f.name, current=idx)
             except Exception as e:
-                self.log(f"Błąd pliku {f.name}: {e}")
+                reporter = getattr(self, "report_exception", None)
+                if callable(reporter):
+                    reporter(e, etap="Oczyszczanie TXT", plik=f,
+                             krytyczny=False)
+                else:
+                    self.log(f"Błąd pliku {f.name}: {e}")
 
         # TUTAJ BYŁ BŁĄD - to musi być na równi z "for", a nie wewnątrz niego!
         return count
@@ -241,6 +246,7 @@ class TabWordMixin:
         ) as bat_file:
             bat_file.write(bat_content)
         bat_path = bat_file.name
+        process = None
         try:
             process = subprocess.Popen(
                 ["cmd", "/c", bat_path], creationflags=subprocess.CREATE_NO_WINDOW
@@ -270,8 +276,12 @@ class TabWordMixin:
                         break
                     else:
                         time.sleep(0.1)
+            if process.returncode not in (None, 0) and not self.stop_event.is_set():
+                raise RuntimeError(
+                    f"Proces generowania Word zakończył się kodem {process.returncode}. "
+                    "Sprawdź zapisany raport etapu i log workera.")
         finally:
-            if process.poll() is None:
+            if process is not None and process.poll() is None:
                 try:
                     subprocess.run(
                         ["taskkill", "/F", "/T", "/PID", str(process.pid)],
