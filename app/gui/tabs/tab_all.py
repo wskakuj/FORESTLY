@@ -1356,6 +1356,10 @@ class TabAllMixin:
                     self.log(f"[SZABLONY] Pomijam pusty plik: {txt.name}")
                     continue
                 pdf = out_dir / f"{typ}.pdf"
+                # W razie nieudanego renderowania raport wskaże konkretny TXT.
+                _diag_file = getattr(self, "diag_set_file", None)
+                if callable(_diag_file):
+                    _diag_file(txt)
                 # czcionki raportów (tytuł/tabela) z kreatora 1-Click
                 _czc = self.get_setting("web.czcionki.ALL", None)
                 szablony.generuj_raport_pdf(
@@ -1520,7 +1524,12 @@ class TabAllMixin:
                     try:
                         txt = generuj_kontrola_pow_txt(kat)
                     except Exception as e:
-                        self.log(f"  [Błąd] {kat.name}: {e}")
+                        reporter = getattr(self, "report_exception", None)
+                        if callable(reporter):
+                            reporter(e, etap="Kontrola powierzchni: TXT z DBF",
+                                     plik=kat, krytyczny=False)
+                        else:
+                            self.log(f"  [Błąd] {kat.name}: {e}")
                         continue
                     if not txt or not Path(txt).exists():
                         continue
@@ -1634,14 +1643,18 @@ class TabAllMixin:
         except InterruptedError:
             self.update_status("Przerwano", "#D83B01", animate=False)
             self.log("\nZADANIE PRZERWANE PRZEZ UŻYTKOWNIKA.")
-        except Exception:
+        except Exception as e:
             # przerwane w trakcie renderowania (ubita przeglądarka) — to nie
             # błąd, tylko „Przerwano"
             if self.stop_event.is_set():
                 self.update_status("Przerwano", "#D83B01", animate=False)
                 self.log("\nZADANIE PRZERWANE PRZEZ UŻYTKOWNIKA.")
             else:
-                self.log(traceback.format_exc())
+                reporter = getattr(self, "report_exception", None)
+                if callable(reporter):
+                    reporter(e, etap="Kontrola powierzchni: raporty PDF")
+                else:
+                    self.log(traceback.format_exc())
                 self.update_status("Błąd", "#D83B01", animate=False)
         finally:
             self.running = False
@@ -1958,9 +1971,14 @@ class TabAllMixin:
                     )
 
                 except Exception as e:
-                    self.log(
-                        f"  [Błąd] Nie udało się wygenerować STR_TYT dla {optax_path.parent.name}: {e}"
-                    )
+                    reporter = getattr(self, "report_exception", None)
+                    if callable(reporter):
+                        reporter(e, etap="Generowanie strony tytułowej STR_TYT",
+                                 plik=optax_path, krytyczny=False)
+                    else:
+                        self.log(
+                            f"  [Błąd] Nie udało się wygenerować STR_TYT dla {optax_path.parent.name}: {e}"
+                        )
         finally:
             try:
                 word_app.Quit()
@@ -3200,7 +3218,12 @@ class TabAllMixin:
             self.update_status("Przerwano", "#D83B01", animate=False)
             self.log("\nZADANIE PRZERWANE PRZEZ UŻYTKOWNIKA.")
         except Exception as e:
-            self.log(traceback.format_exc())
+            reporter = getattr(self, "report_exception", None)
+            if callable(reporter):
+                reporter(e, etap=getattr(getattr(self, "_diag_context", None), "etap", "")
+                         or "Pełny Automat")
+            else:
+                self.log(traceback.format_exc())
             self.update_status("Błąd", "#D83B01", animate=False)
         finally:
             pythoncom.CoUninitialize()
