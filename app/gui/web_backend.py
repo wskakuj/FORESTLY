@@ -1323,6 +1323,7 @@ class WebBackend(
     def _disable_ui_for_process(self):
         self.running = True
         self.stop_event.clear()
+        self._diag_run_root = None
         self._emit({"type": "state", "running": True})
 
     def restore_all_buttons(self):
@@ -2090,8 +2091,8 @@ class WebBackend(
         if self.running:
             return
         self.last_output_dir = Path(dst)
-        self._diag_run_root = Path(dst)
         self._disable_ui_for_process()
+        self._diag_run_root = Path(dst)
         self.raport_start()
         self.log(f"[NOWE SZABLONY] {typ} — Mietki: {src} → PDF: {dst}"
                  + (" (bez nazwisk)" if bez_nazwisk else ""))
