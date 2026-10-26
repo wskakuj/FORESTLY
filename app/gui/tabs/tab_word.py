@@ -279,7 +279,7 @@ class TabWordMixin:
             if process.returncode not in (None, 0) and not self.stop_event.is_set():
                 raise RuntimeError(
                     f"Proces generowania Word zakończył się kodem {process.returncode}. "
-                    "Sprawdź zapisany raport etapu i log workera.")
+                    "Szczegóły błędu workera Word znajdziesz w dzienniku FORESTLY.")
         finally:
             if process is not None and process.poll() is None:
                 try:
