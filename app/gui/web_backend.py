@@ -1138,14 +1138,16 @@ class WebBackend(
             exc, etap=etap, plik=plik,
             zadanie=zadanie or getattr(self, "_przebieg_etykieta", ""),
             krytyczny=krytyczny)
-        folder = getattr(self, "last_output_dir", None)
-        try:
-            sciezka = zapisz_raport_jsonl(raport, folder)
-            if sciezka is not None:
-                raport["raport_plik"] = str(sciezka)
-        except (OSError, ValueError) as log_error:
-            raport["uwaga_zapis"] = "Nie udało się zapisać pliku diagnostyki: " + str(log_error)
+        folder = getattr(self, "_diag_run_root", None) or getattr(
+            self, "last_output_dir", None)
         with self._diag_lock:
+            try:
+                sciezka = zapisz_raport_jsonl(raport, folder)
+                if sciezka is not None:
+                    raport["raport_plik"] = str(sciezka)
+            except (OSError, ValueError) as log_error:
+                raport["uwaga_zapis"] = (
+                    "Nie udało się zapisać pliku diagnostyki: " + str(log_error))
             self._diag_errors.append(raport)
         self.log(opis_do_logu(raport))
         self._emit({"type": "error_report", "report": raport})
@@ -2088,6 +2090,7 @@ class WebBackend(
         if self.running:
             return
         self.last_output_dir = Path(dst)
+        self._diag_run_root = Path(dst)
         self._disable_ui_for_process()
         self.raport_start()
         self.log(f"[NOWE SZABLONY] {typ} — Mietki: {src} → PDF: {dst}"
