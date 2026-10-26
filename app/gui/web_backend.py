@@ -535,6 +535,10 @@ class WebBackend(
         # zdarzenia do frontendu + dialogi
         self._events = deque()
         self._ev_lock = threading.Lock()
+        # Kontekst błędu jest osobny dla każdego wątku zadania.
+        self._diag_context = threading.local()
+        self._diag_errors = []
+        self._diag_lock = threading.Lock()
         self._dialog_waits = {}   # id -> (Event, result)
         self._pc_pliki = []       # pliki przeciągnięte do konwertera PDF
 
@@ -1108,9 +1112,46 @@ class WebBackend(
         self._emit({"type": "log", "text": str(text)})
 
     def raport_start(self):
-        """v2.0.108: start liczenia czasu i czyszczenie bufora na nowy bieg."""
+        """Start raportu biegu; osobna lista błędów dla tego uruchomienia."""
         self._log_buf = []
+        with self._diag_lock:
+            self._diag_errors.clear()
         self._raport_t0 = time.time()
+
+    def diag_set_file(self, path):
+        """Bieżący plik zadania z tego samego wątku (nie myli równoległych)."""
+        self._diag_context.file = str(path) if path else ""
+
+    def report_exception(self, exc, *, etap=None, plik=None, krytyczny=True,
+                         zadanie=None):
+        """Błąd w logu, raporcie końcowym i lokalnym pliku diagnostycznym.
+
+        Nie może ukryć pierwotnego wyjątku nawet przy braku praw zapisu logu.
+        """
+        from app.core.diagnostyka_bledow import (
+            opis_do_logu, zbuduj_raport, zapisz_raport_jsonl)
+        ctx = self._diag_context
+        etap = etap or getattr(ctx, "etap", "") or "Nieustalony etap"
+        plik = (plik if plik is not None
+                else (getattr(exc, "filename", None) or getattr(ctx, "file", "")))
+        raport = zbuduj_raport(
+            exc, etap=etap, plik=plik,
+            zadanie=zadanie or getattr(self, "_przebieg_etykieta", ""),
+            krytyczny=krytyczny)
+        folder = getattr(self, "_diag_run_root", None) or getattr(
+            self, "last_output_dir", None)
+        with self._diag_lock:
+            try:
+                sciezka = zapisz_raport_jsonl(raport, folder)
+                if sciezka is not None:
+                    raport["raport_plik"] = str(sciezka)
+            except (OSError, ValueError) as log_error:
+                raport["uwaga_zapis"] = (
+                    "Nie udało się zapisać pliku diagnostyki: " + str(log_error))
+            self._diag_errors.append(raport)
+        self.log(opis_do_logu(raport))
+        self._emit({"type": "error_report", "report": raport})
+        return raport
 
     def _raport_folder(self, out_root):
         """Finalny folder wyników biegu (do otwarcia w Eksploratorze)."""
@@ -1190,6 +1231,9 @@ class WebBackend(
                 strtyt.append(l.strip())
                 continue
             if rx_uwaga.search(l):
+                # Raporty strukturalne mają osobną sekcję — nie powielaj ich w uwagach.
+                if l.lstrip().startswith(("[BŁĄD ", "[BŁĄD PLIKU ")):
+                    continue
                 # v2.0.132: komunikaty "skopiowano / już wygenerowane
                 # w 'Z nazwiskami'" to OCZEKIWANE zachowanie drugiego
                 # przebiegu (bez nazwisk) — to nie ostrzeżenie,
@@ -1205,6 +1249,7 @@ class WebBackend(
                     "wsie": wsie, "pakiety": pakiety, "wydruki": wydruki,
                     "strtyt": strtyt[:3],
                     "uwagi": uwagi[:60],
+                    "bledy": list(getattr(self, "_diag_errors", [])),
                     "folder": str(folder) if folder else ""})
         # automatyczne otwarcie okna z plikami docelowymi
         if folder is not None:
@@ -1217,6 +1262,9 @@ class WebBackend(
         self._emit({"type": "clear_log"})
 
     def update_status(self, text, color="#0078D7", animate=True):
+        if color not in ("#D83B01", "#27ae60", "#107C10"):
+            self._diag_context.etap = str(text)
+            self._diag_context.file = ""
         # przy "obu wersjach" pasek statusu mówi, który przebieg trwa
         et = getattr(self, "_przebieg_etykieta", "")
         if et:
@@ -1225,6 +1273,10 @@ class WebBackend(
 
     def set_progress(self, value, current_file=None, current=None,
                      total=None, description=None):
+        if current_file:
+            self.diag_set_file(current_file)
+        if description:
+            self._diag_context.etap = str(description)
         self._emit({"type": "progress", "value": value,
                     "file": current_file, "current": current,
                     "total": total, "desc": description})
@@ -1234,6 +1286,9 @@ class WebBackend(
                     "desc": description})
 
     def update_dashboard(self, step_index, status, text=None):
+        if status == "running" and text:
+            self._diag_context.etap = str(text)
+            self._diag_context.file = ""
         self._emit({"type": "dashboard", "step": step_index,
                     "status": status, "text": text})
 
@@ -1268,6 +1323,7 @@ class WebBackend(
     def _disable_ui_for_process(self):
         self.running = True
         self.stop_event.clear()
+        self._diag_run_root = None
         self._emit({"type": "state", "running": True})
 
     def restore_all_buttons(self):
@@ -1618,8 +1674,9 @@ class WebBackend(
         def _wrap():
             try:
                 task()
-            except Exception:
-                self.log(traceback.format_exc())
+            except Exception as exc:
+                self.report_exception(exc, etap=getattr(self._diag_context, "etap", "")
+                                      or "Uruchamianie zadania", zadanie=task_id)
                 self.update_status("Błąd", "#D83B01", animate=False)
                 self.running = False
                 self._emit({"type": "state", "running": False})
@@ -2035,6 +2092,8 @@ class WebBackend(
             return
         self.last_output_dir = Path(dst)
         self._disable_ui_for_process()
+        self._diag_run_root = Path(dst)
+        self.raport_start()
         self.log(f"[NOWE SZABLONY] {typ} — Mietki: {src} → PDF: {dst}"
                  + (" (bez nazwisk)" if bez_nazwisk else ""))
         threading.Thread(target=self._nowe_szablony_thread,
@@ -2070,6 +2129,7 @@ class WebBackend(
             ok, blad, pominiete = 0, 0, []
             for i, obr in enumerate(obraby, 1):
                 self.check_stop()
+                etap_obr = "TXT z DBF"
                 try:
                     # 1) TXT z DBF-ów (tylko wybrany raport), tak jak w zakładce
                     #    'MIETEK -> TXT' — plik powstaje obok plików DBF obrębu
@@ -2089,6 +2149,7 @@ class WebBackend(
                         self.log(f"  ℹ️ {obr.name}: {typ}.txt nie powstał (brak danych) — pomijam.")
                     else:
                         # 2) TXT → HTML → PDF nowym wyglądem
+                        etap_obr = "TXT → HTML → PDF"
                         pdf = dst_p / obr.name / f"{typ}.pdf"
                         pdf.parent.mkdir(parents=True, exist_ok=True)
                         szablony.generuj_raport_pdf(
@@ -2101,7 +2162,11 @@ class WebBackend(
                         self.log(f"  ✅ {obr.name}: {typ}.txt + PDF → {pdf}")
                 except Exception as e:
                     blad += 1
-                    self.log(f"  ✗ {obr.name}: {e}")
+                    self.report_exception(
+                        e, etap=f"Nowe szablony: {etap_obr} ({typ})",
+                        plik=txt if etap_obr == "TXT → HTML → PDF"
+                        and "txt" in locals() and txt is not None else obr,
+                        krytyczny=False, zadanie="Nowe szablony")
                 self.set_progress(i / len(obraby), current_file=obr.name)
             self.set_progress(1.0)
             self.last_output_dir = dst_p
@@ -2115,11 +2180,14 @@ class WebBackend(
                      + (f", pominięte (brak danych): {', '.join(pominiete)}"
                         if pominiete else "")
                      + f". Folder: {dst}")
+            if blad:
+                self.pokaz_raport_koncowy(dst_p)
         except InterruptedError:
             self.update_status("Zatrzymano", "#D83B01", animate=False)
             self.log("[STOP] Przerwano generowanie nowych szablonów.")
-        except Exception:
-            self.log(traceback.format_exc())
+        except Exception as e:
+            self.report_exception(e, etap="Nowe szablony: praca z obrębami",
+                                  zadanie="Nowe szablony")
             self.update_status("Błąd", "#D83B01", animate=False)
         finally:
             self.restore_all_buttons()

@@ -3057,6 +3057,9 @@ function handleEvent(ev) {
         break;
     case "changelog": showChangelog(ev); break;
     case "raport": showRaport(ev); break;
+    case "error_report":
+      if (ev.report && ev.report.krytyczny) showErrorReport(ev.report);
+      break;
     case "braki": showBraki(ev); break;
     case "state": setRunning(!!ev.running); break;
     case "toast": toast(ev.text, ev.kind); break;
@@ -3215,12 +3218,14 @@ function renderChangelogBody(box, text) {
 /* -------------------------------------------------------------------- dialogi */
 /* ------------------------------------- raport po biegu (v2.0.108) */
 function showRaport(ev) {
+  const bledy = ev.bledy || [];
   const wrap = el("div", "modal-backdrop");
   const modal = el("div", "modal");
   modal.style.width = "640px";
   const et = ev.etykieta ? escapeHtml(ev.etykieta) + " — " : "";
-  const h = el("h3", null, et + "Zakończono pomyślnie");
-  h.style.color = "#1e7d32";
+  const h = el("h3", null,
+    et + (bledy.length ? "Zakończono z błędami" : "Zakończono pomyślnie"));
+  h.style.color = bledy.length ? "#c77838" : "#1e7d32";
   modal.appendChild(h);
   const body = el("div", "changelog-body raport-body");
   if (ev.czas) body.appendChild(el("div", "raport-czas", "Czas biegu: " + ev.czas));
@@ -3240,12 +3245,28 @@ function showRaport(ev) {
     sekcja(`Scalone pakiety (${ev.pakiety.length})`, ev.pakiety);
   if (ev.wydruki && ev.wydruki.length)
     sekcja(`Wersje do wydruku dwustronnego (${ev.wydruki.length})`, ev.wydruki);
+  if (bledy.length) {
+    body.appendChild(el("div", "raport-sekcja",
+      `Błędy wymagające uwagi (${bledy.length})`));
+    const lista = el("div", "raport-uwagi");
+    bledy.forEach(b => {
+      const linia = el("div", null);
+      const btn = el("button", "btn secondary", "Pokaż szczegóły");
+      btn.style.margin = "4px 8px 4px 0";
+      btn.onclick = () => showErrorReport(b);
+      linia.appendChild(btn);
+      linia.appendChild(document.createTextNode(
+        (b.etap || "Etap nieustalony") + (b.plik ? " — " + b.plik : "")));
+      lista.appendChild(linia);
+    });
+    body.appendChild(lista);
+  }
   if (ev.uwagi && ev.uwagi.length) {
     body.appendChild(el("div", "raport-sekcja", `Ostrzeżenia i pominięcia (${ev.uwagi.length})`));
     const u = el("div", "raport-uwagi");
     ev.uwagi.forEach(x => u.appendChild(el("div", null, escapeHtml(x))));
     body.appendChild(u);
-  } else {
+  } else if (!bledy.length) {
     body.appendChild(el("div", "raport-czas", "Bez ostrzeżeń i pominięć — wszystko poszło gładko."));
   }
   modal.appendChild(body);
@@ -3258,6 +3279,92 @@ function showRaport(ev) {
   }
   const close = el("button", "btn primary", "Zamknij");
   close.textContent = "Zamknij";
+  close.onclick = () => wrap.remove();
+  row.appendChild(close);
+  modal.appendChild(row);
+  wrap.appendChild(modal);
+  wrap.onclick = e => { if (e.target === wrap) wrap.remove(); };
+  $("#modal-root").appendChild(wrap);
+}
+
+
+/* ------------------------------ szczegóły błędu FORESTLY ------------------------------ */
+function showErrorReport(b) {
+  const wrap = el("div", "modal-backdrop");
+  const modal = el("div", "modal");
+  modal.style.width = "690px";
+  modal.style.maxWidth = "95vw";
+  modal.appendChild(el("h3", null, b.krytyczny
+    ? "Błąd przetwarzania — zadanie przerwane"
+    : "Błąd podczas przetwarzania pliku"));
+  const body = el("div", "changelog-body raport-body");
+  body.style.maxHeight = "55vh";
+  body.style.overflowY = "auto";
+
+  const pole = (nazwa, wartosc) => {
+    if (!wartosc) return;
+    const w = el("div", "raport-czas");
+    const strong = document.createElement("strong");
+    strong.textContent = nazwa + ": ";
+    w.appendChild(strong);
+    w.appendChild(document.createTextNode(String(wartosc)));
+    w.style.whiteSpace = "pre-wrap";
+    w.style.overflowWrap = "anywhere";
+    body.appendChild(w);
+  };
+  pole("Etap", b.etap);
+  pole("Plik / folder", b.plik);
+  pole("Przyczyna", (b.typ ? b.typ + ": " : "") + (b.przyczyna || ""));
+  pole("Co możesz zrobić", b.wskazowka);
+  pole("Identyfikator błędu", b.id);
+  if (b.raport_plik) pole("Lokalny raport techniczny", b.raport_plik);
+  if (b.uwaga_zapis) pole("Uwaga", b.uwaga_zapis);
+  if (b.szczegoly) {
+    const d = document.createElement("details");
+    d.style.marginTop = "10px";
+    const summary = document.createElement("summary");
+    summary.textContent = "Szczegóły techniczne (traceback)";
+    d.appendChild(summary);
+    const pre = document.createElement("pre");
+    pre.textContent = b.szczegoly;
+    pre.style.whiteSpace = "pre-wrap";
+    pre.style.overflowWrap = "anywhere";
+    d.appendChild(pre);
+    body.appendChild(d);
+  }
+  modal.appendChild(body);
+  const row = el("div", "modal-row");
+  const copy = el("button", "btn secondary", "Kopiuj raport");
+  copy.onclick = async () => {
+    const data = [
+      "FORESTLY — raport błędu " + (b.id || ""),
+      "Czas: " + (b.czas || ""),
+      "Zadanie: " + (b.zadanie || ""),
+      "Etap: " + (b.etap || ""),
+      "Plik: " + (b.plik || ""),
+      "Przyczyna: " + (b.typ || "") + ": " + (b.przyczyna || ""),
+      "Wskazówka: " + (b.wskazowka || ""),
+      "Raport: " + (b.raport_plik || ""),
+      "", "Szczegóły:", (b.szczegoly || "")
+    ].join("\n");
+    try {
+      if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error("clipboard unavailable");
+      await navigator.clipboard.writeText(data);
+      copy.textContent = "Skopiowano";
+    } catch (err) {
+      const field = document.createElement("textarea");
+      field.value = data;
+      field.style.position = "fixed";
+      field.style.opacity = "0";
+      document.body.appendChild(field);
+      field.select();
+      const ok = document.execCommand("copy");
+      field.remove();
+      copy.textContent = ok ? "Skopiowano" : "Nie można skopiować — sprawdź raport lokalny";
+    }
+  };
+  row.appendChild(copy);
+  const close = el("button", "btn primary", "Zamknij");
   close.onclick = () => wrap.remove();
   row.appendChild(close);
   modal.appendChild(row);

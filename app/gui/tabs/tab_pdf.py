@@ -96,7 +96,13 @@ class TabPdfMixin:
             for doc_path in docs:
                 self.check_stop()
                 if is_file_locked(doc_path):
-                    self.log(f"Zablokowany: {doc_path.name}")
+                    reporter = getattr(self, "report_exception", None)
+                    if callable(reporter):
+                        reporter(PermissionError("Plik zablokowany przez inny proces"),
+                                 etap="Konwersja Word → PDF", plik=doc_path,
+                                 krytyczny=False)
+                    else:
+                        self.log(f"Zablokowany: {doc_path.name}")
                     continue
                 rel_path = doc_path.relative_to(in_dir)
                 target = out_dir / rel_path.parent / f"{doc_path.stem}.pdf"
@@ -131,7 +137,12 @@ class TabPdfMixin:
                     count += 1
                     self.set_progress(count / total_docs if total_docs else 1, current_file=doc_path.name, current=count)
                 except Exception as e:
-                    self.log(f"Problem konwersji obiektu {doc_path.name}: {e}")
+                    reporter = getattr(self, "report_exception", None)
+                    if callable(reporter):
+                        reporter(e, etap="Konwersja Word → PDF", plik=doc_path,
+                                 krytyczny=False)
+                    else:
+                        self.log(f"Problem konwersji obiektu {doc_path.name}: {e}")
                 finally:
                     if doc is not None:
                         doc.Close(SaveChanges=False)
@@ -337,7 +348,12 @@ class TabPdfMixin:
                 count += 1
                 self.set_progress(idx_dir / total_dirs if total_dirs else 1, current_file=village_name, current=idx_dir)
             except Exception as e:
-                self.log(f"Błąd przy {target.name}: {e}")
+                reporter = getattr(self, "report_exception", None)
+                if callable(reporter):
+                    reporter(e, etap="Scalanie PDF", plik=target,
+                             krytyczny=False)
+                else:
+                    self.log(f"Błąd przy {target.name}: {e}")
             finally:
                 writer.close()
 
@@ -500,7 +516,12 @@ class TabPdfMixin:
                         doc.close()
                     except Exception:
                         pass
-                self.log(f"[WYDRUK] {pdf_path.name}: {e}")
+                reporter = getattr(self, "report_exception", None)
+                if callable(reporter):
+                    reporter(e, etap="Przygotowanie dwustronnego wydruku PDF",
+                             plik=pdf_path, krytyczny=False)
+                else:
+                    self.log(f"[WYDRUK] {pdf_path.name}: {e}")
         return count
 
     def task_remove_blank_pages(self, in_dir, out_dir):

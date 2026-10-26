@@ -1263,6 +1263,11 @@ class TabAllMixin:
                     self.run_logic_thread(src_path, str(dst_root / "Z nazwiskami"),
                                           mode, False, margins_dict,
                                           nowe_szablony_flag)
+                    if getattr(self, "_pipeline_failed", False):
+                        self.log("[OBIE WERSJE] Pierwszy przebieg zakończył się błędem. "
+                                 "Nie rozpoczynam drugiego, aby nie kopiować "
+                                 "niepełnych wyników.")
+                        return
                     try:
                         self.check_stop()
                     except Exception:
@@ -1356,6 +1361,10 @@ class TabAllMixin:
                     self.log(f"[SZABLONY] Pomijam pusty plik: {txt.name}")
                     continue
                 pdf = out_dir / f"{typ}.pdf"
+                # W razie nieudanego renderowania raport wskaże konkretny TXT.
+                _diag_file = getattr(self, "diag_set_file", None)
+                if callable(_diag_file):
+                    _diag_file(txt)
                 # czcionki raportów (tytuł/tabela) z kreatora 1-Click
                 _czc = self.get_setting("web.czcionki.ALL", None)
                 szablony.generuj_raport_pdf(
@@ -1520,7 +1529,12 @@ class TabAllMixin:
                     try:
                         txt = generuj_kontrola_pow_txt(kat)
                     except Exception as e:
-                        self.log(f"  [Błąd] {kat.name}: {e}")
+                        reporter = getattr(self, "report_exception", None)
+                        if callable(reporter):
+                            reporter(e, etap="Kontrola powierzchni: TXT z DBF",
+                                     plik=kat, krytyczny=False)
+                        else:
+                            self.log(f"  [Błąd] {kat.name}: {e}")
                         continue
                     if not txt or not Path(txt).exists():
                         continue
@@ -1634,14 +1648,18 @@ class TabAllMixin:
         except InterruptedError:
             self.update_status("Przerwano", "#D83B01", animate=False)
             self.log("\nZADANIE PRZERWANE PRZEZ UŻYTKOWNIKA.")
-        except Exception:
+        except Exception as e:
             # przerwane w trakcie renderowania (ubita przeglądarka) — to nie
             # błąd, tylko „Przerwano"
             if self.stop_event.is_set():
                 self.update_status("Przerwano", "#D83B01", animate=False)
                 self.log("\nZADANIE PRZERWANE PRZEZ UŻYTKOWNIKA.")
             else:
-                self.log(traceback.format_exc())
+                reporter = getattr(self, "report_exception", None)
+                if callable(reporter):
+                    reporter(e, etap="Kontrola powierzchni: raporty PDF")
+                else:
+                    self.log(traceback.format_exc())
                 self.update_status("Błąd", "#D83B01", animate=False)
         finally:
             self.running = False
@@ -1958,9 +1976,14 @@ class TabAllMixin:
                     )
 
                 except Exception as e:
-                    self.log(
-                        f"  [Błąd] Nie udało się wygenerować STR_TYT dla {optax_path.parent.name}: {e}"
-                    )
+                    reporter = getattr(self, "report_exception", None)
+                    if callable(reporter):
+                        reporter(e, etap="Generowanie strony tytułowej STR_TYT",
+                                 plik=optax_path, krytyczny=False)
+                    else:
+                        self.log(
+                            f"  [Błąd] Nie udało się wygenerować STR_TYT dla {optax_path.parent.name}: {e}"
+                        )
         finally:
             try:
                 word_app.Quit()
@@ -2567,6 +2590,12 @@ class TabAllMixin:
 
     def run_logic_thread(self, src_str, out_str, mode, remove_names, margins_dict=None, nowe_szablony=False):
         # --- INICJALIZACJA ZMIENNYCH ---
+        self._pipeline_failed = False
+        if hasattr(self, "report_exception"):
+            # Jedno miejsce logów dla obu przebiegów "Z/Bez nazwiskami".
+            self._diag_run_root = (Path(out_str).parent
+                if getattr(self, "_dwie_wersje_aktywne", False)
+                else Path(out_str))
         self._zapamietaj_all_tpl()   # karta „Strona tytułowa i daty” wróci po restarcie
         in_root = None
         out_root = None
@@ -2751,6 +2780,7 @@ class TabAllMixin:
                         "Folder źródłowy nie zawiera plików TXT ani plików DBF mietka\n"
                         "(O*.DBF itd.), albo odznaczono 'Generuj pliki TXT z DBF mietka'.")
                     self.update_status("Błąd — brak plików TXT", "#D83B01", animate=False)
+                    self._pipeline_failed = True
                     return
 
                 # === DATY Z KREATORA: "Stan na" we wszystkich plikach
@@ -3110,6 +3140,7 @@ class TabAllMixin:
                         "\n[BŁĄD] Brak plików TXT do przetworzenia "
                         f"dla filtru: {filter_label}.")
                     self.update_status("Błąd — brak plików TXT", "#D83B01", animate=False)
+                    self._pipeline_failed = True
                     return
                 self.set_progress(0.5)
                 self.check_stop()
@@ -3175,9 +3206,17 @@ class TabAllMixin:
                     )
                     self.task_remove_blank_pages(dir_04, dir_05)
 
-            self.log("\nZAKOŃCZONO POMYŚLNIE.")
+            _bledy_biegu = list(getattr(self, "_diag_errors", []) or [])
+            if _bledy_biegu:
+                self.log(f"\nZAKOŃCZONO Z BŁĘDAMI: {len(_bledy_biegu)}. "
+                         "Szczegóły w raporcie biegu i _FORESTLY_DIAGNOSTYKA.")
+                self.update_status(
+                    f"Zakończono z błędami ({len(_bledy_biegu)}).",
+                    "#D83B01", animate=False)
+            else:
+                self.log("\nZAKOŃCZONO POMYŚLNIE.")
+                self.update_status("Zakończono pomyślnie.", "#27ae60", animate=False)
             self.set_progress(1.0)
-            self.update_status("Zakończono pomyślnie.", "#27ae60", animate=False)
             # v2.0.108: zamiast gołego "Sukces" — okno z raportem biegu
             # + automatycznie otwarte okno z plikami docelowymi
             # Tryb „Obie wersje": po PIERWSZYM przebiegu NIE pokazujemy
@@ -3200,7 +3239,13 @@ class TabAllMixin:
             self.update_status("Przerwano", "#D83B01", animate=False)
             self.log("\nZADANIE PRZERWANE PRZEZ UŻYTKOWNIKA.")
         except Exception as e:
-            self.log(traceback.format_exc())
+            self._pipeline_failed = True
+            reporter = getattr(self, "report_exception", None)
+            if callable(reporter):
+                reporter(e, etap=getattr(getattr(self, "_diag_context", None), "etap", "")
+                         or "Pełny Automat")
+            else:
+                self.log(traceback.format_exc())
             self.update_status("Błąd", "#D83B01", animate=False)
         finally:
             pythoncom.CoUninitialize()

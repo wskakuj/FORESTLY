@@ -1,0 +1,34 @@
+name: Forestly — diagnostyka błędów
+
+on:
+  push:
+    branches:
+      - feat/structured-error-diagnostics
+  pull_request:
+    paths:
+      - 'app/core/diagnostyka_bledow.py'
+      - 'app/gui/web_backend.py'
+      - 'app/gui/tabs/tab_all.py'
+      - 'app/gui/tabs/tab_word.py'
+      - 'app/gui/tabs/tab_pdf.py'
+      - 'webapp/app.js'
+      - 'tests/test_diagnostyka_bledow.py'
+      - '.github/workflows/diagnostics-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  error-diagnostics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify changed Python modules compile
+        run: python -m py_compile app/core/diagnostyka_bledow.py app/gui/web_backend.py app/gui/tabs/tab_all.py app/gui/tabs/tab_word.py app/gui/tabs/tab_pdf.py
+      - name: Test structured error reporting
+        run: python -m unittest tests.test_diagnostyka_bledow -v
+      - name: Validate frontend JavaScript syntax
+        run: node --check webapp/app.js
