@@ -1263,6 +1263,11 @@ class TabAllMixin:
                     self.run_logic_thread(src_path, str(dst_root / "Z nazwiskami"),
                                           mode, False, margins_dict,
                                           nowe_szablony_flag)
+                    if getattr(self, "_pipeline_failed", False):
+                        self.log("[OBIE WERSJE] Pierwszy przebieg zakończył się błędem. "
+                                 "Nie rozpoczynam drugiego, aby nie kopiować "
+                                 "niepełnych wyników.")
+                        return
                     try:
                         self.check_stop()
                     except Exception:
@@ -2585,6 +2590,7 @@ class TabAllMixin:
 
     def run_logic_thread(self, src_str, out_str, mode, remove_names, margins_dict=None, nowe_szablony=False):
         # --- INICJALIZACJA ZMIENNYCH ---
+        self._pipeline_failed = False
         self._zapamietaj_all_tpl()   # karta „Strona tytułowa i daty” wróci po restarcie
         in_root = None
         out_root = None
@@ -2769,6 +2775,7 @@ class TabAllMixin:
                         "Folder źródłowy nie zawiera plików TXT ani plików DBF mietka\n"
                         "(O*.DBF itd.), albo odznaczono 'Generuj pliki TXT z DBF mietka'.")
                     self.update_status("Błąd — brak plików TXT", "#D83B01", animate=False)
+                    self._pipeline_failed = True
                     return
 
                 # === DATY Z KREATORA: "Stan na" we wszystkich plikach
@@ -3128,6 +3135,7 @@ class TabAllMixin:
                         "\n[BŁĄD] Brak plików TXT do przetworzenia "
                         f"dla filtru: {filter_label}.")
                     self.update_status("Błąd — brak plików TXT", "#D83B01", animate=False)
+                    self._pipeline_failed = True
                     return
                 self.set_progress(0.5)
                 self.check_stop()
@@ -3218,6 +3226,7 @@ class TabAllMixin:
             self.update_status("Przerwano", "#D83B01", animate=False)
             self.log("\nZADANIE PRZERWANE PRZEZ UŻYTKOWNIKA.")
         except Exception as e:
+            self._pipeline_failed = True
             reporter = getattr(self, "report_exception", None)
             if callable(reporter):
                 reporter(e, etap=getattr(getattr(self, "_diag_context", None), "etap", "")
