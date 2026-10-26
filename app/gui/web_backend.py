@@ -1132,7 +1132,8 @@ class WebBackend(
             opis_do_logu, zbuduj_raport, zapisz_raport_jsonl)
         ctx = self._diag_context
         etap = etap or getattr(ctx, "etap", "") or "Nieustalony etap"
-        plik = plik if plik is not None else getattr(ctx, "file", "")
+        plik = (plik if plik is not None
+                else (getattr(exc, "filename", None) or getattr(ctx, "file", "")))
         raport = zbuduj_raport(
             exc, etap=etap, plik=plik,
             zadanie=zadanie or getattr(self, "_przebieg_etykieta", ""),
