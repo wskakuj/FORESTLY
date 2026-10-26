@@ -1229,6 +1229,9 @@ class WebBackend(
                 strtyt.append(l.strip())
                 continue
             if rx_uwaga.search(l):
+                # Raporty strukturalne mają osobną sekcję — nie powielaj ich w uwagach.
+                if l.lstrip().startswith(("[BŁĄD ", "[BŁĄD PLIKU ")):
+                    continue
                 # v2.0.132: komunikaty "skopiowano / już wygenerowane
                 # w 'Z nazwiskami'" to OCZEKIWANE zachowanie drugiego
                 # przebiegu (bez nazwisk) — to nie ostrzeżenie,
@@ -2086,6 +2089,7 @@ class WebBackend(
             return
         self.last_output_dir = Path(dst)
         self._disable_ui_for_process()
+        self.raport_start()
         self.log(f"[NOWE SZABLONY] {typ} — Mietki: {src} → PDF: {dst}"
                  + (" (bez nazwisk)" if bez_nazwisk else ""))
         threading.Thread(target=self._nowe_szablony_thread,
@@ -2172,6 +2176,8 @@ class WebBackend(
                      + (f", pominięte (brak danych): {', '.join(pominiete)}"
                         if pominiete else "")
                      + f". Folder: {dst}")
+            if blad:
+                self.pokaz_raport_koncowy(dst_p)
         except InterruptedError:
             self.update_status("Zatrzymano", "#D83B01", animate=False)
             self.log("[STOP] Przerwano generowanie nowych szablonów.")
