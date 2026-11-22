@@ -141,10 +141,26 @@ def wczytaj_i_przetworz_wlascicieli(sciezka_do_pliku):
         wynik = pd.DataFrame(columns=['nr_dz', 'J. rej.', 'pow dz', 'pow ls', 'Właściciel'])
         return wynik, df_full
 
-    wynik = df_ls.groupby(['nr_dz', 'J. rej.', 'Pow. działki', 'Właściciel'], as_index=False)['Pow. klasouż.'].sum()
+    # Excel ewidencji NIE MUSI mieć kolumny "Właściciel" (bywa, że jest, ale
+    # pusta — albo nie ma jej wcale). Wcześniej brak kolumny kończył się
+    # KeyError i cała wieś była pomijana. Teraz grupujemy bez niej,
+    # a kolumnę dodajemy pustą — zakładka "Wykaz rozbieżności" weźmie
+    # wtedy właścicieli z W*.DBF.
+    _wymagane = ['nr_dz', 'J. rej.', 'Pow. działki', 'Pow. klasouż.']
+    if any(_k not in df_ls.columns for _k in _wymagane):
+        wynik = pd.DataFrame(columns=['nr_dz', 'J. rej.', 'pow dz', 'pow ls',
+                                      'Właściciel'])
+        return wynik, df_full
+
+    _klucze = ['nr_dz', 'J. rej.', 'Pow. działki']
+    if 'Właściciel' in df_ls.columns:
+        _klucze.append('Właściciel')
+    wynik = df_ls.groupby(_klucze, as_index=False)['Pow. klasouż.'].sum()
     wynik = wynik.rename(columns={'Pow. działki': 'pow dz', 'Pow. klasouż.': 'pow ls'})
     wynik['pow dz'] = wynik['pow dz'].round(4)
     wynik['pow ls'] = wynik['pow ls'].round(4)
+    if 'Właściciel' not in wynik.columns:
+        wynik['Właściciel'] = ""
     wynik = wynik[['nr_dz', 'J. rej.', 'pow dz', 'pow ls', 'Właściciel']]
     return wynik, df_full
 

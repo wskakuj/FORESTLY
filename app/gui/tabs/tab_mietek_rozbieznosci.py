@@ -287,6 +287,34 @@ class TabMietekRozbieznosciMixin:
                 nazwa_wsi = self.read_wsie_nazwa(target_dbf) or nazwa_wsi_fallback
                 self.progress_current_file = nazwa_wsi
 
+                # 1c. WŁAŚCICIELE Z W*.DBF — używani, gdy Excel ewidencji
+                #     nie ma kolumny "Właściciel" (albo jest w niej pusto).
+                #     NRREJ łączy rekordy D*.DBF z W*.DBF (tak jak w REJESTRZE).
+                wlasciciele_dbf = {}
+                try:
+                    _wpliki = []
+                    for _wz in ("W*.DBF", "W*.dbf", "w*.DBF", "w*.dbf"):
+                        _wpliki += list(target_dbf.parent.glob(_wz))
+                    if not _wpliki:
+                        for _wz in ("W*.DBF", "W*.dbf"):
+                            _wpliki += list(target_dbf.parent.rglob(_wz))
+                    if _wpliki:
+                        _fw, _rw = self.read_dbf(str(sorted(_wpliki)[0]))
+                        _tymcz = {}
+                        for _w in _rw:
+                            _nr = safe_int_str(_w.get('NRREJ', ''))
+                            _nazw = " ".join(
+                                str(_w.get(_k, '') or '').strip()
+                                for _k in ('NAZWISKO', 'IMIE', 'RODZICE')).strip()
+                            if _nr and _nazw:
+                                _tymcz.setdefault(_nr, []).append(_nazw)
+                        wlasciciele_dbf = {k: " / ".join(v) for k, v in _tymcz.items()}
+                        self.log(f"  ℹ️ {nazwa_wsi}: wczytano {len(wlasciciele_dbf)} "
+                                 f"właścicieli z {sorted(_wpliki)[0].name} "
+                                 f"(użyję, gdy Excel ich nie ma).")
+                except Exception as _e:
+                    self.log(f"  ⚠️ {nazwa_wsi}: nie udało się odczytać W*.DBF ({_e}).")
+
                 try:
                     # 2. ODCZYT DBF (aktualna powierzchnia lasu)
                     fields, records = self.read_dbf(str(target_dbf))
@@ -377,7 +405,18 @@ class TabMietekRozbieznosciMixin:
 
                         if pd.isna(j_rej):
                             j_rej = j_rej_norm
-                        if pd.isna(wlasc):
+                        # brak właściciela w Excelu -> weź z W*.DBF
+                        _brak = (pd.isna(wlasc)
+                                 or not str(wlasc).strip()
+                                 or str(wlasc).strip() in ("Brak danych", "nan", "None", "-"))
+                        if _brak and wlasciciele_dbf:
+                            _z_dbf = (wlasciciele_dbf.get(j_rej_norm)
+                                      or wlasciciele_dbf.get(str(j_rej).strip())
+                                      or "")
+                            if _z_dbf:
+                                wlasc = _z_dbf
+                                _brak = False
+                        if _brak:
                             wlasc = "Brak danych"
 
                         # 5. CZYSZCZENIE NAZWISKA DO WYKAZU
