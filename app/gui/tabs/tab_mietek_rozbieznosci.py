@@ -95,7 +95,8 @@ class TabMietekRozbieznosciMixin:
 
         ctk.CTkLabel(
             card,
-            text="Powierzchnie w plikach Excel są odczytywane jako m² i przeliczane na ha (÷10000). "
+            text="Powierzchnie z Excela są odczytywane w hektarach — program sam wykrywa, "
+                 "czy plik jest w m², czy już w ha. "
                  "Nazwa obrębu pobierana z WSIE.DBF (pole NAZWA). Tabela sortowana po J. rej. rosnąco.",
             font=ctk.CTkFont(family="Segoe UI", size=12), text_color="#888888",
         ).grid(row=3, column=0, columnspan=3, padx=15, pady=(0, 15), sticky="w")
@@ -315,11 +316,30 @@ class TabMietekRozbieznosciMixin:
                     if not df_full.empty and 'J. rej.' in df_full.columns:
                         df_full['J. rej. norm'] = df_full['J. rej.'].apply(norm_jrej)
 
-                    # 3b. PRZELICZENIE JEDNOSTEK (Excel zawsze w m² -> ha)
-                    tabela_xls['pow ls'] = tabela_xls['pow ls'] / 10000.0
-                    tabela_xls['pow dz'] = tabela_xls['pow dz'] / 10000.0
+                    # 3b. JEDNOSTKI.
+                    # wczytaj_i_przetworz_wlascicieli() zwraca powierzchnie
+                    # JUŻ W HEKTARACH — sama wykrywa, czy plik jest w m²,
+                    # czy w ha. Wcześniej dzieliliśmy je tutaj JESZCZE RAZ
+                    # przez 10000, przez co w kolumnie „ls ewidencja" (D)
+                    # wychodziły wartości rzędu 0,000 / 0,001 / 0,003.
+                    for _kol in ('pow ls', 'pow dz'):
+                        if _kol in tabela_xls.columns:
+                            tabela_xls[_kol] = pd.to_numeric(
+                                tabela_xls[_kol], errors='coerce').fillna(0.0)
                     if not df_full.empty and 'pow dz' in df_full.columns:
-                        df_full['pow dz'] = df_full['pow dz'] / 10000.0
+                        df_full['pow dz'] = pd.to_numeric(
+                            df_full['pow dz'], errors='coerce').fillna(0.0)
+
+                    # Zabezpieczenie: gdyby jednak trafił się plik w m²
+                    # (pojedyncze działki nie mają > 50 ha lasu) — przeliczamy.
+                    try:
+                        if ('pow ls' in tabela_xls.columns
+                                and float(tabela_xls['pow ls'].max() or 0) > 50):
+                            tabela_xls['pow ls'] = tabela_xls['pow ls'] / 10000.0
+                            tabela_xls['pow dz'] = tabela_xls['pow dz'] / 10000.0
+                            self.log("  ℹ️ Wykryto powierzchnie w m² — przeliczono na ha.")
+                    except Exception:
+                        pass
 
                     # 4. ŁĄCZENIE (FULL OUTER JOIN - ubytki i przyrosty)
                     df_merged = pd.merge(df_dbf, tabela_xls, on=['nr_dz', 'J. rej. norm'], how='outer')
